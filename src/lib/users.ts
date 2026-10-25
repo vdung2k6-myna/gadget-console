@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/db/client";
 import { agents, devices, users } from "@/lib/db/schema";
 
@@ -15,17 +16,17 @@ export const ROLES = ["user", "admin"] as const;
 
 /**
  * Accounts that can never be returned to a user — the deployment's own, so the
- * admin area cannot be lost by a click, a mistake, or a script. Their address is
- * hard-coded on purpose: this is the one account the product refuses to lower,
- * and a setting that could be edited is a setting that can be edited wrongly.
+ * admin area cannot be lost by a click, a mistake, or a script.
  *
- * `setRole` and the admin area both refuse it, so the command is not a way round
- * the rule either.
+ * The addresses come from the deployment's environment (`PROTECTED_ADMINS`),
+ * not from this file: the repository is published, and the account it guards is
+ * nobody else's business. The setting is read where it is used, so changing it
+ * needs a restart and nothing else — it is not reachable from any route, page or
+ * form, and `setRole` and the admin area both refuse these accounts, so the
+ * command is not a way round the rule either.
  */
-export const PROTECTED_ADMINS: readonly string[] = ["owner@example.com"];
-
 export function isProtectedAdmin(email: string): boolean {
-  return PROTECTED_ADMINS.includes(email.trim().toLowerCase());
+  return loadConfig().protectedAdmins.includes(email.trim().toLowerCase());
 }
 export type Role = (typeof ROLES)[number];
 

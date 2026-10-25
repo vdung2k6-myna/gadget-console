@@ -118,16 +118,22 @@ describe("an admin granting the role", () => {
   });
 
   it("refuses to return a protected admin to a user, from the area or the command", async () => {
-    await account("owner@example.com");
-    await setRole("owner@example.com", "admin");
+    // The guard is the deployment's setting, so the test names its own account.
+    process.env.PROTECTED_ADMINS = "guardian@example.com";
+    try {
+      await account("guardian@example.com");
+      await setRole("guardian@example.com", "admin");
 
-    const protectedAccount = (await listAccounts()).find((entry) => entry.email === "owner@example.com")!;
-    assert.deepEqual(await changeRoleAsAdmin("root@example.com", protectedAccount.id, "user"), {
-      ok: false,
-      reason: "protected",
-    });
-    assert.deepEqual(await setRole("owner@example.com", "user"), { ok: false, reason: "protected" });
-    assert.equal((await listAccounts()).find((entry) => entry.email === "owner@example.com")?.role, "admin");
+      const protectedAccount = (await listAccounts()).find((entry) => entry.email === "guardian@example.com")!;
+      assert.deepEqual(await changeRoleAsAdmin("root@example.com", protectedAccount.id, "user"), {
+        ok: false,
+        reason: "protected",
+      });
+      assert.deepEqual(await setRole("guardian@example.com", "user"), { ok: false, reason: "protected" });
+      assert.equal((await listAccounts()).find((entry) => entry.email === "guardian@example.com")?.role, "admin");
+    } finally {
+      delete process.env.PROTECTED_ADMINS;
+    }
   });
 
   it("refuses an unknown role and an unknown account", async () => {

@@ -64,12 +64,17 @@ export const enGuide: Guide = {
             "Choose a runtime — where the turn is processed and the voice is played. The languages and engines offered below are that runtime's own.",
             "Choose the language and the engine. The specific voice is the runtime's to resolve from those two; the console does not offer a separate voice.",
             "Choose how it answers: “Generate a reply” for ordinary conversation, “Read from the material” when the agent should answer from loaded documents.",
+            "Fill in “Topics” if the agent should look things up: one topic per line. Left empty it looks nothing up — that is not the same as searching everything.",
             "Open your device, choose the agent you just made, and press “Bind an agent”.",
           ],
         },
         {
           kind: "note",
           text: "One agent can serve several devices. A device with no agent says nothing at all — it does not fall back to any default agent.",
+        },
+        {
+          kind: "note",
+          text: "Topics are names from the knowledge corpus, not instructions for the model. Each label is folded into a corpus name — lowercased, Vietnamese diacritics dropped, spaces turned into hyphens — so “Truyện kiếm hiệp” becomes truyen-kiem-hiep. A label that matches no corpus name is dropped and the turn looks nothing up, so write the topic names the corpus actually has.",
         },
       ],
     },

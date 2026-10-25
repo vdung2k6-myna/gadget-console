@@ -70,12 +70,17 @@ export const viGuide: Guide = {
             "Chọn runtime — nơi xử lý lượt nói và phát giọng. Danh sách ngôn ngữ và giọng bên dưới là của runtime đó.",
             "Chọn ngôn ngữ và giọng đọc. Giọng cụ thể do runtime quyết từ hai lựa chọn này; console không cho chọn giọng riêng.",
             "Chọn cách trả lời: “Sinh câu trả lời” cho hội thoại thường, “Đọc từ tài liệu” khi agent cần trả lời dựa trên tài liệu đã nạp.",
+            "Điền “Topics” nếu agent cần tra cứu tri thức: mỗi dòng một chủ đề. Để trống nghĩa là không tra cứu gì, chứ không phải tra cứu tất cả.",
             "Mở thiết bị của bạn, chọn agent vừa tạo, bấm Gán agent.",
           ],
         },
         {
           kind: "note",
           text: "Một agent có thể phục vụ nhiều thiết bị. Thiết bị chưa có agent sẽ không nói gì cả — nó không dùng một agent mặc định nào.",
+        },
+        {
+          kind: "note",
+          text: "Topics là tên chủ đề trong kho tri thức, không phải lời dặn cho model. Mỗi nhãn được đổi thành tên kho — bỏ dấu, viết thường, khoảng trắng thành dấu gạch — nên “Truyện kiếm hiệp” thành truyen-kiem-hiep. Nhãn không khớp kho nào thì bị bỏ qua và lượt nói không tra cứu được gì, nên hãy viết đúng tên chủ đề mà kho đang có.",
         },
       ],
     },

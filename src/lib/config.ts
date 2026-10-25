@@ -27,6 +27,12 @@ export interface ConsoleConfig {
   claimApprovalTtlMs: number;
   retentionDays: number;
   /**
+   * Accounts that can never be demoted, however they are reached. Named by the
+   * deployment rather than by this file, because the repository is published and
+   * the account it guards is nobody else's business. Empty means none.
+   */
+  protectedAdmins: string[];
+  /**
    * How old a device row nobody owns must be before the prune may remove it.
    * Generous on purpose: removing the row costs the gadget nothing but a new
    * code at its next boot, while removing it too early is the only way this
@@ -77,6 +83,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConsoleConfig 
       CONFIG_DEFAULTS.claimApprovalTtlMs
     ),
     retentionDays: readInt(env, "RETENTION_DAYS", CONFIG_DEFAULTS.retentionDays),
+    protectedAdmins: readAddresses(env, "PROTECTED_ADMINS"),
     unclaimedDeviceTtlMs: readInt(
       env,
       "UNCLAIMED_DEVICE_TTL_MS",
@@ -111,6 +118,20 @@ function readLlmKeySecret(env: NodeJS.ProcessEnv): string {
     );
   }
   return raw;
+}
+
+/**
+ * A comma-separated list of addresses, lowercased and trimmed. An empty or absent
+ * value is an empty list, not an error: a deployment that protects nobody is a
+ * legitimate one.
+ */
+function readAddresses(env: NodeJS.ProcessEnv, name: string): string[] {
+  const raw = env[name]?.trim();
+  if (raw === undefined || raw === "") return [];
+  return raw
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== "");
 }
 
 function readInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number {

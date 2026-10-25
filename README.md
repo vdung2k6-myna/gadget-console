@@ -105,9 +105,11 @@ Every account is a `user` or an `admin`. A new account is a user.
   routes gets the not-found answer.
 - **The last admin cannot be removed**, so the area cannot be locked out by a
   click.
-- **`owner@example.com` is a protected admin** (`PROTECTED_ADMINS` in
-  `src/lib/users.ts`): neither the command nor the admin area can return it to a
-  user. To change that, edit the constant.
+- **A protected admin is configured, not coded.** Addresses listed in
+  `PROTECTED_ADMINS` — a deployment setting, comma separated — can never be
+  returned to a user, by the command or by the admin area. Empty by default, so
+  the repository carries no account; `scripts/role.ts` and the admin UI both
+  refuse these accounts.
 - Every change an admin makes to another account's gadget, and every role change,
   writes one `[admin] …` line naming the admin, the target and what was done.
 

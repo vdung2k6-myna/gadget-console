@@ -71,6 +71,20 @@ describe("the console's configuration", () => {
     );
   });
 
+  it("reads the protected admin addresses from the deployment, empty by default", () => {
+    const none = loadConfig(env({ DATABASE_URL: DB, BRIDGE_TOKEN: TOKEN }));
+    assert.deepEqual(none.protectedAdmins, [], "the repository names no account");
+
+    const some = loadConfig(
+      env({
+        DATABASE_URL: DB,
+        BRIDGE_TOKEN: TOKEN,
+        PROTECTED_ADMINS: " Owner@Example.com , second@example.com ,, ",
+      })
+    );
+    assert.deepEqual(some.protectedAdmins, ["owner@example.com", "second@example.com"]);
+  });
+
   it("lets the prune interval be zero, which means no timer", () => {
     const off = loadConfig(env({ DATABASE_URL: DB, BRIDGE_TOKEN: TOKEN, PRUNE_INTERVAL_MS: "0" }));
     assert.equal(off.pruneIntervalMs, 0);
