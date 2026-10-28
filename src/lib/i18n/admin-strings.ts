@@ -97,6 +97,34 @@ export interface AdminStrings {
   valid: string;
   invalid: string;
   none: string;
+  patch: string;
+  patchImage: string;
+  patchFind: string;
+  patchApply: string;
+  /** `{count}` is replaced with how many occurrences were rewritten. */
+  patchMade: string;
+  patchNote: string;
+  patchEmpty: string;
+  patchLonger: string;
+  patchNotFound: string;
+  patchFailed: string;
+  stringsFind: string;
+  stringsEdit: string;
+  stringsResult: string;
+  stringsTooLong: string;
+  stringsEmpty: string;
+  edit: string;
+  addressEdit: string;
+  addressAmbiguous: string;
+  download: string;
+  extract: string;
+  saveAsRelease: string;
+  saveFailed: string;
+  saved: string;
+  signature: string;
+  unsigned: string;
+  blocks: string;
+  patchResign: string;
 }
 
 const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
@@ -190,6 +218,35 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     valid: "hợp lệ",
     invalid: "không hợp lệ",
     none: "không có",
+    patch: "Sửa tệp",
+    patchImage: "Ảnh",
+    patchFind: "Tìm",
+    patchApply: "Áp dụng",
+    patchMade: "Đã thay {count} chỗ.",
+    patchNote:
+      "Hãy khớp cả chuỗi cần thay: chuỗi thay thế ngắn hơn sẽ kết thúc chuỗi tại đó. Ảnh sau khi sửa không được ký; thiết bị có secure boot sẽ từ chối nó.",
+    patchEmpty: "Chuỗi cần tìm đang trống.",
+    patchLonger: "Chuỗi thay thế dài hơn chuỗi gốc nên không thể sửa tại chỗ.",
+    patchNotFound: "Không tìm thấy chuỗi này trong ảnh.",
+    patchFailed: "Không sửa được tệp.",
+    stringsFind: "Tìm chuỗi",
+    stringsEdit: "Sửa cả chuỗi",
+    stringsResult: "Kết quả khi đọc",
+    stringsTooLong: "Chuỗi mới dài hơn chuỗi gốc nên không thể sửa tại chỗ.",
+    stringsEmpty: "Không có chuỗi nào chứa nội dung này.",
+    edit: "Sửa",
+    addressEdit: "Sửa địa chỉ này",
+    addressAmbiguous: "Địa chỉ này nằm trong nhiều ảnh; hãy sửa trong từng ảnh.",
+    download: "Tải về",
+    extract: "Tải ảnh này",
+    saveAsRelease: "Lưu thành bản phát hành",
+    saveFailed: "Không lưu được bản phát hành.",
+    saved: "Đã lưu. Mở danh sách firmware.",
+    signature: "Chữ ký",
+    unsigned: "không có chữ ký",
+    blocks: "khối",
+    patchResign:
+      "Ảnh này đã có chữ ký; bản sửa không còn khớp chữ ký cũ. Hãy ký lại trước khi tải lên thiết bị.",
   },
   en: {
     nav: "Admin",
@@ -281,6 +338,35 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     valid: "valid",
     invalid: "invalid",
     none: "none",
+    patch: "Patch the file",
+    patchImage: "Image",
+    patchFind: "Find",
+    patchApply: "Apply",
+    patchMade: "{count} occurrence(s) replaced.",
+    patchNote:
+      "Match the whole string you are replacing: a shorter replacement ends it there. A patched image is not signed, and a device with secure boot enabled will refuse it.",
+    patchEmpty: "The string to find is empty.",
+    patchLonger: "The replacement is longer than the original, so it cannot be changed in place.",
+    patchNotFound: "That string is not in the image.",
+    patchFailed: "The file could not be patched.",
+    stringsFind: "Find strings",
+    stringsEdit: "Edit the whole string",
+    stringsResult: "As it will be read",
+    stringsTooLong: "The new string is longer than the original, so it cannot be changed in place.",
+    stringsEmpty: "No string contains that text.",
+    edit: "Edit",
+    addressEdit: "Edit this address",
+    addressAmbiguous: "This address is inside more than one image; edit it image by image.",
+    download: "Download",
+    extract: "Download this image",
+    saveAsRelease: "Save as a release",
+    saveFailed: "The release could not be saved.",
+    saved: "Saved. Open the firmware list.",
+    signature: "Signature",
+    unsigned: "unsigned",
+    blocks: "block(s)",
+    patchResign:
+      "This image was signed; the patched bytes no longer match its signature. Re-sign it before uploading to the device.",
   },
 };
 
