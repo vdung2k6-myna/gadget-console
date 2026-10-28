@@ -1,4 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
+  bigint,
+  boolean,
   doublePrecision,
   index,
   jsonb,
@@ -8,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { DeviceHardware } from "@/lib/device-hardware";
 
 /**
  * The console's data model.
@@ -123,6 +127,14 @@ export const devices = pgTable(
     /** The catalogue the gadget reported at its last session: names and the firmware's descriptions. */
     tools: jsonb("tools").$type<{ name: string; description: string }[]>(),
     toolsReportedAt: timestamp("tools_reported_at", { withTimezone: true }),
+    /**
+     * What the firmware said about its own board at the last OTA, narrowed by
+     * `src/lib/device-hardware.ts`. Nullable twice over: a device that has never
+     * reported has no value here, and a report that carried no field is refused
+     * rather than stored empty.
+     */
+    hardware: jsonb("hardware").$type<DeviceHardware>(),
+    hardwareReportedAt: timestamp("hardware_reported_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -164,6 +176,38 @@ export const conversations = pgTable(
     endedAt: timestamp("ended_at", { withTimezone: true }),
   },
   (table) => [index("conversations_device_idx").on(table.deviceId)]
+);
+
+/**
+ * A firmware image the console can hand to a gadget.
+ *
+ * The row is the promise, the file under `FIRMWARE_DIR` is the payload, and the
+ * two are linked by the row's id. `targeted` marks the one release a board type
+ * should run; the partial unique index makes "one target per board type" a fact of
+ * the database rather than a convention a route can forget. `forced` records that
+ * an admin deliberately allowed a downgrade — the console itself never orders
+ * versions, it leaves that to the firmware.
+ */
+export const firmwareReleases = pgTable(
+  "firmware_releases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /** The firmware's own board identity, for example `esp-box-3`. */
+    boardType: text("board_type").notNull(),
+    /** The version the image itself reports. */
+    version: text("version").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    sha256: text("sha256").notNull(),
+    targeted: boolean("targeted").notNull().default(false),
+    forced: boolean("forced").notNull().default(false),
+    uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("firmware_board_version_unique").on(table.boardType, table.version),
+    uniqueIndex("firmware_board_target_unique").on(table.boardType).where(sql`${table.targeted}`),
+    index("firmware_board_idx").on(table.boardType),
+  ]
 );
 
 export const turns = pgTable(

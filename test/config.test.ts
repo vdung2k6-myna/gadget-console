@@ -85,6 +85,54 @@ describe("the console's configuration", () => {
     assert.deepEqual(some.protectedAdmins, ["owner@example.com", "second@example.com"]);
   });
 
+  it("leaves firmware delivery off when the deployment names nothing", () => {
+    const config = loadConfig(env({ DATABASE_URL: DB, BRIDGE_TOKEN: TOKEN }));
+    assert.equal(config.firmwareDir, null);
+    assert.equal(config.consolePublicUrl, null);
+    assert.equal(config.firmwareMaxBytes, CONFIG_DEFAULTS.firmwareMaxBytes);
+  });
+
+  it("reads a firmware directory and a public base, without a trailing slash", () => {
+    const config = loadConfig(
+      env({
+        DATABASE_URL: DB,
+        BRIDGE_TOKEN: TOKEN,
+        FIRMWARE_DIR: " D:/firmware ",
+        CONSOLE_PUBLIC_URL: "https://console.example.com/",
+      })
+    );
+    assert.equal(config.firmwareDir, "D:/firmware");
+    assert.equal(config.consolePublicUrl, "https://console.example.com");
+  });
+
+  it("refuses a public base that is not an absolute http(s) URL", () => {
+    const base = { DATABASE_URL: DB, BRIDGE_TOKEN: TOKEN };
+    assert.throws(
+      () => loadConfig(env({ ...base, CONSOLE_PUBLIC_URL: "console.example.com" })),
+      /absolute URL/
+    );
+    assert.throws(
+      () => loadConfig(env({ ...base, CONSOLE_PUBLIC_URL: "ftp://console.example.com" })),
+      /http or https/
+    );
+    assert.throws(
+      () => loadConfig(env({ ...base, CONSOLE_PUBLIC_URL: "https://console.example.com/?x=1" })),
+      /query or fragment/
+    );
+  });
+
+  it("reads a stated firmware size bound and refuses a nonsense one", () => {
+    const base = { DATABASE_URL: DB, BRIDGE_TOKEN: TOKEN };
+    assert.equal(
+      loadConfig(env({ ...base, FIRMWARE_MAX_BYTES: "1024" })).firmwareMaxBytes,
+      1024
+    );
+    assert.throws(
+      () => loadConfig(env({ ...base, FIRMWARE_MAX_BYTES: "0" })),
+      /positive integer/
+    );
+  });
+
   it("lets the prune interval be zero, which means no timer", () => {
     const off = loadConfig(env({ DATABASE_URL: DB, BRIDGE_TOKEN: TOKEN, PRUNE_INTERVAL_MS: "0" }));
     assert.equal(off.pruneIntervalMs, 0);

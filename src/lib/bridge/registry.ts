@@ -1,9 +1,11 @@
 import { desc, eq } from "drizzle-orm";
 import { findRuntime } from "@/lib/runtimes";
+import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/db/client";
 import { agents, devices, turns } from "@/lib/db/schema";
 import { allowClaimIssue, awaitingApproval, issueClaim, isPendingClaim, normalizeDeviceId } from "@/lib/claims";
 import { profileForAgent } from "@/lib/crypto/profiles";
+import { targetFor } from "@/lib/firmware";
 
 /**
  * What the bridge asks the console, and what the console answers.
@@ -61,6 +63,7 @@ export async function resolveDevice(rawDeviceId: string): Promise<Resolution> {
     .limit(HISTORY_TURNS);
 
   const partner = device.partnerDeviceId === null ? null : await partnerDeviceId(device.partnerDeviceId);
+  const firmware = await firmwareTarget(device);
 
   return {
     kind: "owned",
@@ -70,6 +73,7 @@ export async function resolveDevice(rawDeviceId: string): Promise<Resolution> {
       deviceRowId: device.id,
       secret: device.secret,
       partner,
+      ...(firmware === null ? {} : { firmware }),
       agent:
         agent === undefined
           ? null
@@ -232,4 +236,40 @@ function dateValue(value: unknown): Date | undefined {
   if (typeof value !== "string") return undefined;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+interface FirmwareTarget {
+  version: string;
+  url: string;
+  force: boolean;
+}
+
+/**
+ * What this device should be running, when that differs from what it reported.
+ *
+ * Four conditions, and each is a refusal rather than an inference: the device has
+ * an owner, it has reported a board type it can be matched by, a release is the
+ * target for that type, and the version it reported is not already the target's.
+ * Equality is the whole judgement — the firmware decides order — and it is what
+ * keeps a forced target from reflashing the same image on every boot.
+ *
+ * Returns null when the deployment has no public base to build a download URL
+ * from, because a URL the gadget cannot reach is worse than no update at all.
+ */
+async function firmwareTarget(device: typeof devices.$inferSelect): Promise<FirmwareTarget | null> {
+  const config = loadConfig();
+  if (config.consolePublicUrl === null) return null;
+
+  const boardType = device.hardware?.board?.type;
+  const reported = device.hardware?.application?.version;
+  if (boardType === undefined || reported === undefined) return null;
+
+  const release = await targetFor(boardType);
+  if (release === undefined || release.version === reported) return null;
+
+  return {
+    version: release.version,
+    url: `${config.consolePublicUrl}/firmware/${release.id}`,
+    force: release.forced,
+  };
 }

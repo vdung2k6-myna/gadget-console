@@ -71,3 +71,17 @@ export function recordAdminAction(
 ): void {
   console.log(`[admin] ${adminEmail} ${action} device ${device.deviceId} (owner ${ownerEmail || "none"})`);
 }
+
+/**
+ * The same line for a firmware release, which belongs to a board type rather than
+ * to a person. An upload, a target, an un-target and a delete are each one line,
+ * because "who put this image on the devices" is a question answered from the log.
+ */
+export function recordFirmwareAction(
+  adminEmail: string,
+  action: string,
+  boardType: string,
+  version: string
+): void {
+  console.log(`[admin] ${adminEmail} ${action} firmware ${boardType} ${version}`);
+}

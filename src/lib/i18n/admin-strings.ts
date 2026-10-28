@@ -42,6 +42,61 @@ export interface AdminStrings {
   claimTaken: string;
   claimFailed: string;
   claimsEmpty: string;
+  firmware: string;
+  firmwareEmpty: string;
+  firmwareUpload: string;
+  boardType: string;
+  version: string;
+  size: string;
+  hash: string;
+  uploader: string;
+  uploadedAt: string;
+  targetBadge: string;
+  target: string;
+  untarget: string;
+  delete: string;
+  forced: string;
+  forcedConfirm: string;
+  deleteConfirm: string;
+  deleteTargeted: string;
+  uploadFailed: string;
+  storageUnconfigured: string;
+  storageInsidePublic: string;
+  publicUrlUnconfigured: string;
+  inspect: string;
+  inspectHeading: string;
+  inspectHelp: string;
+  inspectFile: string;
+  inspectRun: string;
+  inspectFailed: string;
+  inspectTooLarge: string;
+  inspectEmpty: string;
+  kind: string;
+  firstBytes: string;
+  images: string;
+  partitions: string;
+  urls: string;
+  notes: string;
+  chip: string;
+  entryPoint: string;
+  flash: string;
+  segments: string;
+  offset: string;
+  loadAddress: string;
+  project: string;
+  appVersion: string;
+  compiled: string;
+  idfVersion: string;
+  elfSha: string;
+  secureVersion: string;
+  checksum: string;
+  imageHash: string;
+  label: string;
+  type: string;
+  subtype: string;
+  valid: string;
+  invalid: string;
+  none: string;
 }
 
 const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
@@ -78,6 +133,63 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     claimTaken: "Thiết bị đã được người khác claim trong lúc chờ.",
     claimFailed: "Không xử lý được yêu cầu.",
     claimsEmpty: "Không có yêu cầu nào đang chờ.",
+    firmware: "Firmware",
+    firmwareEmpty: "Chưa có bản firmware nào.",
+    firmwareUpload: "Tải lên một bản",
+    boardType: "Loại bo",
+    version: "Phiên bản",
+    size: "Dung lượng",
+    hash: "SHA-256",
+    uploader: "Người tải lên",
+    uploadedAt: "Tải lên lúc",
+    targetBadge: "đang chọn",
+    target: "Chọn làm bản chạy",
+    untarget: "Bỏ chọn",
+    delete: "Xoá",
+    forced: "Ép buộc (cho phép hạ cấp)",
+    forcedConfirm: "Chọn bản này làm bản ép buộc? Gadget sẽ cài nó kể cả khi nó cũ hơn.",
+    deleteConfirm: "Xoá bản firmware này? Không thể hoàn tác.",
+    deleteTargeted: "Không xoá được bản đang được chọn. Hãy bỏ chọn hoặc chọn bản khác trước.",
+    uploadFailed: "Không tải lên được bản firmware.",
+    storageUnconfigured: "Chưa đặt FIRMWARE_DIR nên không lưu được ảnh.",
+    storageInsidePublic:
+      "FIRMWARE_DIR đang nằm trong thư mục public của ứng dụng. Hãy đặt nó ra ngoài thư mục được phục vụ tĩnh.",
+    publicUrlUnconfigured: "Chưa đặt CONSOLE_PUBLIC_URL nên sẽ không có bản nào được gửi tới thiết bị.",
+    inspect: "Xem một tệp .bin",
+    inspectHeading: "Xem tệp nhị phân",
+    inspectHelp:
+      "Tải lên một tệp .bin để xem loại, cấu trúc và nội dung đọc được. Tệp không được lưu lại.",
+    inspectFile: "Tệp",
+    inspectRun: "Đọc tệp",
+    inspectFailed: "Không đọc được tệp.",
+    inspectTooLarge: "Tệp lớn hơn giới hạn cho phép.",
+    inspectEmpty: "Tệp rỗng.",
+    kind: "Loại",
+    firstBytes: "Byte đầu",
+    images: "Ảnh nhúng",
+    partitions: "Bảng phân vùng",
+    urls: "Địa chỉ tìm thấy",
+    notes: "Ghi chú",
+    chip: "Chip",
+    entryPoint: "Điểm vào",
+    flash: "Flash",
+    segments: "Phân đoạn",
+    offset: "Vị trí",
+    loadAddress: "Địa chỉ nạp",
+    project: "Dự án",
+    appVersion: "Phiên bản ứng dụng",
+    compiled: "Biên dịch",
+    idfVersion: "ESP-IDF",
+    elfSha: "ELF SHA-256",
+    secureVersion: "Secure version",
+    checksum: "Checksum",
+    imageHash: "SHA-256 của ảnh",
+    label: "Nhãn",
+    type: "Kiểu",
+    subtype: "Kiểu con",
+    valid: "hợp lệ",
+    invalid: "không hợp lệ",
+    none: "không có",
   },
   en: {
     nav: "Admin",
@@ -112,6 +224,63 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     claimTaken: "The device was claimed by somebody else while it waited.",
     claimFailed: "The request could not be handled.",
     claimsEmpty: "Nothing is waiting.",
+    firmware: "Firmware",
+    firmwareEmpty: "No firmware releases yet.",
+    firmwareUpload: "Upload a release",
+    boardType: "Board type",
+    version: "Version",
+    size: "Size",
+    hash: "SHA-256",
+    uploader: "Uploaded by",
+    uploadedAt: "Uploaded",
+    targetBadge: "target",
+    target: "Make target",
+    untarget: "Clear target",
+    delete: "Delete",
+    forced: "Force (allow a downgrade)",
+    forcedConfirm: "Mark this release as a forced target? The gadget will install it even if it is older.",
+    deleteConfirm: "Delete this firmware release? It cannot be undone.",
+    deleteTargeted: "A targeted release cannot be deleted. Clear or choose another target first.",
+    uploadFailed: "The release could not be uploaded.",
+    storageUnconfigured: "FIRMWARE_DIR is not set, so an image cannot be stored.",
+    storageInsidePublic:
+      "FIRMWARE_DIR is inside the application's public directory. Move it outside anything the web server serves.",
+    publicUrlUnconfigured: "CONSOLE_PUBLIC_URL is not set, so no release will be delivered to a gadget.",
+    inspect: "Inspect a .bin",
+    inspectHeading: "Inspect a binary",
+    inspectHelp:
+      "Upload a .bin to see what it is, how it is laid out, and what it contains. The file is not stored.",
+    inspectFile: "File",
+    inspectRun: "Read the file",
+    inspectFailed: "The file could not be read.",
+    inspectTooLarge: "The file is larger than the allowed limit.",
+    inspectEmpty: "The file is empty.",
+    kind: "Kind",
+    firstBytes: "First bytes",
+    images: "Embedded images",
+    partitions: "Partition table",
+    urls: "Addresses found",
+    notes: "Notes",
+    chip: "Chip",
+    entryPoint: "Entry point",
+    flash: "Flash",
+    segments: "Segments",
+    offset: "Offset",
+    loadAddress: "Load address",
+    project: "Project",
+    appVersion: "App version",
+    compiled: "Compiled",
+    idfVersion: "ESP-IDF",
+    elfSha: "ELF SHA-256",
+    secureVersion: "Secure version",
+    checksum: "Checksum",
+    imageHash: "Image SHA-256",
+    label: "Label",
+    type: "Type",
+    subtype: "Subtype",
+    valid: "valid",
+    invalid: "invalid",
+    none: "none",
   },
 };
 

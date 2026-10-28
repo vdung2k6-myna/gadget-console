@@ -43,6 +43,20 @@ export interface ConsoleConfig {
   pruneIntervalMs: number;
   /** Rows one prune removes per kind, so a backlog is worked off in steps rather than one lock. */
   pruneBatch: number;
+  /**
+   * Where firmware images live. Null means the deployment has not configured a
+   * place to keep one; an upload is then refused rather than written somewhere
+   * nobody backs up.
+   */
+  firmwareDir: string | null;
+  /**
+   * The address a *gadget* reaches this console at, used to build a firmware
+   * download URL. Null means releases may be stored but none is delivered, so a
+   * deployment that has not set it keeps behaving as it did.
+   */
+  consolePublicUrl: string | null;
+  /** The largest image the console will store. A board image is a few megabytes. */
+  firmwareMaxBytes: number;
 }
 
 export const CONFIG_DEFAULTS = {
@@ -53,6 +67,7 @@ export const CONFIG_DEFAULTS = {
   unclaimedDeviceTtlMs: 7 * 24 * 60 * 60 * 1000,
   pruneIntervalMs: 6 * 60 * 60 * 1000,
   pruneBatch: 1000,
+  firmwareMaxBytes: 8 * 1024 * 1024,
 } as const;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConsoleConfig {
@@ -95,7 +110,43 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConsoleConfig 
       CONFIG_DEFAULTS.pruneIntervalMs
     ),
     pruneBatch: readInt(env, "PRUNE_BATCH", CONFIG_DEFAULTS.pruneBatch),
+    firmwareDir: readOptionalPath(env, "FIRMWARE_DIR"),
+    consolePublicUrl: readPublicUrl(env),
+    firmwareMaxBytes: readInt(env, "FIRMWARE_MAX_BYTES", CONFIG_DEFAULTS.firmwareMaxBytes),
   };
+}
+
+/** A directory the deployment names, or null for one it did not. */
+function readOptionalPath(env: NodeJS.ProcessEnv, name: string): string | null {
+  const raw = env[name]?.trim();
+  return raw === undefined || raw === "" ? null : raw;
+}
+
+/**
+ * The base a gadget uses to download an image. Absolute http or https, without a
+ * query or fragment, and stored without a trailing slash so a path can be joined
+ * with one. Unset is not an error — it is a deployment that stores no releases
+ * for delivery.
+ */
+function readPublicUrl(env: NodeJS.ProcessEnv): string | null {
+  const raw = env.CONSOLE_PUBLIC_URL?.trim();
+  if (raw === undefined || raw === "") return null;
+
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`CONSOLE_PUBLIC_URL must be an absolute URL, got ${JSON.stringify(raw)}`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`CONSOLE_PUBLIC_URL must be http or https, got ${JSON.stringify(raw)}`);
+  }
+  if (url.search !== "" || url.hash !== "") {
+    throw new Error(
+      `CONSOLE_PUBLIC_URL must be a base URL without a query or fragment, got ${JSON.stringify(raw)}`
+    );
+  }
+  return raw.replace(/\/+$/, "");
 }
 
 /**

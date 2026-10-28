@@ -36,6 +36,9 @@ export default async function AdminDevicesPage() {
           <Link href="/admin/claims" className="hover:underline">
             {adminStrings.claims}
           </Link>
+          <Link href="/admin/firmware" className="hover:underline">
+            {adminStrings.firmware}
+          </Link>
         </nav>
       </div>
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">

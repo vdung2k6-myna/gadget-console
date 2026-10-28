@@ -4,7 +4,7 @@ import type { Guide } from "./types";
 export const enGuide: Guide = {
   title: "How to use the console",
   intro:
-    "From opening the box to talking to your gadget: each section is a step, or a failure you might meet and what to do about it.",
+    "From opening the box to talking to your gadget: each section is a step, a failure you might meet, or something worth knowing before you start — such as who can see what.",
   sections: [
     {
       id: "before",
@@ -21,6 +21,32 @@ export const enGuide: Guide = {
         {
           kind: "note",
           text: "The gadget never talks to the console directly. It asks the bridge where to connect, and the bridge asks the console who the gadget belongs to.",
+        },
+      ],
+    },
+    {
+      id: "roles",
+      title: "Accounts, and who can see what",
+      blocks: [
+        {
+          kind: "p",
+          text: "Every account is either a user or an admin. A new account is a user. The role is granted by an existing admin on the Accounts page, or by whoever runs this deployment; the console offers no way to make yourself an admin.",
+        },
+        {
+          kind: "p",
+          text: "A user sees only their own things: their devices, their agents (prompt, topics and model), their own model connection, and their conversation record.",
+        },
+        {
+          kind: "p",
+          text: "An admin sees every account's devices — who owns each one, which agent answers it, and its conversation — and can rename, bind, pair or release any of them. An admin also sees every account with a count of its devices and agents, and decides the claim requests that are waiting.",
+        },
+        {
+          kind: "note",
+          text: "An admin does not see your model connection or its key. They can see which agent answers a device and bind one of yours to it, but they cannot open or change an agent's prompt, topics or model.",
+        },
+        {
+          kind: "note",
+          text: "The last admin cannot be demoted, so the admin area cannot be locked out by a click. Some deployments also protect particular accounts from losing the role.",
         },
       ],
     },
@@ -185,6 +211,33 @@ export const enGuide: Guide = {
         {
           kind: "note",
           text: "The record is kept for the deployment's retention period, and deleted when you release the gadget.",
+        },
+      ],
+    },
+    {
+      id: "firmware",
+      title: "Firmware updates",
+      blocks: [
+        {
+          kind: "p",
+          text: "Firmware is installed by the admin who runs this console, not by the gadget's owner. When a different version is chosen for the gadget's board type, the gadget installs it at its next boot.",
+        },
+        {
+          kind: "steps",
+          items: [
+            "The admin uploads the image and marks it as the target for the board type.",
+            "Power the gadget off and on, or let it restart on its own, so it asks the server what to run.",
+            "The gadget downloads the image, writes it to the inactive slot, and restarts again.",
+            "The version it now reports appears on its page.",
+          ],
+        },
+        {
+          kind: "note",
+          text: "An update takes a few minutes and the gadget may be silent while it restarts. Do not cut its power during that time.",
+        },
+        {
+          kind: "note",
+          text: "The device page shows the version the gadget reported and, when they differ, the version targeted for it. The console does not say which is newer: that judgement belongs to the firmware.",
         },
       ],
     },

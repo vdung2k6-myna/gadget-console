@@ -53,6 +53,9 @@ owns 3000 on a development machine. It is set by the npm scripts, because
 | `PRUNE_BATCH` | no | Rows one cleanup removes per kind (1 000), so a backlog drains over several passes. |
 | `TEST_DATABASE_URL` | for tests | A separate database; the tests truncate it. |
 | `RUNTIME_TOKEN` | for seeding | The credential `seed:runtime` stores, with `RUNTIME_NAME` (default `interview`), `RUNTIME_URL`, `RUNTIME_ENGINES`, `RUNTIME_LANGUAGES`. |
+| `FIRMWARE_DIR` | for releases | Where firmware images are kept. Unset means an upload is refused rather than written somewhere nobody backs up. |
+| `CONSOLE_PUBLIC_URL` | for releases | The address a gadget reaches this console at, used to build a download URL. Unset means releases can be stored but none is delivered. |
+| `FIRMWARE_MAX_BYTES` | no | The largest image the console will store (8 MiB). |
 
 ## The data
 
@@ -62,7 +65,8 @@ owns 3000 on a development machine. It is set by the npm scripts, because
 | `runtimes` | A base URL, a credential, and the engines and languages it names. |
 | `agents` | Prompt, topics, answer mode, language, engine, runtime, and the LLM profile that answers it. |
 | `llm_profiles` | An account's OpenAI-compatible endpoint: base URL, model, encrypted key, temperature. |
-| `devices` | A gadget: its identifier, its own secret, its owner, its agent, its partner, and the tool catalogue its firmware reported. |
+| `devices` | A gadget: its identifier, its own secret, its owner, its agent, its partner, the tool catalogue its firmware reported, and what it reported about its own board. |
+| `firmware_releases` | A firmware image per board type and version, which one is its board type's target, and whether that target is forced. |
 | `claims` | A short code, its expiry, the account that entered it, and when an admin approved or refused it. |
 | `conversations`, `turns` | What was said, as text; no audio is stored. |
 
@@ -122,12 +126,13 @@ own credentials, not a gadget.
 | --- | --- |
 | `/` | Sign in, or create an account. Signed-in visitors are sent to their devices. |
 | `/devices` | The account's gadgets, the six-digit claim input, and a warning for a gadget with no agent. |
-| `/devices/[id]` | One gadget: identifier, agent, partner, last seen, what it can do; rename, bind, pair, release; and its conversation record. |
+| `/devices/[id]` | One gadget: identifier, agent, partner, last seen, the board its firmware reported and the release targeted for it, what it can do; rename, bind, pair, release; and its conversation record. |
 | `/agents` | The account's agents, and which devices each answers. |
 | `/agents/new`, `/agents/[id]` | The agent form: prompt, runtime, language, engine, answer mode, topics, answering model. |
 | `/llm-profiles` | The account's own OpenAI-compatible endpoints: base URL, model, key, temperature. |
 | `/help` | The guide: every step from unboxing to release, and what each common failure means. |
 | `/admin/devices`, `/admin/users`, `/admin/claims` | The admin area: every device, every account, and the requests waiting for a decision. Visible in the header only to an admin. |
+| `/admin/firmware` | The firmware releases, with an upload form, the target for each board type, and the controls that move or clear it. |
 
 A walk through it, in order:
 
@@ -179,6 +184,8 @@ not-found answer.
 | `POST /api/bridge/activate` | bridge | `200` when claimed, `202` while pending, `404` if unknown. |
 | `POST /api/bridge/turns` | bridge | Record one served turn. |
 | `POST /api/bridge/tools` | bridge | Record the tool catalogue a gadget declared. |
+| `POST /api/bridge/hardware` | bridge | Record what the firmware reported about its own board at OTA. |
+| `GET /firmware/:id` | gadget | A stored firmware image, with its byte length. No session; the identifier is opaque. |
 | `GET /health` | anyone | Readiness: 200 only when the database answers. |
 
 ## Claiming a gadget
@@ -205,6 +212,53 @@ and reports it here; the device page lists the names and the firmware's own
 descriptions. An empty catalogue is recorded as empty, which is a different fact
 from a gadget that has not connected since the console was deployed. The console
 never uses the catalogue to allow or refuse a call.
+
+## The board a gadget runs on
+
+The firmware posts a system-info body with every OTA request: the board type and
+name, the chip, flash and PSRAM, the display, and the application version. The
+bridge reads it and forwards a narrowed report; the console keeps that report on
+the device row and shows it on the device page, with the time it arrived.
+
+What is kept is what the device said. A field the firmware did not send is not
+shown rather than filled from a board-type table, and a report outside the
+console's bounds is refused whole, so the previous one stands. Identifiers —
+MAC, UUID, IMEI, ICCID, IP — the partition table and the ELF hash are dropped at
+the bridge and refused again at the console; no page carries them. A device that
+has never reported says so, which is a different fact from a board that declared
+no display.
+
+## Firmware updates
+
+Firmware is delivered through the OTA path the gadget already has. An admin
+uploads an image for its board type with the version the image reports, and marks
+it as that board type's target. At its next OTA — a boot — an owned device whose
+reported version differs from the target is told to install it; the gadget
+downloads the image from this console, writes the inactive slot, and reboots. The
+new version comes back in the board report.
+
+What the console does **not** do:
+
+- It does not order versions. A device is offered a target only when the version
+  it reported differs from the target's; whether the target is newer is the
+  firmware's decision. An admin may mark a release forced, which allows a
+  downgrade, and that mark is written to the audit line.
+- It does not offer an update to an unowned device, to a device that has never
+  reported its board, or to one already running the target — the last is what
+  keeps a forced target from reflashing the same image on every boot.
+- It never accepts a firmware URL from a request. The URL is built from
+  `CONSOLE_PUBLIC_URL`, and with that unset no release is delivered at all.
+- It does not read or write flash at an arbitrary address, and it does not sign
+  images. Images are served unauthenticated at an opaque URL; a targeted release
+  cannot be deleted until the target is cleared or moved.
+
+`FIRMWARE_DIR` must be outside the application's `public` directory — the console
+refuses the web root and any path under it, rather than letting the static handler
+serve an image beside this route. New directories and images are created owner-only
+where the platform carries POSIX modes; on Windows those modes are advisory, so the
+directory's ACL is the deployment's responsibility. Serving uses `lstat` and accepts
+only a regular file, so a symbolic link or a directory at a release's path is
+refused.
 
 ## Tests
 

@@ -4,7 +4,9 @@ import { DeviceActions } from "@/components/DeviceActions";
 import { listAgents } from "@/lib/agents";
 import { requireUser } from "@/lib/auth/require-user";
 import { ownDevice, ownTurns } from "@/lib/auth/ownership";
+import { boardView, firmwareView } from "@/lib/device-board";
 import { listOwnedDevices, publicDevice } from "@/lib/devices";
+import { targetFor } from "@/lib/firmware";
 import { deviceLabel, elapsed, elapsedText, turnTimeText } from "@/lib/ui/format";
 import { getStrings } from "@/lib/i18n/locale";
 import { requestNow } from "@/lib/ui/now";
@@ -38,6 +40,10 @@ export default async function DevicePage({ params }: Params) {
 
   const agent = agents.find((entry) => entry.id === device.agentId);
   const partner = device.partnerDeviceId === null ? undefined : others.find((entry) => entry.id === device.partnerDeviceId);
+  const board = boardView(device.hardware, strings);
+  const target =
+    device.hardware?.board?.type === undefined ? undefined : await targetFor(device.hardware.board.type);
+  const firmware = firmwareView(device.hardware, target?.version);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -64,6 +70,37 @@ export default async function DevicePage({ params }: Params) {
           <dd>{elapsedText(elapsed(device.lastSeenAt, now), strings, locale)}</dd>
         </div>
       </dl>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold">{strings.device.boardHeading}</h2>
+        {board.kind === "not-reported" ? (
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            {strings.device.boardNotReported}
+          </p>
+        ) : (
+          <>
+            <dl className="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+              {board.facts.map((fact) => (
+                <div key={fact.key}>
+                  <dt className="text-zinc-500 dark:text-zinc-400">{fact.label}</dt>
+                  <dd>{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+              {strings.device.boardReportedAt}:{" "}
+              {elapsedText(elapsed(device.hardwareReportedAt, now), strings, locale)} ·{" "}
+              {strings.device.boardReportedBy}
+            </p>
+            {firmware.different && (
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {strings.device.firmwareTarget}:{" "}
+                <span className="font-mono">{firmware.target}</span>
+              </p>
+            )}
+          </>
+        )}
+      </section>
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold">{strings.device.toolsHeading}</h2>

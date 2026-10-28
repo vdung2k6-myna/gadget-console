@@ -8,7 +8,7 @@ import { activationState, resolveDevice, recordTurn } from "../src/lib/bridge/re
 import { approveClaim, claimDevice, issueClaim, releaseDevice, resetClaimRateLimit } from "../src/lib/claims";
 import { ownDevice as own } from "./helpers/own";
 import { createRuntime } from "../src/lib/runtimes";
-import { agents, claims, devices, turns } from "../src/lib/db/schema";
+import { agents, claims, devices, firmwareReleases, turns } from "../src/lib/db/schema";
 
 before(() => requireTestDatabase());
 beforeEach(async () => {
@@ -213,5 +213,109 @@ describe("recording a turn", () => {
       endedAt: ended,
     });
     assert.deepEqual(result, { ok: false, reason: "device-not-found" });
+  });
+});
+
+describe("the firmware target in a resolution", () => {
+  const previousUrl = process.env.CONSOLE_PUBLIC_URL;
+  const previousDir = process.env.FIRMWARE_DIR;
+
+  beforeEach(() => {
+    process.env.FIRMWARE_DIR = "/tmp/gc-firmware-unused";
+    process.env.CONSOLE_PUBLIC_URL = "https://console.example.com";
+  });
+
+  after(() => {
+    if (previousUrl === undefined) delete process.env.CONSOLE_PUBLIC_URL;
+    else process.env.CONSOLE_PUBLIC_URL = previousUrl;
+    if (previousDir === undefined) delete process.env.FIRMWARE_DIR;
+    else process.env.FIRMWARE_DIR = previousDir;
+  });
+
+  const REPORT = { board: { type: "esp-box-3" }, application: { version: "1.2.3" } };
+
+  async function deviceReporting(report?: unknown) {
+    const ann = await account("ann@example.com");
+    const device = await ownedDevice(ann.id);
+    if (report !== undefined) {
+      await getDb().update(devices).set({ hardware: report as never }).where(eq(devices.id, device.id));
+    }
+    return device;
+  }
+
+  async function targetedRelease(version = "1.2.4", forced = false) {
+    const rows = await getDb()
+      .insert(firmwareReleases)
+      .values({
+        boardType: "esp-box-3",
+        version,
+        sizeBytes: 16,
+        sha256: "a".repeat(64),
+        targeted: true,
+        forced,
+      })
+      .returning();
+    return rows[0]!;
+  }
+
+  function firmwareOf(body: Record<string, unknown>) {
+    return body.firmware as Record<string, unknown> | undefined;
+  }
+
+  it("carries the target for an owned device running a different version", async () => {
+    await deviceReporting(REPORT);
+    const release = await targetedRelease();
+    const resolution = await resolveDevice(MAC);
+    if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
+
+    assert.deepEqual(firmwareOf(resolution.body), {
+      version: "1.2.4",
+      url: `https://console.example.com/firmware/${release.id}`,
+      force: false,
+    });
+  });
+
+  it("carries the force flag only when the release says so", async () => {
+    await deviceReporting(REPORT);
+    await targetedRelease("1.2.2", true);
+    const resolution = await resolveDevice(MAC);
+    if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
+    assert.equal(firmwareOf(resolution.body)?.force, true);
+  });
+
+  it("carries nothing when the device already runs the target", async () => {
+    await deviceReporting(REPORT);
+    await targetedRelease("1.2.3");
+    const resolution = await resolveDevice(MAC);
+    if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
+    assert.equal("firmware" in resolution.body, false);
+  });
+
+  it("carries nothing when the device reported no board type", async () => {
+    await deviceReporting();
+    await targetedRelease();
+    const resolution = await resolveDevice(MAC);
+    if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
+    assert.equal("firmware" in resolution.body, false);
+  });
+
+  it("carries nothing for a device nobody owns", async () => {
+    await targetedRelease();
+    const resolution = await resolveDevice(MAC);
+    assert.equal(resolution.kind, "unowned");
+    assert.equal("firmware" in resolution.body, false);
+  });
+
+  it("carries nothing when the deployment has no public base", async () => {
+    await deviceReporting(REPORT);
+    await targetedRelease();
+    delete process.env.CONSOLE_PUBLIC_URL;
+    try {
+      const resolution = await resolveDevice(MAC);
+      if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
+      assert.equal("firmware" in resolution.body, false);
+    } finally {
+      process.env.CONSOLE_PUBLIC_URL = "https://console.example.com";
+    }
   });
 });

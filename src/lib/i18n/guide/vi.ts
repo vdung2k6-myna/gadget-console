@@ -10,7 +10,7 @@ import type { Guide } from "./types";
 export const viGuide: Guide = {
   title: "Hướng dẫn sử dụng",
   intro:
-    "Từ lúc mở hộp đến lúc nói chuyện với gadget: mỗi mục dưới đây là một bước, hoặc một lỗi bạn có thể gặp và cách xử lý.",
+    "Từ lúc mở hộp đến lúc nói chuyện với gadget: mỗi mục dưới đây là một bước, một lỗi bạn có thể gặp, hoặc một điều nên biết trước — như ai nhìn thấy gì.",
   sections: [
     {
       id: "before",
@@ -27,6 +27,32 @@ export const viGuide: Guide = {
         {
           kind: "note",
           text: "Gadget không kết nối trực tiếp tới console. Nó hỏi bridge để biết địa chỉ, và bridge hỏi console để biết nó thuộc về ai.",
+        },
+      ],
+    },
+    {
+      id: "roles",
+      title: "Tài khoản, và ai nhìn thấy gì",
+      blocks: [
+        {
+          kind: "p",
+          text: "Mỗi tài khoản là user hoặc admin. Tài khoản mới là user. Quyền admin do một admin hiện có cấp ở trang Tài khoản, hoặc do người vận hành deployment cấp; console không có cách nào để tự cấp quyền cho chính mình.",
+        },
+        {
+          kind: "p",
+          text: "User chỉ thấy những gì của mình: thiết bị, agent (prompt, chủ đề và model), kết nối model riêng, và lịch sử hội thoại của mình.",
+        },
+        {
+          kind: "p",
+          text: "Admin thấy thiết bị của mọi tài khoản — ai sở hữu, agent nào đang trả lời, và hội thoại — và có thể đổi tên, gán agent, ghép cặp hoặc giải phóng bất kỳ thiết bị nào. Admin cũng thấy mọi tài khoản kèm số thiết bị và số agent, và duyệt các yêu cầu claim đang chờ.",
+        },
+        {
+          kind: "note",
+          text: "Admin không thấy kết nối model hay key của bạn. Admin thấy được agent nào đang trả lời một thiết bị và có thể gán agent của bạn cho nó, nhưng không mở hay sửa được prompt, chủ đề hay model của agent.",
+        },
+        {
+          kind: "note",
+          text: "Admin cuối cùng không thể bị thu quyền, để khu quản trị không bị khoá chỉ vì một cú bấm. Một số deployment còn bảo vệ những tài khoản cụ thể khỏi việc mất quyền.",
         },
       ],
     },
@@ -191,6 +217,33 @@ export const viGuide: Guide = {
         {
           kind: "note",
           text: "Bản ghi được giữ theo thời hạn của deployment, và bị xoá khi bạn giải phóng thiết bị.",
+        },
+      ],
+    },
+    {
+      id: "firmware",
+      title: "Cập nhật firmware",
+      blocks: [
+        {
+          kind: "p",
+          text: "Firmware do quản trị viên vận hành console cài, không phải chủ thiết bị. Khi một phiên bản khác được chọn cho loại bo của thiết bị, nó sẽ cài ở lần khởi động kế tiếp.",
+        },
+        {
+          kind: "steps",
+          items: [
+            "Quản trị viên tải ảnh lên và chọn nó làm bản chạy cho loại bo.",
+            "Tắt rồi bật lại gadget, hoặc để nó tự khởi động lại, để nó hỏi server xem cần chạy bản nào.",
+            "Gadget tải ảnh, ghi vào phân vùng không đang chạy, rồi khởi động lại lần nữa.",
+            "Phiên bản mới sẽ hiện trên trang của thiết bị.",
+          ],
+        },
+        {
+          kind: "note",
+          text: "Một lần cập nhật mất vài phút và gadget có thể im lặng trong lúc khởi động lại. Đừng ngắt điện trong khoảng đó.",
+        },
+        {
+          kind: "note",
+          text: "Trang thiết bị hiện phiên bản gadget đã báo và, khi khác nhau, phiên bản đang được chọn cho nó. Console không nói bản nào mới hơn: việc đó do firmware quyết định.",
         },
       ],
     },

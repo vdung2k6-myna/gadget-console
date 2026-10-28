@@ -36,6 +36,20 @@
       "when": 1792930933476,
       "tag": "0004_blushing_speed",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792982197427,
+      "tag": "0005_numerous_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792984709868,
+      "tag": "0006_light_giant_girl",
+      "breakpoints": true
     }
   ]
 }
