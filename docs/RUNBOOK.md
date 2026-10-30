@@ -181,9 +181,11 @@ on the host:
 | `tts` | `https://tts.<domain>` | the same machine (`gateway` → three engines) | `127.0.0.1:8082` |
 
 Both hostnames are a **named Cloudflare tunnel** (`gadget-audio`), not a quick tunnel: the URL is
-stable across restarts, and the tunnel runs as the Windows scheduled task
-`cloudflared-gadget-audio` at logon. The DNS records are proxied, which is correct for HTTP — unlike
-`gw`, which must stay grey.
+stable across restarts, and the tunnel runs as the Windows service `cloudflared-gadget-audio`
+(Automatic, LocalSystem), so it starts at boot without a sign-in and the service manager restarts it
+if it exits. Its config and credentials live in `C:\ProgramData\cloudflared-gadget-audio\` so the
+service account can read them. The DNS records are proxied, which is correct for HTTP — unlike `gw`,
+which must stay grey.
 
 The audio stack is this repository's `docker-compose.audio.yml`; `docker compose ps` on that machine
 shows the five containers, and the two ports are published on loopback only. When a turn fails at a
@@ -191,12 +193,11 @@ speech call:
 
 1. `docker compose ps` — the containers are up and healthy;
 2. `curl -s https://stt.<domain>/health` and `https://tts.<domain>/health` — the tunnel reaches them;
-3. `Get-ScheduledTask -TaskName cloudflared-gadget-audio` — the task is `Running`, and
-   `cloudflared tunnel info gadget-audio` lists a connector.
+3. `Get-Service cloudflared-gadget-audio` — `Running`, and `cloudflared tunnel info gadget-audio`
+   lists a connector.
 
-A machine that is off, asleep or logged out is an audio tier that is down: the profiles stay valid,
-and every turn fails at its first speech call. The task triggers at logon, so a reboot with nobody
-signed in leaves the tunnel down as well.
+A machine that is off or asleep is an audio tier that is down: the profiles stay valid, and every
+turn fails at its first speech call.
 
 ## Troubleshooting
 
