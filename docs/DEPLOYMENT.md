@@ -12,11 +12,13 @@ deployment names no speech or model provider — an account configures its own `
 | Caddy | `gadget-app` | `:80`, `:443` | the internet |
 | console (`gadget-console`) | `gadget-app` | `:3001` | Caddy, over loopback |
 | runtime (`adaptive-interview-api`) | `gadget-app` | `127.0.0.1:4000` | the bridge, over loopback |
-| bridge (`gadget-bridge`) | `gadget-app` | `:8003` OTA, `:8001` WS | the gadget fleet |
+| bridge (`gadget-bridge`) | `gadget-app` | `:8003` OTA, `:8001` WS | Caddy only; no firewall rule opens them |
 | Cloud SQL Postgres | managed | `<db-private-ip>:5432` | the host's subnet |
 
-Only 443, 8003 and 8001 are opened to the internet. 3001 and 4000 have no firewall rule, and the
-runtime's socket is bound to loopback as well.
+Only 80 and 443 are opened to the internet. Caddy terminates TLS for both hostnames and proxies
+`gw.<domain>/xiaozhi/ota*` to 8003 and `gw.<domain>/xiaozhi/v1*` to 8001, so a gadget speaks
+`https` and `wss`. The bridge's raw ports, the console's internal API and the runtime have no
+firewall rule at all, and the runtime's socket is bound to loopback as well.
 
 ## Host
 
@@ -32,12 +34,10 @@ runtime's socket is bound to loopback as well.
 | Port | Source | Purpose |
 | --- | --- | --- |
 | 80 | `0.0.0.0/0` | ACME challenge and the redirect to HTTPS |
-| 443 | `0.0.0.0/0` | the console |
-| 8003 | `0.0.0.0/0` | bridge OTA |
-| 8001 | `0.0.0.0/0` | bridge WebSocket |
+| 443 | `0.0.0.0/0` | the console, and `gw` for OTA and the socket |
 | 22 | `35.235.240.0/20` | SSH through IAP only |
 
-Everything else is denied by the implied ingress rule.
+Everything else is denied by the implied ingress rule, including the bridge's 8001 and 8003.
 
 ## Configuration and secrets
 
@@ -59,7 +59,7 @@ those files; no secret is written anywhere else on the host.
 | --- | --- |
 | console | `NODE_ENV`, `DATABASE_URL`, `BRIDGE_TOKEN`, `LLM_KEY_SECRET`, `FIRMWARE_DIR=/var/lib/firmware`, `CONSOLE_PUBLIC_URL` |
 | runtime | `NODE_ENV=production`, `HOST=127.0.0.1`, `PORT=4000`, `API_AUTH_TOKEN` |
-| bridge | `BRIDGE_CONSOLE_URL=http://127.0.0.1:3001`, `BRIDGE_CONSOLE_TOKEN`, `BRIDGE_PUBLIC_HOST=gw.<domain>`; `OTA_PORT` and `WS_PORT` keep their defaults (8003 and 8001) |
+| bridge | `BRIDGE_CONSOLE_URL=http://127.0.0.1:3001`, `BRIDGE_CONSOLE_TOKEN`, `BRIDGE_PUBLIC_HOST=gw.<domain>`, `BRIDGE_PUBLIC_URL=https://gw.<domain>`; `OTA_PORT` and `WS_PORT` keep their defaults (8003 and 8001) |
 
 The runtime is given no `DATABASE_URL`, no `OLLAMA_*`, no `AUDIOCPP_BASE_URL`, no
 `AUDIO_GATEWAY_URL` and no `PROVIDER_CATALOG`. Its interview routes therefore answer 500; this
@@ -70,8 +70,8 @@ deployment serves the gadget path only.
 - the console's `BRIDGE_TOKEN` **equals** the bridge's `BRIDGE_CONSOLE_TOKEN`;
 - the token stored in the `runtimes` row **equals** the runtime's `API_AUTH_TOKEN`;
 - `RUNTIME_URL` in that row is `http://127.0.0.1:4000`;
-- `BRIDGE_PUBLIC_HOST` is `gw.<domain>` and `CONSOLE_PUBLIC_URL` is
-  `https://console.<domain>`.
+- `BRIDGE_PUBLIC_HOST` is `gw.<domain>`, `BRIDGE_PUBLIC_URL` is `https://gw.<domain>` — the
+  front the bridge advertises — and `CONSOLE_PUBLIC_URL` is `https://console.<domain>`.
 
 A mismatch answers 401 — at the console for the bridge, at the runtime for the bridge — rather than
 failing quietly.
@@ -144,5 +144,8 @@ after a release that changes the schema.
 - No audio tier, no model and no knowledge retrieval: `material` answer mode has nothing to speak,
   and the document-extraction service is not deployed.
 - An agent with no `llm` profile fails its turn with a connection error rather than a message.
-- The bridge speaks plain `ws://` and carries the device token in clear. Accepted at pilot.
+- Caddy carries the WebSocket upgrade; a wrong path match breaks every gadget at once, so the
+  check after a config change is a `wss` handshake from outside.
+- A gadget must be flashed with the OTA address `https://gw.<domain>/xiaozhi/ota/`; one that
+  cannot be reflashed keeps the raw `http` answer and falls outside this deployment.
 - One instance of the runtime only: it holds prefetch and tool-call state in memory.
