@@ -144,13 +144,15 @@ at 50, 90 and 100 percent, so a month that runs continuously is visible before i
 
 ## Updating a service
 
-Each service is a tree under `/srv`, deployed from a tarball of the repository's HEAD:
+Each service is a tree under `/srv`, deployed from a tarball of the repository's `HEAD`;
+`RUNBOOK.md` has the commands and the three ways a deploy goes wrong quietly. Two rules apply to
+every one of them:
 
-```bash
-cd /srv/gadget-console && sudo systemctl stop gadget-console
-tar xzf /tmp/console.tar.gz -C /srv/gadget-console
-npm ci && npm run build && sudo systemctl start gadget-console
-```
+- **The build's exit status is the check that it happened.** A failed build leaves `.next` from the
+  previous release, the unit starts on it, and `/health` answers 200 while the site serves old
+  content.
+- **Extract and build as the account the units run as**, keeping `sudo` for `systemctl`: a tree
+  unpacked by `sudo tar` is root-owned and the next build as the user fails on permissions.
 
 The database migration is a separate, explicit step: `npm run db:migrate` from `/srv/gadget-console`
 after a release that changes the schema.

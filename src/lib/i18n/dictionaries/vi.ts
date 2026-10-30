@@ -165,8 +165,8 @@ export const vi = {
     deleteModel: "Xoá model",
     deleteModelShort: "Xác nhận xoá model (agent dùng nó sẽ về mặc định)",
     deleteConfirm:
-      "Xoá nhà cung cấp này? Các agent đang dùng nó sẽ quay về mặc định của runtime.",
-    deleteConfirmShort: "Xác nhận xoá (agent dùng nó sẽ về mặc định)",
+      "Xoá nhà cung cấp này? Các agent đang dùng nó sẽ không còn model trả lời cho tới khi bạn gán cái khác.",
+    deleteConfirmShort: "Xác nhận xoá (agent đang dùng sẽ không còn model)",
     deleted: "Đã xoá nhà cung cấp.",
     usedBy: "Đang dùng bởi",
     usedByNone: "không agent nào",
@@ -176,8 +176,7 @@ export const vi = {
     settingsIntro:
       "Cấu hình một lần cho tài khoản: bộ chuyển giọng thành văn bản và giọng đọc dùng cho mọi agent của bạn.",
     yourConfig: "Cấu hình của bạn",
-    usingDefault: "Đang dùng mặc định của deployment",
-    useDefault: "Dùng mặc định của deployment",
+    notConfigured: "Chưa cấu hình",
     endpoint: "Endpoint",
     test: "Nghe thử",
     testing: "Đang thử…",
@@ -186,7 +185,7 @@ export const vi = {
     testFailed: "Không thử được:",
     answeringModels: "Model trả lời",
     createModel: "Thêm model",
-    noAnsweringModel: "Chưa có model riêng. Agent sẽ dùng model mặc định của runtime.",
+    noAnsweringModel: "Chưa có model trả lời nào. Tạo một model trước khi tạo agent.",
   },
 
   agentForm: {
@@ -194,7 +193,8 @@ export const vi = {
     sttProfile: "Nhận giọng nói",
     ttsProfile: "Giọng đọc",
     voice: "Giọng đọc riêng (để trống dùng giọng của nhà cung cấp)",
-    profileDefault: "Mặc định của runtime",
+    noProfiles: "Chưa có model trả lời nào. Thêm một model ở mục Nhà cung cấp trước.",
+    noModel: "chưa có model",
     builtin: "có sẵn",
     name: "Tên",
     systemPrompt: "Prompt hệ thống",

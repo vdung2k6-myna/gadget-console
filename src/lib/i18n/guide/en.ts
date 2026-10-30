@@ -89,7 +89,7 @@ export const enGuide: Guide = {
             "Give it a name, and write its prompt: the instructions the model receives before everything else.",
             "Choose a runtime — where the turn is processed and answered. The languages offered below are that runtime's own.",
             "Choose the language. The transcriber is configured once for the account under Providers.",
-            "Choose the “Answering model”: one of the account's models, or leave it on “The runtime's default”.",
+            "Choose the “Answering model”: one of the account's models. There is no default, so this step is required.",
             "Fill in “A voice of its own” if this agent should speak in a different voice from the account's. Left empty it uses the provider's voice; leaving the field checks the name against the provider.",
             "Choose how it answers: “Generate a reply” for ordinary conversation, “Read from the material” when the agent should answer from loaded documents.",
             "Fill in “Topics” if the agent should look things up: one topic per line. Left empty it looks nothing up — that is not the same as searching everything.",
@@ -112,7 +112,7 @@ export const enGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Your gadgets hear through one transcriber configured once for your account, and speak through the account's voice under Providers — unless an agent names a voice of its own.",
+          text: "Your gadgets hear through one transcriber and speak through one voice, both configured by the account under Providers — unless an agent names a voice of its own. There is no default: unconfigured means the gadget can neither hear nor speak.",
         },
         {
           kind: "steps",
@@ -120,12 +120,12 @@ export const enGuide: Guide = {
             "Open Providers and fill the transcriber: the endpoint and the model, and a key only if the service needs one.",
             "Fill the voice: the endpoint, the model and the voice name.",
             "Press “Hear a sample” to check the voice before a gadget uses it.",
-            "Leave a form empty to use the deployment's default, or press “Use the deployment's default” to go back to it — but only when the deployment has one. A deployment that seeds no transcriber or voice has nothing behind an empty form, and the turn fails.",
+            "Both forms are required. There is no deployment default to fall back to; an empty form means the turn fails at hearing or at speaking.",
           ],
         },
         {
           kind: "note",
-          text: "The model and the voice are free text: `tts-1` and `alloy` are OpenAI's names, and every provider publishes its own. The endpoint defines what they mean, and the sample is how a name is checked. A deployment default only pre-fills the form and answers a kind you have not configured; when the deployment has no default for a kind, you have to fill that kind — an empty form makes the turn fail.",
+          text: "The model and the voice are free text: `tts-1` and `alloy` are OpenAI's names, and every provider publishes its own. The endpoint defines what they mean, and the sample is how a name is checked. There is no default to lean on: every account brings its own transcriber and voice, and a kind left unconfigured makes the turn fail.",
         },
         {
           kind: "note",
@@ -142,11 +142,11 @@ export const enGuide: Guide = {
     },
     {
       id: "model",
-      title: "The answering model: the default, or your own",
+      title: "The answering model: yours, with no default",
       blocks: [
         {
           kind: "p",
-          text: "The agent form has an “Answering model” field. Left at “The runtime's default”, the agent is answered by the model the operator configured — you need no key and pay for none of it. If the operator configured no model, there is nothing behind that choice and the turn fails; add a model of your own then.",
+          text: "The agent form has an “Answering model” field, and it is required: there is no default to lean on, so an agent with no model is one that cannot answer. The model may be one you add, or a built-in the operator has provided.",
         },
         {
           kind: "steps",
@@ -159,14 +159,14 @@ export const enGuide: Guide = {
         },
         {
           kind: "note",
-          text: "The key is stored encrypted and is never shown back in a browser. Deleting a connection returns the agents using it to the runtime's default model.",
+          text: "The key is stored encrypted and is never shown back in a browser. Deleting a connection leaves the agents using it with no answering model until you bind another.",
         },
         {
           kind: "error",
           symptom: "The gadget says it could not reach the model, and the turn has no answer.",
           cause:
-            "The agent is using your own LLM and that endpoint did not answer — a wrong address, a network that cannot reach it, or a wrong key or model. Or the agent is on “The runtime's default” while the deployment configures no model at all.",
-          fix: "Check the base URL (it usually ends in /v1), the model name, and the key; if the agent is on the default, check whether the deployment has one — if not, add a model of your own. The turn is deliberately not answered by a different model.",
+            "The model's endpoint did not answer — a wrong address, a network that cannot reach it, or a wrong key or model.",
+          fix: "Check the base URL (it usually ends in /v1), the model name, and the key. The turn is deliberately not answered by a different model.",
         },
       ],
     },

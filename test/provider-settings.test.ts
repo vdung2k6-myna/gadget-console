@@ -11,7 +11,6 @@ import {
   activeAccountProvider,
   providersForAgent,
   saveAccountProvider,
-  useDeploymentDefault,
   validateProviderDraft,
 } from "../src/lib/provider-profiles";
 
@@ -48,24 +47,6 @@ async function agentFor(userId: string) {
   return rows[0]!;
 }
 
-async function builtinDefault(kind: "stt" | "tts") {
-  const rows = await getDb()
-    .insert(providerProfiles)
-    .values({
-      userId: null,
-      builtin: true,
-      isDefault: true,
-      kind,
-      name: kind === "stt" ? "audio.cpp" : "engine-a-vietnamese",
-      baseUrl: kind === "stt" ? "http://localhost:8080" : "http://localhost:8082",
-      model: kind === "stt" ? "stt" : "engine-a",
-      voice: kind === "stt" ? null : "example_voice",
-      encryptedKey: "",
-    })
-    .returning();
-  return rows[0]!;
-}
-
 function speechDraft(kind: "stt" | "tts", model: string = kind, voice = "") {
   const validation = validateProviderDraft(
     {
@@ -94,9 +75,9 @@ describe("the account's speech setting", () => {
     assert.equal(stored[0]?.sttProfileId, saved.id);
 
     const settings = await accountSpeechSettings(ann.id);
-    assert.equal(settings.stt.own?.id, saved.id);
-    assert.equal(settings.stt.own?.model, "stt");
-    assert.equal(settings.stt.default, null);
+    assert.equal(settings.stt?.id, saved.id);
+    assert.equal(settings.stt?.model, "stt");
+    assert.equal(settings.tts, null, "a kind the account has not configured is null, not a default");
   });
 
   it("edits the same row on a second save rather than adding another", async () => {
@@ -116,23 +97,6 @@ describe("the account's speech setting", () => {
     assert.equal(second.voice, "alloy");
   });
 
-  it("returns to the deployment default, re-pointing the agents at it", async () => {
-    const ann = await account();
-    const agent = await agentFor(ann.id);
-    const fallback = await builtinDefault("stt");
-    await saveAccountProvider(ann.id, "stt", speechDraft("stt"));
-
-    await useDeploymentDefault(ann.id, "stt");
-
-    const own = await activeAccountProvider(ann.id, "stt");
-    assert.equal(own, undefined, "the account's setting is removed");
-    const stored = await getDb().select().from(agents).where(eq(agents.id, agent.id));
-    assert.equal(stored[0]?.sttProfileId, fallback.id, "the default answers instead");
-    const settings = await accountSpeechSettings(ann.id);
-    assert.equal(settings.stt.own, null);
-    assert.equal(settings.stt.default?.id, fallback.id);
-  });
-
   it("lets an agent's own voice override its tts profile's", async () => {
     const ann = await account();
     await agentFor(ann.id);
@@ -147,24 +111,12 @@ describe("the account's speech setting", () => {
     assert.equal(providers.tts?.voice, "agent_voice");
   });
 
-  it("carries an agent's voice through the deployment default when it names no profile", async () => {
+  it("names no provider when the agent has no profile of a kind, whatever voice it sets", async () => {
     const ann = await account();
     await agentFor(ann.id);
-    await builtinDefault("tts");
 
     const providers = await providersForAgent(ann.id, { stt: null, tts: null, llm: null }, "agent_voice");
 
-    assert.equal(providers.tts?.voice, "agent_voice", "the default provider answers, in the agent's voice");
-  });
-
-  it("leaves the agents with no profile when the deployment publishes no default", async () => {
-    const ann = await account();
-    const agent = await agentFor(ann.id);
-    await saveAccountProvider(ann.id, "tts", speechDraft("tts", "engine-a", "example_voice"));
-
-    await useDeploymentDefault(ann.id, "tts");
-
-    const stored = await getDb().select().from(agents).where(eq(agents.id, agent.id));
-    assert.equal(stored[0]?.ttsProfileId, null, "nothing is assumed in place of a default");
+    assert.equal(providers.tts, null, "a voice with no provider has nothing to apply to");
   });
 });

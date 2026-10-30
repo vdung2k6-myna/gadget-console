@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { currentUser, unauthenticated } from "@/lib/auth/guard";
 import {
   activeAccountProvider,
-  defaultProviderProfile,
   runtimeProvider,
   testSpeechProvider,
 } from "@/lib/provider-profiles";
@@ -35,11 +34,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const profile = (await activeAccountProvider(user.id, "tts")) ?? (await defaultProviderProfile("tts"));
+  const profile = await activeAccountProvider(user.id, "tts");
   if (profile === undefined) {
     return NextResponse.json({
       ok: false,
-      error: "no text-to-speech provider is configured for this account",
+      error: "no voice is configured for this account — set one under Providers first",
     });
   }
   const provider = runtimeProvider(profile);

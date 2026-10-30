@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { sendJson } from "@/lib/ui/client";
@@ -65,7 +66,10 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
   const [systemPrompt, setSystemPrompt] = useState(agent?.systemPrompt ?? "");
   const [runtimeId, setRuntimeId] = useState(agent?.runtimeId ?? runtimes[0]?.id ?? "");
   const [language, setLanguage] = useState(agent?.language ?? runtimes[0]?.languages[0] ?? "");
-  const [llmProfileId, setLlmProfileId] = useState(agent?.llmProfileId ?? "");
+  const llmProfiles = profiles.filter((profile) => profile.kind === "llm");
+  // No empty option and no default: an agent that names no model has nothing to
+  // answer it, so a new agent starts on the first model the account configured.
+  const [llmProfileId, setLlmProfileId] = useState(agent?.llmProfileId ?? llmProfiles[0]?.id ?? "");
   const [sttProfileId, setSttProfileId] = useState(agent?.sttProfileId ?? "");
   const [ttsProfileId, setTtsProfileId] = useState(agent?.ttsProfileId ?? "");
   const [voice, setVoice] = useState(agent?.voice ?? "");
@@ -168,6 +172,17 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
     return <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">{strings.agentForm.noRuntimes}</p>;
   }
 
+  if (llmProfiles.length === 0) {
+    return (
+      <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+        {strings.agentForm.noProfiles}{" "}
+        <Link href="/provider-profiles/new" className="underline">
+          {strings.providerProfiles.createModel}
+        </Link>
+      </p>
+    );
+  }
+
   return (
     <form onSubmit={save} className="mt-4 max-w-2xl">
       <label className="mt-3 block text-sm">
@@ -263,9 +278,9 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
           className={field}
           value={llmProfileId}
           onChange={(event) => setLlmProfileId(event.target.value)}
+          required
         >
-          <option value="">{strings.agentForm.profileDefault}</option>
-          {optionsFor("llm").map((profile) => (
+          {llmProfiles.map((profile) => (
             <option key={profile.id} value={profile.id}>
               {optionLabel(profile)}
             </option>

@@ -164,8 +164,8 @@ export const en: Strings = {
     deleteModel: "Delete this model",
     deleteModelShort: "Confirm delete (agents using it fall back to the default)",
     deleteConfirm:
-      "Delete this provider? Agents using it will fall back to the runtime's default.",
-    deleteConfirmShort: "Confirm delete (agents fall back to the default)",
+      "Delete this provider? Agents using it will have no answering model until you bind another.",
+    deleteConfirmShort: "Confirm delete (agents using it lose their model)",
     deleted: "The provider was deleted.",
     usedBy: "Used by",
     usedByNone: "no agents",
@@ -175,8 +175,7 @@ export const en: Strings = {
     settingsIntro:
       "Configure once per account: the transcriber and the voice used by every agent you own.",
     yourConfig: "Your configuration",
-    usingDefault: "Using the deployment's default",
-    useDefault: "Use the deployment's default",
+    notConfigured: "Not configured",
     endpoint: "Endpoint",
     test: "Hear a sample",
     testing: "Testing…",
@@ -185,7 +184,7 @@ export const en: Strings = {
     testFailed: "The test failed:",
     answeringModels: "Answering models",
     createModel: "Add a model",
-    noAnsweringModel: "No model of your own yet. Agents use the runtime's default.",
+    noAnsweringModel: "No answering model yet. Add one before creating an agent.",
   },
 
   agentForm: {
@@ -193,7 +192,8 @@ export const en: Strings = {
     sttProfile: "Transcriber",
     ttsProfile: "Voice",
     voice: "A voice of its own (leave empty for the provider's)",
-    profileDefault: "The runtime's default",
+    noProfiles: "No answering model yet. Add one under Providers first.",
+    noModel: "no model",
     builtin: "built-in",
     name: "Name",
     systemPrompt: "System prompt",

@@ -294,7 +294,9 @@ cd /srv/gadget-console && npm ci && npm run build
 ```
 
 The runtime and the bridge are the same without the build (`npm start` runs `tsx`). Extract and
-build as the user, not with `sudo`: a root-owned tree breaks the next build.
+build as the user, not with `sudo`: a root-owned tree breaks the next build. And check the build's
+exit status: a failed build leaves no new `.next`, and a service started anyway serves the previous
+release behind a healthy `/health`.
 
 ## 9. Start and seed
 

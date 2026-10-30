@@ -29,8 +29,8 @@ export default async function ProviderSettingsPage() {
         {strings.providerProfiles.settingsIntro}
       </p>
 
-      <SpeechSettingsForm kind="stt" own={settings.stt.own} fallback={settings.stt.default} />
-      <SpeechSettingsForm kind="tts" own={settings.tts.own} fallback={settings.tts.default} />
+      <SpeechSettingsForm kind="stt" own={settings.stt} />
+      <SpeechSettingsForm kind="tts" own={settings.tts} />
 
       <section className="mt-8">
         <div className="flex items-center justify-between">

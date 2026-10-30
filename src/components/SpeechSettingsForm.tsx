@@ -28,22 +28,23 @@ export interface SpeechProfile {
 interface Props {
   kind: "stt" | "tts";
   own: SpeechProfile | null;
-  fallback: SpeechProfile | null;
 }
 
 /**
  * One speech setting, edited in place.
  *
- * The starting values are the account's own configuration, or the deployment's
- * default when the account has none. `model` and `voice` are free text: the
- * endpoint defines what their names mean, and the test is how a name is checked.
- * The test calls the endpoint in the form and nothing else, so it still works on
- * a deployment whose own audio services have been deleted.
+ * The starting values are the account's own configuration and nothing else: a kind
+ * the account has not configured starts empty and has to be filled, because a
+ * deployment default is no longer something this console offers. `model` and
+ * `voice` are free text: the endpoint defines what their names mean, and the test
+ * is how a name is checked. The test calls the endpoint in the form and nothing
+ * else, so it still works on a deployment whose own audio services have been
+ * deleted.
  */
-export function SpeechSettingsForm({ kind, own, fallback }: Props) {
+export function SpeechSettingsForm({ kind, own }: Props) {
   const strings = useStrings();
   const router = useRouter();
-  const initial = own ?? fallback;
+  const initial = own;
 
   const [baseUrl, setBaseUrl] = useState(initial?.baseUrl ?? "");
   const [model, setModel] = useState(initial?.model ?? "");
@@ -84,19 +85,6 @@ export function SpeechSettingsForm({ kind, own, fallback }: Props) {
     router.refresh();
   }
 
-  async function useDefault() {
-    setPending(true);
-    setMessage(null);
-    const answer = await sendJson("/api/provider-settings", { kind }, "DELETE");
-    setPending(false);
-    if (!answer.ok) {
-      setMessage({ tone: "error", text: `${strings.providerProfiles.refused} ${answer.message}`.trim() });
-      return;
-    }
-    setMessage({ tone: "ok", text: strings.providerProfiles.usingDefault });
-    router.refresh();
-  }
-
   async function test() {
     setTesting(true);
     setMessage(null);
@@ -130,11 +118,7 @@ export function SpeechSettingsForm({ kind, own, fallback }: Props) {
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold">{title}</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {own !== null
-            ? strings.providerProfiles.yourConfig
-            : fallback !== null
-              ? `${strings.providerProfiles.usingDefault}: ${fallback.name}`
-              : ""}
+          {own !== null ? strings.providerProfiles.yourConfig : strings.providerProfiles.notConfigured}
         </span>
       </div>
 
@@ -199,11 +183,6 @@ export function SpeechSettingsForm({ kind, own, fallback }: Props) {
           {kind === "tts" && (
             <button type="button" className={secondary} disabled={testing} onClick={test}>
               {testing ? strings.providerProfiles.testing : strings.providerProfiles.test}
-            </button>
-          )}
-          {own !== null && (
-            <button type="button" className={secondary} disabled={pending} onClick={useDefault}>
-              {strings.providerProfiles.useDefault}
             </button>
           )}
         </div>

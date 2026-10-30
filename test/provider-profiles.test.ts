@@ -229,7 +229,7 @@ describe("an agent's provider profile", () => {
 });
 
 describe("the resolution the bridge receives", () => {
-  async function claimedAgent(withProfile: boolean) {
+  async function claimedAgent() {
     const ann = await account("ann@example.com");
     const rt = createRuntime({
       name: "interview",
@@ -240,12 +240,12 @@ describe("the resolution the bridge receives", () => {
     });
     const runtime = await rt;
 
-    const profile = withProfile ? await profileFor(ann.id) : null;
+    const profile = await profileFor(ann.id);
     const validation = await validateAgentDraft(
       {
         name: "assistant",
         runtimeId: runtime.id,
-        llmProfileId: profile?.id ?? null,
+        llmProfileId: profile.id,
         sttProfileId: null,
         ttsProfileId: null,
         systemPrompt: "be helpful",
@@ -264,7 +264,7 @@ describe("the resolution the bridge receives", () => {
   }
 
   it("carries the profile and its key when the agent names one", async () => {
-    await claimedAgent(true);
+    await claimedAgent();
     const resolution = await resolveDevice(MAC);
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
 
@@ -279,12 +279,14 @@ describe("the resolution the bridge receives", () => {
     });
   });
 
-  it("carries null when the agent names none", async () => {
-    await claimedAgent(false);
+  it("carries null for a kind the agent names none of", async () => {
+    await claimedAgent();
     const resolution = await resolveDevice(MAC);
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
 
-    const agent = resolution.body.agent as Record<string, unknown>;
-    assert.deepEqual(agent.providers, { stt: null, tts: null, llm: null });
+    const providers = (resolution.body.agent as Record<string, unknown>).providers as Record<string, unknown>;
+    assert.equal(providers.stt, null);
+    assert.equal(providers.tts, null);
+    assert.notEqual(providers.llm, null, "the answering model is required, so it is always named");
   });
 });

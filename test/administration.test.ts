@@ -7,6 +7,7 @@ import { adminBindAgent, adminPair, adminRelease } from "../src/lib/admin-action
 import { registerAccount } from "../src/lib/auth/accounts";
 import { createAgent, validateAgentDraft } from "../src/lib/agents";
 import { createProfile, validateProfileDraft } from "../src/lib/llm-profiles";
+import { createProviderProfile } from "../src/lib/provider-profiles";
 import { changeRoleAsAdmin, listAccounts, setRole } from "../src/lib/users";
 import { createRuntime } from "../src/lib/runtimes";
 import { devices, turns } from "../src/lib/db/schema";
@@ -37,13 +38,24 @@ async function agentFor(userId: string) {
     engines: ["engine-a"],
     languages: ["vietnamese"],
   });
+  // An agent must name an answering model: nothing fills one in for it.
+  const llm = await createProviderProfile(userId, {
+    kind: "llm",
+    name: "gpt-mini",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o-mini",
+    voice: null,
+    temperature: null,
+  });
   const validation = await validateAgentDraft(
     {
       name: "assistant",
       runtimeId: runtime.id,
+      llmProfileId: llm.id,
+      sttProfileId: null,
+      ttsProfileId: null,
       systemPrompt: "be helpful",
       language: "vietnamese",
-      engine: "engine-a",
       answerMode: "generate",
       topics: [],
     },

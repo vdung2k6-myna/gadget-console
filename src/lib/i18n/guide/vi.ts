@@ -95,7 +95,7 @@ export const viGuide: Guide = {
             "Đặt tên, và viết prompt: đây là lời dặn mà model nhận được trước mọi câu hỏi.",
             "Chọn runtime — nơi xử lý và trả lời lượt nói. Danh sách ngôn ngữ bên dưới là của runtime đó.",
             "Chọn ngôn ngữ. Bộ chuyển giọng thành văn bản được cấu hình một lần cho account ở mục Nhà cung cấp.",
-            "Chọn “Model trả lời”: một trong các model của account, hoặc để “Mặc định của runtime”.",
+            "Chọn “Model trả lời”: một trong các model của account. Không có mặc định, nên đây là bước bắt buộc.",
             "Điền “Giọng đọc riêng” nếu agent này cần giọng khác giọng của account. Để trống thì dùng giọng của nhà cung cấp; rời khỏi ô để kiểm tra tên giọng với provider.",
             "Chọn cách trả lời: “Sinh câu trả lời” cho hội thoại thường, “Đọc từ tài liệu” khi agent cần trả lời dựa trên tài liệu đã nạp.",
             "Điền “Topics” nếu agent cần tra cứu tri thức: mỗi dòng một chủ đề. Để trống nghĩa là không tra cứu gì, chứ không phải tra cứu tất cả.",
@@ -118,7 +118,7 @@ export const viGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Gadget nghe qua một bộ chuyển giọng thành văn bản cấu hình một lần cho account, và nói qua giọng đọc của account ở mục Nhà cung cấp — trừ khi agent đặt giọng riêng cho nó.",
+          text: "Gadget nghe qua một bộ chuyển giọng thành văn bản và nói qua một giọng đọc, cả hai do account tự cấu hình ở mục Nhà cung cấp — trừ khi agent đặt giọng riêng cho nó. Không có mặc định nào: chưa cấu hình thì gadget không nghe và không nói được.",
         },
         {
           kind: "steps",
@@ -126,12 +126,12 @@ export const viGuide: Guide = {
             "Mở Nhà cung cấp và điền phần nhận giọng nói: endpoint, model, và key chỉ khi dịch vụ cần.",
             "Điền phần giọng đọc: endpoint, model và tên giọng.",
             "Bấm “Nghe thử” để kiểm tra giọng trước khi gadget dùng.",
-            "Để trống một form nghĩa là dùng mặc định của deployment; bấm “Dùng mặc định của deployment” để quay lại — nhưng chỉ khi deployment có mặc định. Deployment không đặt sẵn bộ chuyển giọng hay giọng đọc nào thì form trống là lượt nói thất bại.",
+            "Cả hai form đều bắt buộc. Không có mặc định của deployment để quay về; form trống nghĩa là lượt nói thất bại ở bước nghe hoặc bước nói.",
           ],
         },
         {
           kind: "note",
-          text: "Model và giọng là chuỗi tự do: `tts-1` và `alloy` là tên của OpenAI, mỗi provider công bố tên riêng. Endpoint quyết định nghĩa của chúng, và nút nghe thử là cách kiểm tra. Mặc định của deployment chỉ pre-fill form và trả lời loại bạn chưa cấu hình; deployment không có mặc định cho loại nào thì bạn phải điền loại đó, để trống là lượt nói thất bại.",
+          text: "Model và giọng là chuỗi tự do: `tts-1` và `alloy` là tên của OpenAI, mỗi provider công bố tên riêng. Endpoint quyết định nghĩa của chúng, và nút nghe thử là cách kiểm tra. Không có mặc định nào để dựa vào: mỗi account phải có bộ chuyển giọng và giọng đọc của chính nó, và một loại chưa cấu hình là lượt nói thất bại.",
         },
         {
           kind: "note",
@@ -148,11 +148,11 @@ export const viGuide: Guide = {
     },
     {
       id: "model",
-      title: "Model trả lời: mặc định hay của bạn",
+      title: "Model trả lời: của bạn, không có mặc định",
       blocks: [
         {
           kind: "p",
-          text: "Trong form agent có ô “Model trả lời”. Để “Mặc định của runtime”, agent dùng model mà nhà vận hành đã cấu hình — bạn không cần key và không phải trả tiền cho phần đó. Nếu nhà vận hành chưa cấu hình model nào, lựa chọn đó không có gì để dùng và lượt nói thất bại; khi đó bạn phải thêm model của mình.",
+          text: "Trong form agent có ô “Model trả lời”, và nó bắt buộc: không có mặc định nào để dựa vào, nên agent không chọn model là agent không trả lời được. Model có thể do bạn tự thêm, hoặc một cái có sẵn mà nhà vận hành đã đặt.",
         },
         {
           kind: "steps",
@@ -165,14 +165,14 @@ export const viGuide: Guide = {
         },
         {
           kind: "note",
-          text: "Key được lưu mã hoá và không bao giờ hiện lại trên trình duyệt. Xoá một kết nối thì các agent đang dùng nó quay về model mặc định của runtime.",
+          text: "Key được lưu mã hoá và không bao giờ hiện lại trên trình duyệt. Xoá một kết nối thì các agent đang dùng nó không còn model trả lời cho tới khi bạn gán cái khác.",
         },
         {
           kind: "error",
           symptom: "Gadget báo không kết nối được tới model, lượt nói không có câu trả lời.",
           cause:
-            "Agent đang dùng LLM của bạn, và endpoint đó không trả lời được — sai địa chỉ, mạng không tới, hoặc key/model không đúng. Cũng có thể agent đang để “Mặc định của runtime” trong khi deployment không cấu hình model nào.",
-          fix: "Kiểm base URL (thường phải kết thúc bằng /v1), tên model, và key; nếu agent để mặc định, kiểm xem deployment có model mặc định không — không có thì thêm model của bạn. Lượt nói đã cố ý không được trả lời bằng model khác.",
+            "Endpoint của model không trả lời được — sai địa chỉ, mạng không tới, hoặc key/model không đúng.",
+          fix: "Kiểm base URL (thường phải kết thúc bằng /v1), tên model, và key. Lượt nói đã cố ý không được trả lời bằng model khác.",
         },
       ],
     },

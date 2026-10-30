@@ -55,7 +55,7 @@ export default async function AgentsPage() {
                   </td>
                   <td className="py-2 pr-4">{agent.language}</td>
                   <td className="py-2 pr-4">
-                    {named.length === 0 ? strings.agentForm.profileDefault : named.join(", ")}
+                    {named.length === 0 ? strings.agentForm.noModel : named.join(", ")}
                   </td>
                   <td className="py-2 text-zinc-600 dark:text-zinc-400">
                     {answered.length === 0 ? strings.agents.answersNone : answered.join(", ")}

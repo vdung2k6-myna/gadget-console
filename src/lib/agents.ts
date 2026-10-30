@@ -94,7 +94,12 @@ export async function validateAgentDraft(
     return id;
   }
 
+  // The answering model is required: there is no deployment default to answer a
+  // turn that names none, so an agent without one is one that cannot speak.
   const llmProfileId = await profileOf("llm", body.llmProfileId, "the LLM profile");
+  if (llmProfileId === null && !errors.some((error) => error.startsWith("the LLM profile"))) {
+    errors.push("an answering model is required");
+  }
   const sttProfileId = await profileOf("stt", body.sttProfileId, "the STT profile");
   const ttsProfileId = await profileOf("tts", body.ttsProfileId, "the TTS profile");
 

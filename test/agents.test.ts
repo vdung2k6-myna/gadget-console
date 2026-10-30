@@ -16,12 +16,35 @@ import { createProviderProfile } from "../src/lib/provider-profiles";
 import { devices } from "../src/lib/db/schema";
 
 before(() => requireTestDatabase());
-beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  llmProfileId = null;
+});
 after(closeDb);
+
+/**
+ * An account, with the answering model every agent now has to name.
+ *
+ * There is no deployment default for a turn to fall back to, so a draft without an
+ * LLM profile is refused — the helper gives each test one unless it is testing that
+ * refusal itself.
+ */
+let llmProfileId: string | null = null;
 
 async function account(email: string) {
   const result = await registerAccount(email, "a good password");
   if (!result.ok) throw new Error(`could not register ${email}`);
+  const llm = await createProviderProfile(result.user.id, {
+    kind: "llm",
+    name: "gpt-mini",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o-mini",
+    voice: null,
+    temperature: null,
+  });
+  // The first account in a test owns the draft's model; a second account exists to
+  // be refused, and must not lend its profile to the first one's draft.
+  if (llmProfileId === null) llmProfileId = llm.id;
   return result.user;
 }
 
@@ -49,7 +72,7 @@ function draft(runtimeId: string, overrides: Record<string, unknown> = {}) {
     runtimeId,
     systemPrompt: "be helpful",
     language: "vietnamese",
-    llmProfileId: null,
+    llmProfileId,
     sttProfileId: null,
     ttsProfileId: null,
     answerMode: "generate",

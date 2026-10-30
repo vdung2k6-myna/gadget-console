@@ -5,7 +5,6 @@ import {
   accountSpeechSettings,
   saveAccountProvider,
   SPEECH_KINDS,
-  useDeploymentDefault,
   validateProviderDraft,
   type SpeechKind,
 } from "@/lib/provider-profiles";
@@ -67,21 +66,3 @@ export async function PUT(request: Request) {
   return NextResponse.json({ settings: await accountSpeechSettings(user.id) });
 }
 
-export async function DELETE(request: Request) {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ errors: ["the body must be JSON"] }, { status: 400 });
-  }
-  const kind = typeof body === "object" && body !== null ? asKind((body as Record<string, unknown>).kind) : undefined;
-  if (kind === undefined) {
-    return NextResponse.json({ errors: [`kind must be one of ${SPEECH_KINDS.join(", ")}`] }, { status: 400 });
-  }
-
-  await useDeploymentDefault(user.id, kind);
-  return NextResponse.json({ settings: await accountSpeechSettings(user.id) });
-}

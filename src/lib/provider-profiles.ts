@@ -323,12 +323,9 @@ export async function providersForAgent(
     id: string | null,
     voiceOverride?: string | null
   ): Promise<RuntimeProvider | null> {
-    const row =
-      id === null
-        ? voiceOverride !== undefined && voiceOverride !== null && voiceOverride !== ""
-          ? await defaultProviderProfile(kind)
-          : undefined
-        : await findProviderProfile(userId, id);
+    // No id means no provider of that kind, and an agent's own voice has nothing
+    // to apply to: the console no longer fills a kind in from a deployment default.
+    const row = id === null ? undefined : await findProviderProfile(userId, id);
     if (row === undefined || row.kind !== kind) return null;
     const provider = runtimeProvider(row);
     return voiceOverride !== undefined && voiceOverride !== null && voiceOverride !== ""
@@ -429,43 +426,22 @@ export async function saveAccountProvider(
   return row;
 }
 
-/**
- * Drop the account's setting for a kind and let the deployment's default answer.
- *
- * With no default, the agents are left with no profile of that kind, and the
- * runtime's own configured default — never a local address assumed by this console.
- */
-export async function useDeploymentDefault(
-  userId: string,
-  kind: SpeechKind
-): Promise<ProviderProfileRow | null> {
-  const existing = await activeAccountProvider(userId, kind);
-  if (existing !== undefined) await deleteProviderProfile(userId, existing.id);
-
-  const fallback = await defaultProviderProfile(kind);
-  await getDb()
-    .update(agents)
-    .set(kind === "stt" ? { sttProfileId: fallback?.id ?? null } : { ttsProfileId: fallback?.id ?? null })
-    .where(eq(agents.userId, userId));
-  return fallback ?? null;
-}
-
 export type PublicSpeechProfile = PublicProviderProfile & { kind: SpeechKind };
-
-export interface SpeechSetting {
-  /** The account's own row, or null when it uses the deployment default. */
-  own: PublicSpeechProfile | null;
-  /** The deployment's default, or null when it publishes none. */
-  default: PublicSpeechProfile | null;
-}
 
 function publicSpeechProfile(row: ProviderProfileRow): PublicSpeechProfile {
   return { ...publicProviderProfile(row), kind: row.kind as SpeechKind };
 }
 
+/**
+ * The account's two speech settings, as it configured them.
+ *
+ * There is no second value to fall back to: a kind the account has not configured
+ * is null, and a turn that names it fails rather than being answered by a
+ * deployment-wide default nobody chose.
+ */
 export interface AccountSpeechSettings {
-  stt: SpeechSetting;
-  tts: SpeechSetting;
+  stt: PublicSpeechProfile | null;
+  tts: PublicSpeechProfile | null;
 }
 
 /**
@@ -532,13 +508,9 @@ export async function testSpeechProvider(input: {
 
 /** What the settings page shows: the account's row and the default, per kind. */
 export async function accountSpeechSettings(userId: string): Promise<AccountSpeechSettings> {
-  async function setting(kind: SpeechKind): Promise<SpeechSetting> {
+  async function setting(kind: SpeechKind): Promise<PublicSpeechProfile | null> {
     const own = await activeAccountProvider(userId, kind);
-    const fallback = await defaultProviderProfile(kind);
-    return {
-      own: own === undefined ? null : publicSpeechProfile(own),
-      default: fallback === undefined ? null : publicSpeechProfile(fallback),
-    };
+    return own === undefined ? null : publicSpeechProfile(own);
   }
   return { stt: await setting("stt"), tts: await setting("tts") };
 }

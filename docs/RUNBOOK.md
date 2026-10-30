@@ -46,15 +46,34 @@ On the host, for the console:
 sudo systemctl stop gadget-console
 tar xzf /tmp/console.tar.gz -C /srv/gadget-console
 cd /srv/gadget-console
-npm ci                 # only when package.json or the lockfile changed
-npm run build
-sudo systemctl start gadget-console
+npm ci                                   # only when package.json or the lockfile changed
+if npm run build > "$HOME/console-build.log" 2>&1; then
+  sudo systemctl start gadget-console
+else
+  echo "build failed — .next is still the previous release; read $HOME/console-build.log"
+fi
 curl -s localhost:3001/health
 ```
 
 The tree belongs to the account the units run as (`<deploy-user>`): extract, install and build as that
 account, and keep `sudo` for `systemctl` alone. A tree extracted with `sudo tar` comes out
 root-owned, and the next build as the user then fails on permissions.
+
+Three ways this silently deploys the wrong thing, all seen:
+
+- **The tarball is old.** It holds whatever `HEAD` was when it was made, and a `console.tar.gz` left
+  in `$TEMP` by the previous release deploys that release. Record `git log --oneline -1` before
+  packaging, and after deploying check that the tree carries it (`grep` the file a release changed,
+  or open the page it changed).
+- **The build failed and nobody noticed.** A failed build leaves `.next` from the previous release;
+  the unit starts on it and `/health` answers 200 while the site serves old content. The build's
+  exit status is the check, not the health endpoint.
+- **The log file is not writable.** `/tmp/console-build.log` written by an earlier `sudo` run belongs
+  to root, so the redirect fails before the build starts and the "build" is a `Permission denied`.
+  Write the log where the service's user owns it, such as `$HOME`.
+
+So a deployment is verified by **something the release changed** — a string on `/help`, a route, a
+column — and never by `/health` alone.
 
 For the runtime and the bridge the same three steps without the build (`npm start` runs `tsx`
 directly), and their health checks are `localhost:4000/health` and `http://127.0.0.1:8003/`.
