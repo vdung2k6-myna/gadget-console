@@ -126,6 +126,18 @@ gcloud sql instances patch gadget-db --activation-policy=NEVER     # optional
 Stopping deletes nothing. An unattached static IP costs about $7 a month, which is why the address
 is kept only while the deployment is in use.
 
+## Cost
+
+List price in `asia-southeast1`, checked on 2026-10-30:
+
+- about **$50–60 a month** with the host and database running continuously;
+- about **$20–25 a month** idle: the disks, the database's storage, and the reserved address while
+  it is unattached;
+- about **$0.10 for a two-hour session** of the host and database.
+
+The billing account is denominated in VND and carries a 1,500,000 ₫ budget (about $60) with alerts
+at 50, 90 and 100 percent, so a month that runs continuously is visible before it doubles.
+
 ## Updating a service
 
 Each service is a tree under `/srv`, deployed from a tarball of the repository's HEAD:
