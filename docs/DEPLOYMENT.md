@@ -155,7 +155,9 @@ after a release that changes the schema.
 
 - No audio tier, no model and no knowledge retrieval: `material` answer mode has nothing to speak,
   and the document-extraction service is not deployed.
-- An agent with no `llm` profile fails its turn with a connection error rather than a message.
+- An agent with no `llm` profile fails its turn with `fetch failed` — the runtime's own model
+  address, which nothing serves — rather than a message naming what is missing; an agent with no
+  `stt` profile is told `no transcription provider is configured for this turn`.
 - Caddy carries the WebSocket upgrade; a wrong path match breaks every gadget at once, so the
   check after a config change is a `wss` handshake from outside.
 - A gadget must be flashed with the OTA address `https://gw.<domain>/xiaozhi/ota/`; one that
