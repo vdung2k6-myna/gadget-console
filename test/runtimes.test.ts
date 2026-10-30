@@ -11,7 +11,7 @@ const input = {
   name: "interview",
   baseUrl: "http://127.0.0.1:4000",
   token: "runtime-token-that-must-not-leak",
-  engines: ["kokoro"],
+  engines: ["engine-a"],
   languages: ["vietnamese"],
 };
 

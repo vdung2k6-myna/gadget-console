@@ -4,7 +4,7 @@ import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/db/client";
 import { agents, devices, turns } from "@/lib/db/schema";
 import { allowClaimIssue, awaitingApproval, issueClaim, isPendingClaim, normalizeDeviceId } from "@/lib/claims";
-import { profileForAgent } from "@/lib/crypto/profiles";
+import { providersForAgent } from "@/lib/provider-profiles";
 import { targetFor } from "@/lib/firmware";
 
 /**
@@ -86,9 +86,9 @@ export async function resolveDevice(rawDeviceId: string): Promise<Resolution> {
               answerMode: agent.answerMode,
               topics: agent.topics,
               runtime: agent.runtime,
-              // The account's own model, or null for the runtime's default. The
-              // key is decrypted here and nowhere else.
-              llm: agent.llm,
+              // The three providers, keys decrypted here and nowhere else, or
+              // null for the runtime's default.
+              providers: agent.providers,
             },
       // Oldest first: this is what a turn's history is built from.
       turns: history.reverse().map((turn) => ({
@@ -96,6 +96,9 @@ export async function resolveDevice(rawDeviceId: string): Promise<Resolution> {
         assistantText: turn.assistantText,
         language: turn.language,
         engine: turn.engine,
+        sttProfile: turn.sttProfile,
+        ttsProfile: turn.ttsProfile,
+        llmProfile: turn.llmProfile,
         startedAt: turn.startedAt.toISOString(),
         endedAt: turn.endedAt.toISOString(),
       })),
@@ -124,6 +127,9 @@ function agentWithRuntime(agentId: string, userId: string) {
       topics: agents.topics,
       runtimeId: agents.runtimeId,
       llmProfileId: agents.llmProfileId,
+      sttProfileId: agents.sttProfileId,
+      ttsProfileId: agents.ttsProfileId,
+      voice: agents.voice,
     })
     .from(agents)
     .where(eq(agents.id, agentId))
@@ -133,11 +139,25 @@ function agentWithRuntime(agentId: string, userId: string) {
       if (agent === undefined) return undefined;
       const runtime = await findRuntime(agent.runtimeId);
       if (runtime === undefined) return undefined;
-      const llm = await profileForAgent(userId, agent.llmProfileId);
-      const { runtimeId: _runtimeId, llmProfileId: _llmProfileId, ...fields } = agent;
+      const providers = await providersForAgent(
+        userId,
+        {
+          stt: agent.sttProfileId,
+          tts: agent.ttsProfileId,
+          llm: agent.llmProfileId,
+        },
+        agent.voice
+      );
+      const {
+        runtimeId: _runtimeId,
+        llmProfileId: _llmProfileId,
+        sttProfileId: _sttProfileId,
+        ttsProfileId: _ttsProfileId,
+        ...fields
+      } = agent;
       return {
         ...fields,
-        llm,
+        providers,
         runtime: { baseUrl: runtime.baseUrl, token: runtime.token },
       };
     });
@@ -172,7 +192,12 @@ export interface TurnRecord {
   userText: string;
   assistantText: string;
   language: string;
-  engine: string;
+  /** The engine a turn before profiles used; omitted by a current bridge. */
+  engine?: string;
+  /** The profiles that heard, spoke and answered, by name. */
+  sttProfile?: string;
+  ttsProfile?: string;
+  llmProfile?: string;
   startedAt: Date;
   endedAt: Date;
 }
@@ -192,7 +217,13 @@ export async function recordTurn(input: unknown): Promise<RecordResult> {
   const userText = typeof body.userText === "string" ? body.userText : undefined;
   const assistantText = typeof body.assistantText === "string" ? body.assistantText : undefined;
   const language = typeof body.language === "string" ? body.language : "";
-  const engine = typeof body.engine === "string" ? body.engine : "";
+  const engine = typeof body.engine === "string" && body.engine !== "" ? body.engine : null;
+  const sttProfile =
+    typeof body.sttProfile === "string" && body.sttProfile !== "" ? body.sttProfile : null;
+  const ttsProfile =
+    typeof body.ttsProfile === "string" && body.ttsProfile !== "" ? body.ttsProfile : null;
+  const llmProfile =
+    typeof body.llmProfile === "string" && body.llmProfile !== "" ? body.llmProfile : null;
   const startedAt = dateValue(body.startedAt);
   const endedAt = dateValue(body.endedAt);
 
@@ -200,7 +231,6 @@ export async function recordTurn(input: unknown): Promise<RecordResult> {
     userText === undefined ||
     assistantText === undefined ||
     language === "" ||
-    engine === "" ||
     startedAt === undefined ||
     endedAt === undefined
   ) {
@@ -224,6 +254,9 @@ export async function recordTurn(input: unknown): Promise<RecordResult> {
       assistantText,
       language,
       engine,
+      sttProfile,
+      ttsProfile,
+      llmProfile,
       startedAt,
       endedAt,
     })

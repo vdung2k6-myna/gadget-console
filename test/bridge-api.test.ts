@@ -34,7 +34,7 @@ async function agentFor(userId: string) {
     name: "interview",
     baseUrl: "http://127.0.0.1:4000",
     token: "runtime-token",
-    engines: ["kokoro"],
+    engines: ["engine-a"],
     languages: ["vietnamese"],
   });
   const rows = await getDb()
@@ -45,7 +45,7 @@ async function agentFor(userId: string) {
       name: "assistant",
       systemPrompt: "be helpful",
       language: "vietnamese",
-      engine: "kokoro",
+      engine: "engine-a",
     })
     .returning();
   return rows[0]!;
@@ -118,7 +118,7 @@ describe("resolving a device", () => {
         userText: text,
         assistantText: `answer ${text}`,
         language: "vietnamese",
-        engine: "kokoro",
+        engine: "engine-a",
         startedAt: new Date(base + index * 1000),
         endedAt: new Date(base + index * 1000 + 500),
       });
@@ -185,7 +185,7 @@ describe("recording a turn", () => {
       userText: "xin chào",
       assistantText: "chào bạn",
       language: "vietnamese",
-      engine: "kokoro",
+      engine: "engine-a",
       startedAt: started,
       endedAt: ended,
     });
@@ -208,7 +208,7 @@ describe("recording a turn", () => {
       userText: "xin chào",
       assistantText: "chào bạn",
       language: "vietnamese",
-      engine: "kokoro",
+      engine: "engine-a",
       startedAt: started,
       endedAt: ended,
     });

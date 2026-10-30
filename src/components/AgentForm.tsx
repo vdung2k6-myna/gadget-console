@@ -16,17 +16,26 @@ const danger =
 export interface RuntimeOption {
   id: string;
   name: string;
-  engines: string[];
   languages: string[];
+}
+
+export interface ProfileOption {
+  id: string;
+  kind: "llm" | "stt" | "tts";
+  name: string;
+  builtin: boolean;
 }
 
 export interface AgentValue {
   id: string;
   name: string;
   llmProfileId: string | null;
+  sttProfileId: string | null;
+  ttsProfileId: string | null;
+  /** A voice this agent speaks in, or null to use its `tts` profile's. */
+  voice: string | null;
   systemPrompt: string;
   language: string;
-  engine: string;
   runtimeId: string;
   answerMode: string;
   topics: string[];
@@ -34,17 +43,18 @@ export interface AgentValue {
 
 interface Props {
   runtimes: RuntimeOption[];
-  profiles: { id: string; name: string }[];
+  profiles: ProfileOption[];
   agent?: AgentValue;
 }
 
 /**
  * The one form for creating and editing what a gadget says.
  *
- * It offers only what the chosen runtime names, because the console refuses
- * anything else when it is saved — showing a value that cannot be kept would be
- * a trap. There is deliberately no voice field: the runtime resolves that from
- * the engine and the language.
+ * It offers the account's answering models and only the languages the chosen
+ * runtime names. The transcriber is the account's speech setting; the voice is
+ * the provider's unless this agent names one, and the name is checked against
+ * that provider before a turn discovers it. The profile ids are carried so
+ * saving an agent does not clear links the settings page maintains.
  */
 export function AgentForm({ runtimes, profiles, agent }: Props) {
   const strings = useStrings();
@@ -55,8 +65,11 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
   const [systemPrompt, setSystemPrompt] = useState(agent?.systemPrompt ?? "");
   const [runtimeId, setRuntimeId] = useState(agent?.runtimeId ?? runtimes[0]?.id ?? "");
   const [language, setLanguage] = useState(agent?.language ?? runtimes[0]?.languages[0] ?? "");
-  const [engine, setEngine] = useState(agent?.engine ?? runtimes[0]?.engines[0] ?? "");
   const [llmProfileId, setLlmProfileId] = useState(agent?.llmProfileId ?? "");
+  const [sttProfileId, setSttProfileId] = useState(agent?.sttProfileId ?? "");
+  const [ttsProfileId, setTtsProfileId] = useState(agent?.ttsProfileId ?? "");
+  const [voice, setVoice] = useState(agent?.voice ?? "");
+  const [voiceState, setVoiceState] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [answerMode, setAnswerMode] = useState(agent?.answerMode ?? "generate");
   const [topics, setTopics] = useState((agent?.topics ?? []).join("\n"));
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -64,7 +77,39 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
 
   const runtime = runtimes.find((entry) => entry.id === runtimeId);
   const languageMissing = runtime !== undefined && !runtime.languages.includes(language);
-  const engineMissing = runtime !== undefined && !runtime.engines.includes(engine);
+
+  function optionsFor(kind: ProfileOption["kind"]): ProfileOption[] {
+    return profiles.filter((profile) => profile.kind === kind);
+  }
+
+  function optionLabel(profile: ProfileOption): string {
+    return profile.builtin ? `${profile.name} (${strings.agentForm.builtin})` : profile.name;
+  }
+
+  /** Ask the account's TTS provider whether it holds this voice. */
+  async function checkVoice(value: string): Promise<void> {
+    if (value.trim() === "") {
+      setVoiceState(null);
+      return;
+    }
+    const answer = await sendJson("/api/agents/voice-check", { voice: value.trim() });
+    if (!answer.ok) {
+      setVoiceState({
+        tone: "error",
+        text: `${strings.providerProfiles.testFailed} ${answer.message}`.trim(),
+      });
+      return;
+    }
+    const result = answer.data as { ok?: boolean; error?: string } | undefined;
+    setVoiceState(
+      result?.ok === true
+        ? { tone: "ok", text: strings.providerProfiles.testOk }
+        : {
+            tone: "error",
+            text: `${strings.providerProfiles.testFailed} ${result?.error ?? ""}`.trim(),
+          }
+    );
+  }
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -76,9 +121,11 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
       systemPrompt,
       runtimeId,
       language,
-      engine,
       answerMode,
       llmProfileId: llmProfileId === "" ? null : llmProfileId,
+      sttProfileId: sttProfileId === "" ? null : sttProfileId,
+      ttsProfileId: ttsProfileId === "" ? null : ttsProfileId,
+      voice: voice.trim() === "" ? null : voice.trim(),
       topics: topics
         .split("\n")
         .map((topic) => topic.trim())
@@ -146,9 +193,8 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
           onChange={(event) => {
             const next = runtimes.find((entry) => entry.id === event.target.value);
             setRuntimeId(event.target.value);
-            if (next !== undefined) {
-              if (!next.languages.includes(language)) setLanguage(next.languages[0] ?? "");
-              if (!next.engines.includes(engine)) setEngine(next.engines[0] ?? "");
+            if (next !== undefined && !next.languages.includes(language)) {
+              setLanguage(next.languages[0] ?? "");
             }
           }}
         >
@@ -160,39 +206,68 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
         </select>
       </label>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm">
-          {strings.agentForm.language}
-          <select className={field} value={language} onChange={(event) => setLanguage(event.target.value)}>
-            {(runtime?.languages ?? []).map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-          {languageMissing && <span className="text-xs text-red-700 dark:text-red-300">runtime này không có ngôn ngữ đang chọn</span>}
-        </label>
+      <label className="mt-3 block text-sm">
+        {strings.agentForm.language}
+        <select
+          className={field}
+          value={language}
+          onChange={(event) => {
+            setLanguage(event.target.value);
+            // The voice this agent names may not be one the provider holds for
+            // the language it now speaks; ask the provider again, as the
+            // settings page does, rather than let a turn discover it.
+            if (voice.trim() !== "") void checkVoice(voice);
+          }}
+        >
+          {(runtime?.languages ?? []).map((entry) => (
+            <option key={entry} value={entry}>
+              {entry}
+            </option>
+          ))}
+        </select>
+        {languageMissing && (
+          <span className="text-xs text-red-700 dark:text-red-300">
+            runtime này không có ngôn ngữ đang chọn
+          </span>
+        )}
+      </label>
 
-        <label className="block text-sm">
-          {strings.agentForm.engine}
-          <select className={field} value={engine} onChange={(event) => setEngine(event.target.value)}>
-            {(runtime?.engines ?? []).map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-          {engineMissing && <span className="text-xs text-red-700 dark:text-red-300">runtime này không có giọng đang chọn</span>}
-        </label>
-      </div>
+      <label className="mt-3 block text-sm">
+        {strings.agentForm.voice}
+        <input
+          className={field}
+          value={voice}
+          onChange={(event) => {
+            setVoice(event.target.value);
+            setVoiceState(null);
+          }}
+          onBlur={(event) => void checkVoice(event.target.value)}
+          placeholder="voice-name"
+        />
+        {voiceState !== null && (
+          <span
+            className={
+              voiceState.tone === "ok"
+                ? "text-xs text-emerald-700 dark:text-emerald-300"
+                : "text-xs text-red-700 dark:text-red-300"
+            }
+          >
+            {voiceState.text}
+          </span>
+        )}
+      </label>
 
       <label className="mt-3 block text-sm">
         {strings.agentForm.llmProfile}
-        <select className={field} value={llmProfileId} onChange={(event) => setLlmProfileId(event.target.value)}>
-          <option value="">{strings.agentForm.llmDefault}</option>
-          {profiles.map((profile) => (
+        <select
+          className={field}
+          value={llmProfileId}
+          onChange={(event) => setLlmProfileId(event.target.value)}
+        >
+          <option value="">{strings.agentForm.profileDefault}</option>
+          {optionsFor("llm").map((profile) => (
             <option key={profile.id} value={profile.id}>
-              {profile.name}
+              {optionLabel(profile)}
             </option>
           ))}
         </select>

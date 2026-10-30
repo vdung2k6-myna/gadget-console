@@ -13,7 +13,10 @@ async function main(): Promise<void> {
   const name = process.env.RUNTIME_NAME?.trim() || "interview";
   const baseUrl = process.env.RUNTIME_URL?.trim() || "http://127.0.0.1:4000";
   const token = process.env.RUNTIME_TOKEN?.trim();
-  const engines = (process.env.RUNTIME_ENGINES ?? "kokoro,piper,supertonic")
+  // The engine list is legacy: an agent no longer names an engine, and this
+  // repository does not assume a deployment's audio stack. Set RUNTIME_ENGINES
+  // only where something older still reads it.
+  const engines = (process.env.RUNTIME_ENGINES ?? "")
     .split(",")
     .map((engine) => engine.trim())
     .filter((engine) => engine !== "");

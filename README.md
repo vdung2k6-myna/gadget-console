@@ -128,8 +128,8 @@ own credentials, not a gadget.
 | `/devices` | The account's gadgets, the six-digit claim input, and a warning for a gadget with no agent. |
 | `/devices/[id]` | One gadget: identifier, agent, partner, last seen, the board its firmware reported and the release targeted for it, what it can do; rename, bind, pair, release; and its conversation record. |
 | `/agents` | The account's agents, and which devices each answers. |
-| `/agents/new`, `/agents/[id]` | The agent form: prompt, runtime, language, engine, answer mode, topics, answering model. |
-| `/llm-profiles` | The account's own OpenAI-compatible endpoints: base URL, model, key, temperature. |
+| `/agents/new`, `/agents/[id]` | The agent form: prompt, runtime, language, answer mode, topics, answering model. |
+| `/provider-profiles` | The account's speech settings — one transcriber and one voice, with a typed model and voice and a sample to hear — and its answering models (OpenAI-compatible endpoints). |
 | `/help` | The guide: every step from unboxing to release, and what each common failure means. |
 | `/admin/devices`, `/admin/users`, `/admin/claims` | The admin area: every device, every account, and the requests waiting for a decision. Visible in the header only to an admin. |
 | `/admin/firmware` | The firmware releases, with an upload form, the target for each board type, and the controls that move or clear it. |
@@ -139,14 +139,22 @@ A walk through it, in order:
 1. Open `http://127.0.0.1:3001/` and create an account.
 2. Power a gadget. Its OTA answer carries a code; it shows and speaks the six digits.
 3. Enter the code on `/devices`. The gadget appears, with "chưa gán agent".
-4. Create an agent on `/agents/new`: a name, a prompt, and the runtime it should be
-   answered by. The languages and engines offered are that runtime's own; the
-   answering model may stay the runtime's default.
-5. Open the gadget, choose the agent, and save.
-6. Speak to the gadget. The turn appears under "Hội thoại" on its page, and the
+4. On `/provider-profiles`, configure the transcriber and the voice, or leave them
+   on the deployment's default. `model` and `voice` are typed: the endpoint defines
+   what their names mean, and the sample button is how a name is checked.
+5. Create an agent on `/agents/new`: a name, a prompt, and the runtime it should be
+   answered by. The languages offered are that runtime's own; the answering model
+   may stay the runtime's default.
+6. Open the gadget, choose the agent, and save.
+7. Speak to the gadget. The turn appears under "Hội thoại" on its page, and the
    tools the gadget declared appear under "Thiết bị này làm được".
-7. Releasing the gadget on the same page deletes that record and makes the gadget
+8. Releasing the gadget on the same page deletes that record and makes the gadget
    claimable again through a new code.
+
+A deployment default is a pre-fill and never a requirement: with none, the speech
+forms start empty and any OpenAI-compatible endpoint can be typed. Deleting every
+audio service the deployment runs therefore removes no user's ability to configure
+their own transcriber and voice — nothing on the console calls those services.
 
 ## Languages
 

@@ -13,6 +13,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "seed:runtime": "tsx scripts/seed-runtime.ts",
+    "seed:providers": "tsx scripts/seed-provider-profiles.ts",
     "prune": "tsx scripts/prune.ts",
     "role": "tsx scripts/role.ts"
   },

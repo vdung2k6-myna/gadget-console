@@ -31,7 +31,7 @@ async function turn(deviceRowId: string, userText: string, createdAt = new Date(
     userText,
     assistantText: `answer ${userText}`,
     language: "vietnamese",
-    engine: "kokoro",
+    engine: "engine-a",
     startedAt: createdAt,
     endedAt: createdAt,
     createdAt,

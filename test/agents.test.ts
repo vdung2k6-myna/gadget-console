@@ -12,6 +12,7 @@ import {
   validateAgentDraft,
 } from "../src/lib/agents";
 import { createRuntime } from "../src/lib/runtimes";
+import { createProviderProfile } from "../src/lib/provider-profiles";
 import { devices } from "../src/lib/db/schema";
 
 before(() => requireTestDatabase());
@@ -29,7 +30,7 @@ async function runtime(overrides: Partial<{ engines: string[]; languages: string
     name: "interview",
     baseUrl: "http://127.0.0.1:4000",
     token: "runtime-token",
-    engines: overrides.engines ?? ["kokoro", "piper"],
+    engines: overrides.engines ?? ["engine-a", "engine-b"],
     languages: overrides.languages ?? ["english", "vietnamese"],
   });
 }
@@ -48,40 +49,90 @@ function draft(runtimeId: string, overrides: Record<string, unknown> = {}) {
     runtimeId,
     systemPrompt: "be helpful",
     language: "vietnamese",
-    engine: "kokoro",
+    llmProfileId: null,
+    sttProfileId: null,
+    ttsProfileId: null,
     answerMode: "generate",
     topics: [],
     ...overrides,
   };
 }
 
-const VALIDATION_USER = "00000000-0000-0000-0000-000000000000";
+const MISSING_PROFILE = "00000000-0000-0000-0000-000000000000";
 
 describe("validating an agent", () => {
   it("accepts what the runtime names", async () => {
+    const ann = await account("ann@example.com");
     const rt = await runtime();
-    const result = await validateAgentDraft(draft(rt.id), VALIDATION_USER);
+    const result = await validateAgentDraft(draft(rt.id), ann.id);
     assert.equal(result.ok, true);
   });
 
-  it("refuses an engine the runtime does not offer, naming both", async () => {
-    const rt = await runtime({ engines: ["kokoro"] });
-    const result = await validateAgentDraft(draft(rt.id, { engine: "supertonic" }), VALIDATION_USER);
+  it("refuses a language the runtime does not offer", async () => {
+    const ann = await account("ann@example.com");
+    const rt = await runtime({ languages: ["english"] });
+    const result = await validateAgentDraft(draft(rt.id, { language: "vietnamese" }), ann.id);
+    assert.equal(result.ok, false);
+  });
+
+  it("refuses a profile that is not this account's, naming it", async () => {
+    const ann = await account("ann@example.com");
+    const rt = await runtime();
+    const result = await validateAgentDraft(draft(rt.id, { ttsProfileId: MISSING_PROFILE }), ann.id);
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.ok(result.errors.some((e) => e.includes("supertonic") && e.includes("interview")));
+    assert.ok(result.errors.some((error) => error.includes(MISSING_PROFILE)));
   });
 
-  it("refuses a language the runtime does not offer", async () => {
-    const rt = await runtime({ languages: ["english"] });
-    const result = await validateAgentDraft(draft(rt.id, { language: "vietnamese" }), VALIDATION_USER);
-    assert.equal(result.ok, false);
-  });
-
-  it("refuses an engine nobody names, and a missing prompt", async () => {
+  it("refuses a profile of the wrong kind", async () => {
+    const ann = await account("ann@example.com");
     const rt = await runtime();
-    assert.equal((await validateAgentDraft(draft(rt.id, { engine: "whisper" }), VALIDATION_USER)).ok, false);
-    assert.equal((await validateAgentDraft(draft(rt.id, { systemPrompt: "  " }), VALIDATION_USER)).ok, false);
+    const stt = await createProviderProfile(ann.id, {
+      kind: "stt",
+      name: "audio.cpp",
+      baseUrl: "http://localhost:8080",
+      model: "stt",
+      voice: null,
+      temperature: null,
+    });
+    const result = await validateAgentDraft(draft(rt.id, { ttsProfileId: stt.id }), ann.id);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.ok(result.errors.some((error) => error.includes("not a tts one")));
+  });
+
+  it("accepts a profile of the right kind", async () => {
+    const ann = await account("ann@example.com");
+    const rt = await runtime();
+    const tts = await createProviderProfile(ann.id, {
+      kind: "tts",
+      name: "engine-a-vi",
+      baseUrl: "http://localhost:8082",
+      model: "engine-a",
+      voice: "example_voice",
+      temperature: null,
+    });
+    const result = await validateAgentDraft(draft(rt.id, { ttsProfileId: tts.id }), ann.id);
+    assert.equal(result.ok, true);
+  });
+
+  it("carries a voice of its own, or none", async () => {
+    const ann = await account("ann@example.com");
+    const rt = await runtime();
+
+    const withVoice = await validateAgentDraft(draft(rt.id, { voice: "  tuan_ngoc  " }), ann.id);
+    assert.equal(withVoice.ok, true);
+    if (withVoice.ok) assert.equal(withVoice.draft.voice, "tuan_ngoc");
+
+    const without = await validateAgentDraft(draft(rt.id, { voice: "   " }), ann.id);
+    assert.equal(without.ok, true);
+    if (without.ok) assert.equal(without.draft.voice, null, "blank is the provider's own voice");
+  });
+
+  it("refuses a missing prompt", async () => {
+    const ann = await account("ann@example.com");
+    const rt = await runtime();
+    assert.equal((await validateAgentDraft(draft(rt.id, { systemPrompt: "  " }), ann.id)).ok, false);
   });
 });
 

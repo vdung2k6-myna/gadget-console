@@ -50,6 +50,41 @@
       "when": 1792984709868,
       "tag": "0006_light_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793279314467,
+      "tag": "0007_gorgeous_junta",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793279372539,
+      "tag": "0008_curious_cerebro",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793279553612,
+      "tag": "0009_funny_jazinda",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793287129791,
+      "tag": "0010_massive_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793322646927,
+      "tag": "0011_purple_captain_flint",
+      "breakpoints": true
     }
   ]
 }

@@ -34,7 +34,7 @@ async function agentFor(userId: string) {
     name: "interview",
     baseUrl: "http://127.0.0.1:4000",
     token: "runtime-token",
-    engines: ["kokoro"],
+    engines: ["engine-a"],
     languages: ["vietnamese"],
   });
   const validation = await validateAgentDraft(
@@ -43,7 +43,7 @@ async function agentFor(userId: string) {
       runtimeId: runtime.id,
       systemPrompt: "be helpful",
       language: "vietnamese",
-      engine: "kokoro",
+      engine: "engine-a",
       answerMode: "generate",
       topics: [],
     },
@@ -172,7 +172,7 @@ describe("what an admin reads", () => {
       userText: "xin chào",
       assistantText: "chào bạn",
       language: "vietnamese",
-      engine: "kokoro",
+      engine: "engine-a",
       startedAt: now,
       endedAt: now,
     });

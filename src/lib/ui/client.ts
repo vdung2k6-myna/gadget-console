@@ -12,12 +12,14 @@ export interface Answer {
   status: number;
   /** The route's message, whichever shape it used. */
   message: string;
+  /** The route's JSON, when it answered with some and the caller needs it (a test sample, a list). */
+  data?: unknown;
 }
 
 export async function sendJson(
   path: string,
   body: unknown,
-  method: "POST" | "PATCH" | "DELETE" = "POST"
+  method: "POST" | "PUT" | "PATCH" | "DELETE" = "POST"
 ): Promise<Answer> {
   let response: Response;
   try {
@@ -37,19 +39,28 @@ export async function sendJson(
   }
 
   const payload = await readPayload(response);
-  return { ok: response.ok, status: response.status, message: payload };
+  return {
+    ok: response.ok,
+    status: response.status,
+    message: payload.message,
+    ...(payload.data === undefined ? {} : { data: payload.data }),
+  };
 }
 
-async function readPayload(response: Response): Promise<string> {
-  if (response.status === 204) return "";
+async function readPayload(response: Response): Promise<{ message: string; data?: unknown }> {
+  if (response.status === 204) return { message: "" };
   try {
     const body = (await response.json()) as { error?: unknown; errors?: unknown };
-    if (typeof body.error === "string") return body.error;
+    if (typeof body.error === "string") return { message: body.error, data: body };
     if (Array.isArray(body.errors)) {
-      return body.errors.filter((entry): entry is string => typeof entry === "string").join("; ");
+      return {
+        message: body.errors.filter((entry): entry is string => typeof entry === "string").join("; "),
+        data: body,
+      };
     }
+    return { message: "", data: body };
   } catch {
     // A body that is not JSON has nothing to say that the status does not.
+    return { message: "" };
   }
-  return "";
 }

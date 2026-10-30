@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AgentForm } from "@/components/AgentForm";
 import { requireUser } from "@/lib/auth/require-user";
-import { listProfiles } from "@/lib/llm-profiles";
+import { listProviderProfiles, publicProviderProfile } from "@/lib/provider-profiles";
 import { listRuntimes } from "@/lib/runtimes";
 import { getStrings } from "@/lib/i18n/locale";
 
@@ -13,7 +13,7 @@ export default async function NewAgentPage() {
   const { strings } = await getStrings();
   const user = await requireUser();
   const runtimes = await listRuntimes();
-  const profiles = await listProfiles(user.id);
+  const profiles = (await listProviderProfiles(user.id)).map(publicProviderProfile);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -25,10 +25,14 @@ export default async function NewAgentPage() {
         runtimes={runtimes.map((runtime) => ({
           id: runtime.id,
           name: runtime.name,
-          engines: runtime.engines,
           languages: runtime.languages,
         }))}
-        profiles={profiles.map((profile) => ({ id: profile.id, name: profile.name }))}
+        profiles={profiles.map((profile) => ({
+          id: profile.id,
+          kind: profile.kind,
+          name: profile.name,
+          builtin: profile.builtin,
+        }))}
       />
     </main>
   );

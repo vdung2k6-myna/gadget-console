@@ -86,15 +86,15 @@ export const viGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Mỗi gadget được trả lời bởi một agent. Agent giữ những gì bạn nghe được: lời dặn cho model, ngôn ngữ, giọng đọc, và cách trả lời.",
+          text: "Mỗi gadget được trả lời bởi một agent. Agent giữ lời dặn cho model, ngôn ngữ nó được nghe, model trả lời, và cách trả lời. Bộ chuyển giọng thành văn bản và giọng đọc là cấu hình của account, không phải lựa chọn riêng của agent.",
         },
         {
           kind: "steps",
           items: [
             "Vào mục Agent, bấm “Tạo agent”.",
             "Đặt tên, và viết prompt: đây là lời dặn mà model nhận được trước mọi câu hỏi.",
-            "Chọn runtime — nơi xử lý lượt nói và phát giọng. Danh sách ngôn ngữ và giọng bên dưới là của runtime đó.",
-            "Chọn ngôn ngữ và giọng đọc. Giọng cụ thể do runtime quyết từ hai lựa chọn này; console không cho chọn giọng riêng.",
+            "Chọn runtime — nơi xử lý và trả lời lượt nói. Danh sách ngôn ngữ bên dưới là của runtime đó.",
+            "Chọn ngôn ngữ. Bộ chuyển giọng thành văn bản và giọng đọc được cấu hình một lần cho account ở mục Nhà cung cấp.",
             "Chọn cách trả lời: “Sinh câu trả lời” cho hội thoại thường, “Đọc từ tài liệu” khi agent cần trả lời dựa trên tài liệu đã nạp.",
             "Điền “Topics” nếu agent cần tra cứu tri thức: mỗi dòng một chủ đề. Để trống nghĩa là không tra cứu gì, chứ không phải tra cứu tất cả.",
             "Mở thiết bị của bạn, chọn agent vừa tạo, bấm Gán agent.",
@@ -111,6 +111,40 @@ export const viGuide: Guide = {
       ],
     },
     {
+      id: "speech",
+      title: "Bộ chuyển giọng thành văn bản và giọng đọc",
+      blocks: [
+        {
+          kind: "p",
+          text: "Gadget nghe qua một bộ chuyển giọng thành văn bản và nói qua một giọng đọc, cấu hình một lần cho account ở mục Nhà cung cấp.",
+        },
+        {
+          kind: "steps",
+          items: [
+            "Mở Nhà cung cấp và điền phần nhận giọng nói: endpoint, model, và key chỉ khi dịch vụ cần.",
+            "Điền phần giọng đọc: endpoint, model và tên giọng.",
+            "Bấm “Nghe thử” để kiểm tra giọng trước khi gadget dùng.",
+            "Để trống một form nghĩa là dùng mặc định của deployment; bấm “Dùng mặc định của deployment” để quay lại.",
+          ],
+        },
+        {
+          kind: "note",
+          text: "Model và giọng là chuỗi tự do: `tts-1` và `alloy` là tên của OpenAI, mỗi provider công bố tên riêng. Endpoint quyết định nghĩa của chúng, và nút nghe thử là cách kiểm tra. Mặc định của deployment chỉ pre-fill form và trả lời loại bạn chưa cấu hình; không bao giờ bắt buộc.",
+        },
+        {
+          kind: "note",
+          text: "Xoá toàn bộ audio service của deployment không lấy đi khả năng của bạn: form vẫn lưu endpoint của bạn và lượt nói vẫn đi tới đó. Không có đoạn code nào của console gọi audio service của deployment.",
+        },
+        {
+          kind: "error",
+          symptom: "“Nghe thử” báo lỗi, hoặc gadget không nói gì.",
+          cause:
+            "Endpoint, model hoặc voice không trả lời — sai địa chỉ, model dịch vụ không có, hoặc tên giọng không tồn tại.",
+          fix: "Kiểm endpoint (với provider hosted thường kết thúc bằng /v1), model và voice. Nút nghe thử hiện đúng lời từ chối của provider.",
+        },
+      ],
+    },
+    {
       id: "model",
       title: "Model trả lời: mặc định hay của bạn",
       blocks: [
@@ -121,7 +155,7 @@ export const viGuide: Guide = {
         {
           kind: "steps",
           items: [
-            "Muốn dùng model của riêng bạn: vào mục LLM, bấm “Thêm kết nối”.",
+            "Muốn dùng model của riêng bạn: mở Nhà cung cấp, ở mục “Model trả lời”, bấm “Thêm model”.",
             "Nhập base URL của endpoint OpenAI-compatible (ví dụ https://api.openai.com/v1), model, và API key.",
             "Nhiệt độ (temperature) có thể để trống để dùng mặc định của nhà cung cấp.",
             "Quay lại agent, chọn kết nối vừa tạo ở ô “Model trả lời”.",

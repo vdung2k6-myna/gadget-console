@@ -26,7 +26,7 @@ async function everythingFor(userId: string) {
         name: "test",
         baseUrl: "http://127.0.0.1:4000",
         token: "runtime-token",
-        engines: ["kokoro"],
+        engines: ["engine-a"],
         languages: ["vietnamese"],
       })
       .returning()
@@ -41,7 +41,7 @@ async function everythingFor(userId: string) {
         name: "assistant",
         systemPrompt: "be helpful",
         language: "vietnamese",
-        engine: "kokoro",
+        engine: "engine-a",
       })
       .returning()
   )[0]!;
@@ -59,7 +59,7 @@ async function everythingFor(userId: string) {
     userText: "xin chào",
     assistantText: "chào bạn",
     language: "vietnamese",
-    engine: "kokoro",
+    engine: "engine-a",
     startedAt: now,
     endedAt: now,
   });

@@ -4,7 +4,7 @@ import { AgentForm } from "@/components/AgentForm";
 import { requireUser } from "@/lib/auth/require-user";
 import { ownAgent } from "@/lib/auth/ownership";
 import { listOwnedDevices } from "@/lib/devices";
-import { listProfiles } from "@/lib/llm-profiles";
+import { listProviderProfiles, publicProviderProfile } from "@/lib/provider-profiles";
 import { listRuntimes } from "@/lib/runtimes";
 import { deviceLabel } from "@/lib/ui/format";
 import { getStrings } from "@/lib/i18n/locale";
@@ -24,7 +24,7 @@ export default async function EditAgentPage({ params }: Params) {
   if (agent === undefined) notFound();
 
   const runtimes = await listRuntimes();
-  const profiles = await listProfiles(user.id);
+  const profiles = (await listProviderProfiles(user.id)).map(publicProviderProfile);
   const devices = (await listOwnedDevices(user.id)).filter((device) => device.agentId === agent.id);
 
   return (
@@ -42,18 +42,24 @@ export default async function EditAgentPage({ params }: Params) {
         runtimes={runtimes.map((runtime) => ({
           id: runtime.id,
           name: runtime.name,
-          engines: runtime.engines,
           languages: runtime.languages,
         }))}
-        profiles={profiles.map((profile) => ({ id: profile.id, name: profile.name }))}
+        profiles={profiles.map((profile) => ({
+          id: profile.id,
+          kind: profile.kind,
+          name: profile.name,
+          builtin: profile.builtin,
+        }))}
         agent={{
           id: agent.id,
           name: agent.name,
           systemPrompt: agent.systemPrompt,
           language: agent.language,
-          engine: agent.engine,
           runtimeId: agent.runtimeId,
           llmProfileId: agent.llmProfileId,
+          sttProfileId: agent.sttProfileId,
+          ttsProfileId: agent.ttsProfileId,
+          voice: agent.voice,
           answerMode: agent.answerMode,
           topics: agent.topics,
         }}

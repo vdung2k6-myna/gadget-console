@@ -47,8 +47,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   <Link href="/agents" className="hover:underline">
                     {strings.nav.agents}
                   </Link>
-                  <Link href="/llm-profiles" className="hover:underline">
-                    {strings.nav.llmProfiles}
+                  <Link href="/provider-profiles" className="hover:underline">
+                    {strings.nav.providers}
                   </Link>
                 </>
               )}

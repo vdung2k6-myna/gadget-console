@@ -1,7 +1,7 @@
 import { and, eq, ne } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { agents, devices } from "@/lib/db/schema";
-import { findProfile } from "@/lib/crypto/profiles";
+import { findProviderProfile, type ProviderKind } from "./provider-profiles";
 import { findRuntime, type Runtime } from "./runtimes";
 
 /**
@@ -15,7 +15,6 @@ import { findRuntime, type Runtime } from "./runtimes";
  */
 
 export const AGENT_LANGUAGES = ["english", "vietnamese"] as const;
-export const AGENT_ENGINES = ["kokoro", "piper", "supertonic"] as const;
 export const ANSWER_MODES = ["generate", "material"] as const;
 
 export type Agent = typeof agents.$inferSelect;
@@ -25,9 +24,14 @@ export interface AgentDraft {
   runtimeId: string;
   /** The account's own model, or null for the runtime's default. */
   llmProfileId: string | null;
+  /** The transcriber, or null for the runtime's default. */
+  sttProfileId: string | null;
+  /** The voice, or null for the runtime's default. */
+  ttsProfileId: string | null;
+  /** A voice this agent speaks in, or null to use its `tts` profile's. */
+  voice: string | null;
   systemPrompt: string;
   language: string;
-  engine: string;
   answerMode: string;
   topics: string[];
 }
@@ -68,29 +72,41 @@ export async function validateAgentDraft(
     errors.push(`language ${JSON.stringify(language)} is not one runtime ${JSON.stringify(runtime.name)} offers`);
   }
 
-  const engine = text(body.engine);
-  if (!(AGENT_ENGINES as readonly string[]).includes(engine)) {
-    errors.push(`engine ${JSON.stringify(engine)} is not one the console names`);
-  } else if (runtime !== undefined && !runtime.engines.includes(engine)) {
-    errors.push(`engine ${JSON.stringify(engine)} is not one runtime ${JSON.stringify(runtime.name)} offers`);
+  // A profile is the agent's account's or a built-in, and it has to be the kind
+  // the agent is binding it for: an `stt` profile cannot speak, and another
+  // account's profile would spend that account's key.
+  async function profileOf(
+    kind: ProviderKind,
+    raw: unknown,
+    label: string
+  ): Promise<string | null> {
+    const id = text(raw);
+    if (id === "") return null;
+    const profile = await findProviderProfile(userId, id);
+    if (profile === undefined) {
+      errors.push(`${label} ${JSON.stringify(id)} is not one this account can name`);
+      return null;
+    }
+    if (profile.kind !== kind) {
+      errors.push(`${label} ${JSON.stringify(id)} is a ${profile.kind} profile, not a ${kind} one`);
+      return null;
+    }
+    return id;
   }
+
+  const llmProfileId = await profileOf("llm", body.llmProfileId, "the LLM profile");
+  const sttProfileId = await profileOf("stt", body.sttProfileId, "the STT profile");
+  const ttsProfileId = await profileOf("tts", body.ttsProfileId, "the TTS profile");
+
+  // A voice this agent overrides its `tts` profile's with. Free text: this route
+  // cannot know what an arbitrary provider holds, so the form checks it against
+  // the provider itself (`/api/agents/voice-check`) and the turn reports a
+  // refusal naming it.
+  const voice = text(body.voice);
 
   const answerMode = text(body.answerMode) === "" ? "generate" : text(body.answerMode);
   if (!(ANSWER_MODES as readonly string[]).includes(answerMode)) {
     errors.push(`answer mode ${JSON.stringify(answerMode)} is not one the console names`);
-  }
-
-  // A profile is the agent's account's or it is nothing: an agent pointing at
-  // another account's endpoint would spend that account's key.
-  let llmProfileId: string | null = null;
-  if (body.llmProfileId !== undefined && body.llmProfileId !== null && body.llmProfileId !== "") {
-    const wanted = text(body.llmProfileId);
-    const profile = wanted === "" ? undefined : await findProfile(userId, wanted);
-    if (profile === undefined) {
-      errors.push(`LLM profile ${JSON.stringify(wanted)} is not one this account owns`);
-    } else {
-      llmProfileId = profile.id;
-    }
   }
 
   const topics = Array.isArray(body.topics)
@@ -100,7 +116,18 @@ export async function validateAgentDraft(
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
-    draft: { name, runtimeId, llmProfileId, systemPrompt, language, engine, answerMode, topics },
+    draft: {
+      name,
+      runtimeId,
+      llmProfileId,
+      sttProfileId,
+      ttsProfileId,
+      voice: voice === "" ? null : voice,
+      systemPrompt,
+      language,
+      answerMode,
+      topics,
+    },
   };
 }
 

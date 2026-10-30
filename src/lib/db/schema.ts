@@ -85,6 +85,43 @@ export const llmProfiles = pgTable(
   (table) => [index("llm_profiles_user_idx").on(table.userId)]
 );
 
+/**
+ * The endpoints that hear, speak and answer for a gadget's agent.
+ *
+ * One table with a `kind` rather than three: the encryption, ownership and
+ * delete-to-default rules are the same for all three, and three tables would
+ * triple them for no gain. A profile with no owner is built in — seeded by the
+ * deployment, visible to every account, and refused for edit and delete.
+ */
+export const providerProfiles = pgTable(
+  "provider_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /** Null for a built-in a deployment seeded; never owned by an account. */
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    /** `llm`, `stt` or `tts`; checked by the profile module, not by the column. */
+    kind: text("kind").notNull(),
+    name: text("name").notNull(),
+    baseUrl: text("base_url").notNull(),
+    /** Empty for a provider that needs no key, which every local audio service is. */
+    encryptedKey: text("encrypted_key").notNull().default(""),
+    model: text("model").notNull(),
+    /** The voice a `tts` profile speaks in; null for the other kinds. */
+    voice: text("voice"),
+    /** The account's own choice of temperature; `llm` only. */
+    temperature: doublePrecision("temperature"),
+    /** Seeded by the deployment: every account may select it, none may change it. */
+    builtin: boolean("builtin").notNull().default(false),
+    /**
+     * The built-in an account's speech settings are pre-filled from, and what
+     * answers a kind the account has not configured. At most one per kind.
+     */
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("provider_profiles_user_kind_idx").on(table.userId, table.kind)]
+);
+
 export const agents = pgTable(
   "agents",
   {
@@ -95,14 +132,38 @@ export const agents = pgTable(
     runtimeId: uuid("runtime_id")
       .notNull()
       .references(() => runtimes.id, { onDelete: "restrict" }),
-    /** The account's own model, or null for the runtime's default. */
-    llmProfileId: uuid("llm_profile_id").references(() => llmProfiles.id, {
+    /**
+     * The account's own model, or null for the runtime's default.
+     *
+     * A `provider_profiles` row of kind `llm`: the LLM profiles that predate
+     * this table are copied into it by the migration, keeping their ids, so an
+     * agent that named one names the copy without being rewritten.
+     */
+    llmProfileId: uuid("llm_profile_id").references(() => providerProfiles.id, {
       onDelete: "set null",
     }),
+    /** The transcriber, or null for the runtime's default. */
+    sttProfileId: uuid("stt_profile_id").references(() => providerProfiles.id, {
+      onDelete: "set null",
+    }),
+    /** The voice, or null for the runtime's default. */
+    ttsProfileId: uuid("tts_profile_id").references(() => providerProfiles.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * A voice this agent speaks in, overriding its `tts` profile's, or null to
+     * use the profile's. Free text: the endpoint defines what the name means.
+     */
+    voice: text("voice"),
     name: text("name").notNull(),
     systemPrompt: text("system_prompt").notNull(),
     language: text("language").notNull(),
-    engine: text("engine").notNull(),
+    /**
+     * The engine an agent written before profiles used to name. Null for every
+     * agent created since: the engine is now its `tts` profile's model. Kept
+     * readable so the history of an older agent is not rewritten.
+     */
+    engine: text("engine"),
     answerMode: text("answer_mode").notNull().default("generate"),
     topics: text("topics").array().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -224,7 +285,12 @@ export const turns = pgTable(
     userText: text("user_text").notNull(),
     assistantText: text("assistant_text").notNull(),
     language: text("language").notNull(),
-    engine: text("engine").notNull(),
+    /** The engine a turn before profiles used. Null for every turn since. */
+    engine: text("engine"),
+    /** The provider profiles that heard, spoke and answered this turn, by name. */
+    sttProfile: text("stt_profile"),
+    ttsProfile: text("tts_profile"),
+    llmProfile: text("llm_profile"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

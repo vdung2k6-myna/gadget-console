@@ -80,15 +80,15 @@ export const enGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Each gadget is answered by an agent. The agent holds everything you hear: the instructions the model is given, the language, the voice engine, and how it answers.",
+          text: "Each gadget is answered by an agent. The agent holds the instructions the model is given, the language it is heard in, the answering model it uses, and how it answers. The transcriber and the voice are the account's speech settings, not a per-agent choice.",
         },
         {
           kind: "steps",
           items: [
             "Open Agents and press “Create an agent”.",
             "Give it a name, and write its prompt: the instructions the model receives before everything else.",
-            "Choose a runtime — where the turn is processed and the voice is played. The languages and engines offered below are that runtime's own.",
-            "Choose the language and the engine. The specific voice is the runtime's to resolve from those two; the console does not offer a separate voice.",
+            "Choose a runtime — where the turn is processed and answered. The languages offered below are that runtime's own.",
+            "Choose the language. The transcriber and the voice are configured once for the account under Providers.",
             "Choose how it answers: “Generate a reply” for ordinary conversation, “Read from the material” when the agent should answer from loaded documents.",
             "Fill in “Topics” if the agent should look things up: one topic per line. Left empty it looks nothing up — that is not the same as searching everything.",
             "Open your device, choose the agent you just made, and press “Bind an agent”.",
@@ -105,6 +105,40 @@ export const enGuide: Guide = {
       ],
     },
     {
+      id: "speech",
+      title: "The transcriber and the voice",
+      blocks: [
+        {
+          kind: "p",
+          text: "Your gadgets hear through one transcriber and speak through one voice, configured once for your account under Providers.",
+        },
+        {
+          kind: "steps",
+          items: [
+            "Open Providers and fill the transcriber: the endpoint and the model, and a key only if the service needs one.",
+            "Fill the voice: the endpoint, the model and the voice name.",
+            "Press “Hear a sample” to check the voice before a gadget uses it.",
+            "Leave a form empty to use the deployment's default, or press “Use the deployment's default” to go back to it.",
+          ],
+        },
+        {
+          kind: "note",
+          text: "The model and the voice are free text: `tts-1` and `alloy` are OpenAI's names, and every provider publishes its own. The endpoint defines what they mean, and the sample is how a name is checked. A deployment default only pre-fills the form and answers a kind you have not configured; it is never required.",
+        },
+        {
+          kind: "note",
+          text: "Deleting every audio service a deployment runs takes nothing away from you: the forms still save an endpoint of your own, and a turn goes there. Nothing on this console calls a deployment audio service.",
+        },
+        {
+          kind: "error",
+          symptom: "“Hear a sample” fails, or the gadget says nothing.",
+          cause:
+            "The endpoint, model or voice does not answer — a wrong address, a model the service does not hold, or a voice name it does not have.",
+          fix: "Check the endpoint (for a hosted provider it usually ends in /v1), the model and the voice. The sample reports the provider's own refusal.",
+        },
+      ],
+    },
+    {
       id: "model",
       title: "The answering model: the default, or your own",
       blocks: [
@@ -115,7 +149,7 @@ export const enGuide: Guide = {
         {
           kind: "steps",
           items: [
-            "To use your own model, open the LLM section and press “Add a connection”.",
+            "To use your own model, open Providers and, under “Answering models”, press “Add a model”.",
             "Enter the base URL of an OpenAI-compatible endpoint (for example https://api.openai.com/v1), the model, and an API key.",
             "Temperature may be left empty, to use the provider's own default.",
             "Return to the agent and choose the connection you just added in “Answering model”.",

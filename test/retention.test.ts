@@ -191,7 +191,7 @@ describe("one scheduled pass", () => {
       userText: "old",
       assistantText: "answer",
       language: "vietnamese",
-      engine: "kokoro",
+      engine: "engine-a",
       startedAt: ago(120 * DAY),
       endedAt: ago(120 * DAY),
       createdAt: ago(120 * DAY),

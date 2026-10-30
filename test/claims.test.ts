@@ -214,7 +214,7 @@ describe("releasing a gadget", () => {
       userText: "xin chào",
       assistantText: "chào bạn",
       language: "vietnamese",
-      engine: "kokoro",
+      engine: "engine-a",
       startedAt: now,
       endedAt: now,
     });
