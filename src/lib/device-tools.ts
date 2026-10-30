@@ -24,11 +24,12 @@ export const TOOL_LIMITS = {
   maxTools: 64,
   maxName: 120,
   // A description is the firmware's own instruction to a model, not a one-line
-  // summary: the XIAOZHI.VN build ships six past 600 characters — usage notes with
-  // examples — and refusing those refused the whole catalogue, leaving a device
-  // page that listed nothing. The page wraps text, so length costs it nothing; 4000
-  // still refuses a report no page could show.
-  maxDescription: 4000,
+  // summary: the XIAOZHI.VN build ships several past 600 characters and two past
+  // 4000 — usage notes with examples — and refusing one refused the whole
+  // catalogue, leaving a device page that listed nothing. The page wraps text, so
+  // length costs it nothing; 20000 is still a bound, and a report past it is refused
+  // whole rather than stored as something no page could show.
+  maxDescription: 20000,
 } as const;
 
 export type ToolValidation =
