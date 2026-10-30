@@ -86,7 +86,7 @@ export const viGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Mỗi gadget được trả lời bởi một agent. Agent giữ lời dặn cho model, ngôn ngữ nó được nghe, model trả lời, và cách trả lời. Bộ chuyển giọng thành văn bản và giọng đọc là cấu hình của account, không phải lựa chọn riêng của agent.",
+          text: "Mỗi gadget được trả lời bởi một agent. Agent giữ lời dặn cho model, ngôn ngữ nó được nghe, model trả lời, giọng đọc riêng nếu bạn đặt, và cách trả lời. Bộ chuyển giọng thành văn bản là cấu hình của account ở mục Nhà cung cấp; agent chọn model trả lời từ các model của account, và có thể đặt giọng đọc riêng thay cho giọng của account.",
         },
         {
           kind: "steps",
@@ -94,7 +94,9 @@ export const viGuide: Guide = {
             "Vào mục Agent, bấm “Tạo agent”.",
             "Đặt tên, và viết prompt: đây là lời dặn mà model nhận được trước mọi câu hỏi.",
             "Chọn runtime — nơi xử lý và trả lời lượt nói. Danh sách ngôn ngữ bên dưới là của runtime đó.",
-            "Chọn ngôn ngữ. Bộ chuyển giọng thành văn bản và giọng đọc được cấu hình một lần cho account ở mục Nhà cung cấp.",
+            "Chọn ngôn ngữ. Bộ chuyển giọng thành văn bản được cấu hình một lần cho account ở mục Nhà cung cấp.",
+            "Chọn “Model trả lời”: một trong các model của account, hoặc để “Mặc định của runtime”.",
+            "Điền “Giọng đọc riêng” nếu agent này cần giọng khác giọng của account. Để trống thì dùng giọng của nhà cung cấp; rời khỏi ô để kiểm tra tên giọng với provider.",
             "Chọn cách trả lời: “Sinh câu trả lời” cho hội thoại thường, “Đọc từ tài liệu” khi agent cần trả lời dựa trên tài liệu đã nạp.",
             "Điền “Topics” nếu agent cần tra cứu tri thức: mỗi dòng một chủ đề. Để trống nghĩa là không tra cứu gì, chứ không phải tra cứu tất cả.",
             "Mở thiết bị của bạn, chọn agent vừa tạo, bấm Gán agent.",
@@ -116,7 +118,7 @@ export const viGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Gadget nghe qua một bộ chuyển giọng thành văn bản và nói qua một giọng đọc, cấu hình một lần cho account ở mục Nhà cung cấp.",
+          text: "Gadget nghe qua một bộ chuyển giọng thành văn bản cấu hình một lần cho account, và nói qua giọng đọc của account ở mục Nhà cung cấp — trừ khi agent đặt giọng riêng cho nó.",
         },
         {
           kind: "steps",

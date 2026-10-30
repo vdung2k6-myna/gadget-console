@@ -80,7 +80,7 @@ export const enGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Each gadget is answered by an agent. The agent holds the instructions the model is given, the language it is heard in, the answering model it uses, and how it answers. The transcriber and the voice are the account's speech settings, not a per-agent choice.",
+          text: "Each gadget is answered by an agent. The agent holds the instructions the model is given, the language it is heard in, the answering model it uses, a voice of its own if you set one, and how it answers. The transcriber is the account's speech setting under Providers; an agent picks its answering model from the account's models, and may name a voice of its own instead of the account's.",
         },
         {
           kind: "steps",
@@ -88,7 +88,9 @@ export const enGuide: Guide = {
             "Open Agents and press “Create an agent”.",
             "Give it a name, and write its prompt: the instructions the model receives before everything else.",
             "Choose a runtime — where the turn is processed and answered. The languages offered below are that runtime's own.",
-            "Choose the language. The transcriber and the voice are configured once for the account under Providers.",
+            "Choose the language. The transcriber is configured once for the account under Providers.",
+            "Choose the “Answering model”: one of the account's models, or leave it on “The runtime's default”.",
+            "Fill in “A voice of its own” if this agent should speak in a different voice from the account's. Left empty it uses the provider's voice; leaving the field checks the name against the provider.",
             "Choose how it answers: “Generate a reply” for ordinary conversation, “Read from the material” when the agent should answer from loaded documents.",
             "Fill in “Topics” if the agent should look things up: one topic per line. Left empty it looks nothing up — that is not the same as searching everything.",
             "Open your device, choose the agent you just made, and press “Bind an agent”.",
@@ -110,7 +112,7 @@ export const enGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Your gadgets hear through one transcriber and speak through one voice, configured once for your account under Providers.",
+          text: "Your gadgets hear through one transcriber configured once for your account, and speak through the account's voice under Providers — unless an agent names a voice of its own.",
         },
         {
           kind: "steps",
