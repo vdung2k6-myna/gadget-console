@@ -1,5 +1,9 @@
 # Deployment
 
+Day-to-day operation — deploying an update, changing a secret, reading the logs, fixing a turn —
+lives in `RUNBOOK.md`. Rebuilding it from nothing is `PROVISIONING.md`. This file is what the
+deployment is.
+
 The pilot deployment planned by `gadget-console-gcp-console-bridge-deployment`. One Compute Engine
 host runs the console, the bridge and the runtime; the console's database is Cloud SQL. The
 deployment names no speech or model provider — an account configures its own `stt`, `tts` and
