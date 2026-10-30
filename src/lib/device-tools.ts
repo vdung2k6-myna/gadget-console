@@ -23,7 +23,12 @@ export interface ReportedTool {
 export const TOOL_LIMITS = {
   maxTools: 64,
   maxName: 120,
-  maxDescription: 600,
+  // A description is the firmware's own instruction to a model, not a one-line
+  // summary: the XIAOZHI.VN build ships six past 600 characters — usage notes with
+  // examples — and refusing those refused the whole catalogue, leaving a device
+  // page that listed nothing. The page wraps text, so length costs it nothing; 4000
+  // still refuses a report no page could show.
+  maxDescription: 4000,
 } as const;
 
 export type ToolValidation =
