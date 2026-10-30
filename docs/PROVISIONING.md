@@ -357,5 +357,6 @@ The remaining steps are product, not infrastructure: create the first account, g
 
 - The firmware: its OTA address must be `https://<bridge-host>/xiaozhi/ota/`, which is a build-time
   value in the XiaoZhi configuration.
-- Where the speech providers run. The pilot pointed them at a quick tunnel from the developer's
-  machine; a deployment that must survive a restart needs its own.
+- Where the speech providers run. The pilot points the `stt` and `tts` profiles at a named Cloudflare
+  tunnel to the developer's machine; `RUNBOOK.md` describes it. A deployment independent of that
+  machine needs its own audio host.

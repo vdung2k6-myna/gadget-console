@@ -170,6 +170,34 @@ DNS lives in Cloudflare. **`gw` must stay DNS-only** (grey cloud): a proxied rec
 raw WebSocket the bridge advertises. Firewall rules open 80 and 443 only; 8001 and 8003 are not
 reachable from the internet.
 
+## Speech providers
+
+The console's `stt` and `tts` profiles point at services that run on the developer's machine, not
+on the host:
+
+| Kind | URL | Runs on | Reaches |
+| --- | --- | --- | --- |
+| `stt` | `https://stt.<domain>` | the developer's machine, Docker (`stt-proxy` → `audiocpp`) | `127.0.0.1:8080` |
+| `tts` | `https://tts.<domain>` | the same machine (`gateway` → three engines) | `127.0.0.1:8082` |
+
+Both hostnames are a **named Cloudflare tunnel** (`gadget-audio`), not a quick tunnel: the URL is
+stable across restarts, and the tunnel runs as the Windows scheduled task
+`cloudflared-gadget-audio` at logon. The DNS records are proxied, which is correct for HTTP — unlike
+`gw`, which must stay grey.
+
+The audio stack is this repository's `docker-compose.audio.yml`; `docker compose ps` on that machine
+shows the five containers, and the two ports are published on loopback only. When a turn fails at a
+speech call:
+
+1. `docker compose ps` — the containers are up and healthy;
+2. `curl -s https://stt.<domain>/health` and `https://tts.<domain>/health` — the tunnel reaches them;
+3. `Get-ScheduledTask -TaskName cloudflared-gadget-audio` — the task is `Running`, and
+   `cloudflared tunnel info gadget-audio` lists a connector.
+
+A machine that is off, asleep or logged out is an audio tier that is down: the profiles stay valid,
+and every turn fails at its first speech call. The task triggers at logon, so a reboot with nobody
+signed in leaves the tunnel down as well.
+
 ## Troubleshooting
 
 | Symptom | First check |
@@ -193,4 +221,4 @@ The profiles live in the console, not on the host: a change there is made at
 - Do not open 8001 or 8003 in a firewall rule; the front exists so they stay closed.
 - Do not commit a secret, a real device identifier or an environment file.
 - Do not point a profile at a quick tunnel for anything longer than a test: the URL changes when the
-  tunnel restarts.
+  tunnel restarts. The pilot's providers use the named tunnel above for that reason.
