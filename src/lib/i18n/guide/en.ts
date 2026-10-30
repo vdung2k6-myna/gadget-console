@@ -120,12 +120,12 @@ export const enGuide: Guide = {
             "Open Providers and fill the transcriber: the endpoint and the model, and a key only if the service needs one.",
             "Fill the voice: the endpoint, the model and the voice name.",
             "Press “Hear a sample” to check the voice before a gadget uses it.",
-            "Leave a form empty to use the deployment's default, or press “Use the deployment's default” to go back to it.",
+            "Leave a form empty to use the deployment's default, or press “Use the deployment's default” to go back to it — but only when the deployment has one. A deployment that seeds no transcriber or voice has nothing behind an empty form, and the turn fails.",
           ],
         },
         {
           kind: "note",
-          text: "The model and the voice are free text: `tts-1` and `alloy` are OpenAI's names, and every provider publishes its own. The endpoint defines what they mean, and the sample is how a name is checked. A deployment default only pre-fills the form and answers a kind you have not configured; it is never required.",
+          text: "The model and the voice are free text: `tts-1` and `alloy` are OpenAI's names, and every provider publishes its own. The endpoint defines what they mean, and the sample is how a name is checked. A deployment default only pre-fills the form and answers a kind you have not configured; when the deployment has no default for a kind, you have to fill that kind — an empty form makes the turn fail.",
         },
         {
           kind: "note",
@@ -146,7 +146,7 @@ export const enGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "The agent form has an “Answering model” field. Left at “The runtime's default”, the agent is answered by the model the operator configured — you need no key and pay for none of it.",
+          text: "The agent form has an “Answering model” field. Left at “The runtime's default”, the agent is answered by the model the operator configured — you need no key and pay for none of it. If the operator configured no model, there is nothing behind that choice and the turn fails; add a model of your own then.",
         },
         {
           kind: "steps",
@@ -165,8 +165,8 @@ export const enGuide: Guide = {
           kind: "error",
           symptom: "The gadget says it could not reach the model, and the turn has no answer.",
           cause:
-            "The agent is using your own LLM and that endpoint did not answer — a wrong address, a network that cannot reach it, or a wrong key or model.",
-          fix: "Check the base URL (it usually ends in /v1), the model name, and the key. The turn is deliberately not answered by a different model.",
+            "The agent is using your own LLM and that endpoint did not answer — a wrong address, a network that cannot reach it, or a wrong key or model. Or the agent is on “The runtime's default” while the deployment configures no model at all.",
+          fix: "Check the base URL (it usually ends in /v1), the model name, and the key; if the agent is on the default, check whether the deployment has one — if not, add a model of your own. The turn is deliberately not answered by a different model.",
         },
       ],
     },

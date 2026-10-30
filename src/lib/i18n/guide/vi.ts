@@ -126,12 +126,12 @@ export const viGuide: Guide = {
             "Mở Nhà cung cấp và điền phần nhận giọng nói: endpoint, model, và key chỉ khi dịch vụ cần.",
             "Điền phần giọng đọc: endpoint, model và tên giọng.",
             "Bấm “Nghe thử” để kiểm tra giọng trước khi gadget dùng.",
-            "Để trống một form nghĩa là dùng mặc định của deployment; bấm “Dùng mặc định của deployment” để quay lại.",
+            "Để trống một form nghĩa là dùng mặc định của deployment; bấm “Dùng mặc định của deployment” để quay lại — nhưng chỉ khi deployment có mặc định. Deployment không đặt sẵn bộ chuyển giọng hay giọng đọc nào thì form trống là lượt nói thất bại.",
           ],
         },
         {
           kind: "note",
-          text: "Model và giọng là chuỗi tự do: `tts-1` và `alloy` là tên của OpenAI, mỗi provider công bố tên riêng. Endpoint quyết định nghĩa của chúng, và nút nghe thử là cách kiểm tra. Mặc định của deployment chỉ pre-fill form và trả lời loại bạn chưa cấu hình; không bao giờ bắt buộc.",
+          text: "Model và giọng là chuỗi tự do: `tts-1` và `alloy` là tên của OpenAI, mỗi provider công bố tên riêng. Endpoint quyết định nghĩa của chúng, và nút nghe thử là cách kiểm tra. Mặc định của deployment chỉ pre-fill form và trả lời loại bạn chưa cấu hình; deployment không có mặc định cho loại nào thì bạn phải điền loại đó, để trống là lượt nói thất bại.",
         },
         {
           kind: "note",
@@ -152,7 +152,7 @@ export const viGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Trong form agent có ô “Model trả lời”. Để “Mặc định của runtime”, agent dùng model mà nhà vận hành đã cấu hình — bạn không cần key và không phải trả tiền cho phần đó.",
+          text: "Trong form agent có ô “Model trả lời”. Để “Mặc định của runtime”, agent dùng model mà nhà vận hành đã cấu hình — bạn không cần key và không phải trả tiền cho phần đó. Nếu nhà vận hành chưa cấu hình model nào, lựa chọn đó không có gì để dùng và lượt nói thất bại; khi đó bạn phải thêm model của mình.",
         },
         {
           kind: "steps",
@@ -171,8 +171,8 @@ export const viGuide: Guide = {
           kind: "error",
           symptom: "Gadget báo không kết nối được tới model, lượt nói không có câu trả lời.",
           cause:
-            "Agent đang dùng LLM của bạn, và endpoint đó không trả lời được — sai địa chỉ, mạng không tới, hoặc key/model không đúng.",
-          fix: "Kiểm base URL (thường phải kết thúc bằng /v1), tên model, và key. Lượt nói đã cố ý không được trả lời bằng model khác.",
+            "Agent đang dùng LLM của bạn, và endpoint đó không trả lời được — sai địa chỉ, mạng không tới, hoặc key/model không đúng. Cũng có thể agent đang để “Mặc định của runtime” trong khi deployment không cấu hình model nào.",
+          fix: "Kiểm base URL (thường phải kết thúc bằng /v1), tên model, và key; nếu agent để mặc định, kiểm xem deployment có model mặc định không — không có thì thêm model của bạn. Lượt nói đã cố ý không được trả lời bằng model khác.",
         },
       ],
     },
