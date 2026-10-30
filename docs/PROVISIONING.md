@@ -12,7 +12,7 @@ answer for a rebuild.
 export PROJECT=<your-project-id>
 export REGION=asia-southeast1
 export ZONE=asia-southeast1-a
-export DOMAIN=example.com          # the pilot uses example.com
+export DOMAIN=example.com          # the deployment chooses its own
 export CONSOLE_HOST=console.$DOMAIN
 export BRIDGE_HOST=gw.$DOMAIN
 gcloud config set project "$PROJECT"
