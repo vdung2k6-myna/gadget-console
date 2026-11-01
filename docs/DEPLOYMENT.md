@@ -17,12 +17,16 @@ deployment names no speech or model provider — an account configures its own `
 | console (`gadget-console`) | `gadget-app` | `:3001` | Caddy, over loopback |
 | runtime (`adaptive-interview-api`) | `gadget-app` | `127.0.0.1:4000` | the bridge, over loopback |
 | bridge (`gadget-bridge`) | `gadget-app` | `:8003` OTA, `:8001` WS | Caddy only; no firewall rule opens them |
+| audio gateway (`interview-audio/gateway`) | `gadget-audio` | `10.10.0.3:8082` | the app host, over the private subnet |
+| TTS engines (`kokoro`, `piper`, `supertonic`) | `gadget-audio` | inside the compose network | the gateway, over the compose network |
 | Cloud SQL Postgres | managed | `<db-private-ip>:5432` | the host's subnet |
 
 Only 80 and 443 are opened to the internet. Caddy terminates TLS for both hostnames and proxies
 `gw.<domain>/xiaozhi/ota*` to 8003 and `gw.<domain>/xiaozhi/v1*` to 8001, so a gadget speaks
 `https` and `wss`. The bridge's raw ports, the console's internal API and the runtime have no
-firewall rule at all, and the runtime's socket is bound to loopback as well.
+firewall rule at all, and the runtime's socket is bound to loopback as well. The audio host is
+reached only from the app host's tag; its gateway has no authentication of its own, so the private
+subnet is the boundary.
 
 ## Host
 
@@ -33,6 +37,12 @@ firewall rule at all, and the runtime's socket is bound to loopback as well.
 - Static address `gadget-app-ip`. DNS: `console.<domain>` and `gw.<domain>`, both **DNS
   only** in Cloudflare — a proxied `gw` breaks the WebSocket the bridge advertises.
 
+`gadget-audio` is a second host: zone `asia-southeast1-a`, machine type `e2-medium`, Ubuntu 22.04,
+network tag `audio`, no service account, and a 30 GB boot disk. The audio tree is
+`/srv/audio-tier` and the model sets are `/srv/audio-models` (kokoro, piper, supertonic); the
+models are re-provisionable and are not backed up. It holds an ephemeral external address for
+egress only; no inbound rule opens it, and the gateway is bound to its private address.
+
 ## Ports
 
 | Port | Source | Purpose |
@@ -40,8 +50,10 @@ firewall rule at all, and the runtime's socket is bound to loopback as well.
 | 80 | `0.0.0.0/0` | ACME challenge and the redirect to HTTPS |
 | 443 | `0.0.0.0/0` | the console, and `gw` for OTA and the socket |
 | 22 | `35.235.240.0/20` | SSH through IAP only |
+| 8082 | the `app` tag (private subnet) | the audio host's TTS gateway |
 
-Everything else is denied by the implied ingress rule, including the bridge's 8001 and 8003.
+Everything else is denied by the implied ingress rule, including the bridge's 8001 and 8003. The
+audio host's SSH is closed to the internet by a higher-priority deny; only IAP reaches it.
 
 ## Configuration and secrets
 
@@ -112,28 +124,30 @@ Ollama, LM Studio) is registered with a placeholder key the endpoint ignores.
 
 ## Start and stop
 
-The host is started for a session and stopped afterwards; the disks persist.
+The app host and the audio host are started for a session and stopped afterwards; the disks persist.
 
 ```bash
-npm run ops -- session start   # Cloud SQL RUNNABLE, host RUNNING, every health endpoint
-npm run ops -- session stop    # host TERMINATED, then Cloud SQL stopped
-npm run ops -- status          # both states, every unit, every revision, no changes
+npm run ops -- session start   # Cloud SQL, app host, audio host; every health endpoint
+npm run ops -- session stop    # app host, then audio host, then Cloud SQL
+npm run ops -- status          # every state, unit, revision and the audio gateway
 ```
 
-`start` waits for the services and names the dependency that did not arrive. `stop` refuses while a
-gadget is connected to the bridge or a turn is recent; `--force` stops anyway. Stopping deletes
-nothing. The reserved address still bills while the host is stopped (about $7 a month) until it is
-released; the tool reports it rather than releasing it, because re-pointing DNS from a deploy is a
-worse failure than seven dollars.
+`start` waits for the app host's services and, when the operator configuration names an audio host,
+starts it and waits for the gateway; it names the dependency that did not arrive. `stop` refuses
+while a gadget is connected to the bridge or a turn is recent; `--force` stops anyway. Stopping
+deletes nothing. The reserved address still bills while the host is stopped (about $7 a month)
+until it is released; the tool reports it rather than releasing it, because re-pointing DNS from a
+deploy is a worse failure than seven dollars.
 
 ## Cost
 
 List price in `asia-southeast1`, checked on 2026-10-30:
 
-- about **$50–60 a month** with the host and database running continuously;
+- about **$50–60 a month** with the app host and database running continuously;
+- about **$25–30 a month** more with the audio host running continuously;
 - about **$20–25 a month** idle: the disks, the database's storage, and the reserved address while
-  it is unattached;
-- about **$0.10 for a two-hour session** of the host and database.
+  it is unattached, plus about $3 for the audio host's disk;
+- about **$0.20 for a two-hour session** of both hosts and the database.
 
 The billing account is denominated in VND and carries a 1,500,000 ₫ budget (about $60) with alerts
 at 50, 90 and 100 percent, so a month that runs continuously is visible before it doubles.

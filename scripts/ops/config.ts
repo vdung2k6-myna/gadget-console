@@ -17,6 +17,11 @@ export interface OpsConfig {
   address: string;
   deployUser: string;
   speech: { sttUrl: string; ttsUrl: string };
+  /**
+   * The host that runs the speech tier, when it is not the operator's machine.
+   * `healthUrl` is reached from the app host, because the gateway is private.
+   */
+  audio?: { instance: string; zone?: string; healthUrl: string };
   repositories?: { console?: string; bridge?: string; runtime?: string };
   /** A turn younger than this refuses a stop. */
   guardMinutes?: number;
@@ -80,6 +85,41 @@ export function parseOpsConfig(raw: unknown): OpsConfig {
     throw new Error("guardMinutes must be a non-negative number");
   }
 
+  const audioRaw = body.audio;
+  let audio: OpsConfig["audio"];
+  if (audioRaw !== undefined) {
+    if (typeof audioRaw !== "object" || audioRaw === null || Array.isArray(audioRaw)) {
+      throw new Error("audio must be an object");
+    }
+    const candidate = audioRaw as Record<string, unknown>;
+    if (typeof candidate.instance !== "string" || candidate.instance.trim() === "") {
+      throw new Error("audio.instance is required when audio is configured");
+    }
+    if (
+      candidate.zone !== undefined &&
+      (typeof candidate.zone !== "string" || candidate.zone.trim() === "")
+    ) {
+      throw new Error("audio.zone must be a non-empty string");
+    }
+    if (typeof candidate.healthUrl !== "string") {
+      throw new Error("audio.healthUrl is required when audio is configured");
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(candidate.healthUrl);
+    } catch {
+      throw new Error("audio.healthUrl must be an http or https URL");
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("audio.healthUrl must be an http or https URL");
+    }
+    audio = {
+      instance: candidate.instance,
+      ...(typeof candidate.zone === "string" ? { zone: candidate.zone } : {}),
+      healthUrl: candidate.healthUrl,
+    };
+  }
+
   return {
     project: body.project as string,
     region: body.region as string,
@@ -89,6 +129,7 @@ export function parseOpsConfig(raw: unknown): OpsConfig {
     address: body.address as string,
     deployUser: body.deployUser as string,
     speech: { sttUrl: sttUrl as string, ttsUrl: ttsUrl as string },
+    ...(audio === undefined ? {} : { audio }),
     ...(typeof body.repositories === "object" && body.repositories !== null
       ? { repositories: body.repositories as OpsConfig["repositories"] }
       : {}),

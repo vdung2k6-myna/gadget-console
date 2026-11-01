@@ -321,6 +321,57 @@ never as root: a root-owned tree breaks the next build. The build's exit status 
 failed build leaves the previous release answering `/health` while serving old content, and the
 tool refuses to call that success.
 
+### The audio host (TTS only)
+
+`gadget-audio` is a CPU VM in the same VPC and subnet, tag `audio`, `e2-medium`, Ubuntu 22.04, a
+30 GB boot disk and no service account. It runs the gateway and the three TTS engines; `audiocpp`
+and the STT proxy stay on the developer's machine.
+
+```bash
+gcloud compute instances create gadget-audio --zone=$ZONE --machine-type=e2-medium \
+  --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud \
+  --boot-disk-size=30GB --boot-disk-type=pd-balanced \
+  --network=gadget-vpc --subnet=gadget-subnet --tags=audio \
+  --no-service-account --no-scopes
+
+# the gateway, only from the app host
+gcloud compute firewall-rules create gadget-audio-api --network=gadget-vpc \
+  --direction=INGRESS --action=ALLOW --rules=tcp:8082 \
+  --source-tags=app --target-tags=audio --priority=1000
+# SSH through IAP only: deny the world, allow the IAP range above it
+gcloud compute firewall-rules create gadget-audio-deny-ssh --network=gadget-vpc \
+  --direction=INGRESS --action=DENY --rules=tcp:22 \
+  --source-ranges=0.0.0.0/0 --target-tags=audio --priority=1000
+gcloud compute firewall-rules create gadget-audio-iap-ssh --network=gadget-vpc \
+  --direction=INGRESS --action=ALLOW --rules=tcp:22 \
+  --source-ranges=35.235.240.0/20 --target-tags=audio --priority=900
+```
+
+Install Docker from Docker's own repository (the `docker compose` plugin is needed), then put the
+compose project at `/srv/audio-tier` and the model sets at `/srv/audio-models`:
+
+```bash
+git -C <repo> archive --format=tar.gz -o "$TEMP/audio-tier.tar.gz" HEAD
+gcloud compute scp "$TEMP/audio-tier.tar.gz" gadget-audio:/tmp/ --zone=$ZONE --tunnel-through-iap
+tar -C <repo>/audio-models -czf "$TEMP/audio-models.tar.gz" kokoro piper supertonic
+gcloud compute scp "$TEMP/audio-models.tar.gz" gadget-audio:/tmp/ --zone=$ZONE --tunnel-through-iap
+```
+
+On the audio host, extract them and start only the TTS services — `audiocpp` reserves a GPU and is
+not part of this host:
+
+```bash
+sudo mkdir -p /srv/audio-tier /srv/audio-models
+sudo tar xzf /tmp/audio-tier.tar.gz -C /srv/audio-tier
+sudo tar xzf /tmp/audio-models.tar.gz -C /srv/audio-models
+cd /srv/audio-tier
+sudo env AUDIO_BIND_ADDR=<audio-private-ip> AUDIO_MODELS_DIR=/srv/audio-models \
+  docker compose -f docker-compose.audio.yml up -d --build gateway kokoro piper supertonic
+```
+
+The gateway answers at `http://<audio-private-ip>:8082/health`; only the app host's tag may reach it.
+Point each account's `tts` profile at that address — TTS uses no public tunnel.
+
 ## 9. Enable and seed
 
 The deploy in §8 already started each unit. Enable them across reboots, and reload Caddy once its

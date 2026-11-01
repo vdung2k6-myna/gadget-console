@@ -84,6 +84,64 @@ function addressStateArgv(ctx: OpsContext): string[] {
   ];
 }
 
+function audioArgv(ctx: OpsContext, action: "start" | "stop"): string[] {
+  const audio = ctx.config.audio;
+  if (audio === undefined) throw new Error("no audio host is configured");
+  return [
+    "gcloud",
+    "compute",
+    "instances",
+    action,
+    audio.instance,
+    `--zone=${audio.zone ?? ctx.config.zone}`,
+    `--project=${ctx.config.project}`,
+    "--quiet",
+    "--async",
+  ];
+}
+
+function audioStateArgv(ctx: OpsContext): string[] {
+  const audio = ctx.config.audio;
+  if (audio === undefined) throw new Error("no audio host is configured");
+  return [
+    "gcloud",
+    "compute",
+    "instances",
+    "describe",
+    audio.instance,
+    `--zone=${audio.zone ?? ctx.config.zone}`,
+    `--project=${ctx.config.project}`,
+    "--format=value(status)",
+  ];
+}
+
+/**
+ * The audio gateway is private; the app host is the machine allowed to reach it,
+ * so this loop runs there. The engines are allowed five minutes to warm up.
+ */
+export function audioWaitScript(url: string): string {
+  return [
+    "set -uo pipefail",
+    "code=000",
+    "for i in $(seq 1 60); do",
+    `  code=$(curl -s -o /dev/null -w '%{http_code}' -m 3 ${sh(url)})`,
+    '  [ "$code" = 200 ] && { echo ready; exit 0; }',
+    "  sleep 5",
+    "done",
+    'echo "timeout:audio gateway answered $code"',
+    "exit 1",
+  ].join("\n");
+}
+
+async function readGateway(ctx: OpsContext, url: string): Promise<string> {
+  const result = await ssh(
+    ctx.runner,
+    ctx.config,
+    `printf '%s' "$(curl -s -o /dev/null -w '%{http_code}' -m 3 ${sh(url)})"`
+  );
+  return result.code === 0 ? result.stdout.trim() : "";
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -245,6 +303,11 @@ export async function startSession(ctx: OpsContext): Promise<void> {
     await run(ctx.runner, sqlStateArgv(ctx), "reading the database state");
     await run(ctx.runner, vmArgv(ctx, "start"), "starting the host");
     await ssh(ctx.runner, config, waitScript());
+    if (config.audio !== undefined) {
+      await run(ctx.runner, audioArgv(ctx, "start"), "starting the audio host");
+      await run(ctx.runner, audioStateArgv(ctx), "reading the audio host state");
+      await ssh(ctx.runner, config, audioWaitScript(config.audio.healthUrl));
+    }
     ctx.log("dry run: the speech endpoints are not probed");
     return;
   }
@@ -270,7 +333,25 @@ export async function startSession(ctx: OpsContext): Promise<void> {
   }
   ctx.log("every unit and health endpoint answered");
 
+  if (config.audio !== undefined) {
+    await attempt(ctx, audioArgv(ctx, "start"), "starting the audio host");
+    await waitFor(
+      ctx,
+      async () => (await readValue(ctx, audioStateArgv(ctx))) === "RUNNING",
+      "the audio host to become RUNNING"
+    );
+    ctx.log("audio host RUNNING");
+
+    const gatewayReady = await waitForRemote(ctx, audioWaitScript(config.audio.healthUrl));
+    if (!gatewayReady.ok) {
+      throw new Error(`the session did not become healthy: ${gatewayReady.detail}`);
+    }
+    ctx.log("audio gateway answered");
+  }
+
   for (const probe of await probeSpeech(config)) {
+    // The audio host is the speech tier's own check when one is configured.
+    if (config.audio !== undefined && probe.kind === "tts") continue;
     ctx.log(
       probe.ok
         ? `speech ${probe.kind}: reachable`
@@ -291,6 +372,10 @@ export async function stopSession(
   if (ctx.dryRun) {
     await ssh(ctx.runner, config, guardScript());
     await run(ctx.runner, vmArgv(ctx, "stop"), "stopping the host");
+    if (config.audio !== undefined) {
+      await run(ctx.runner, audioArgv(ctx, "stop"), "stopping the audio host");
+      await run(ctx.runner, audioStateArgv(ctx), "reading the audio host state");
+    }
     await run(ctx.runner, sqlPatchArgv(ctx, "NEVER"), "setting the database policy to NEVER");
     await run(ctx.runner, addressStateArgv(ctx), "reading the reserved address");
     return;
@@ -316,6 +401,16 @@ export async function stopSession(
     "the host to become TERMINATED"
   );
   ctx.log("host TERMINATED");
+
+  if (config.audio !== undefined) {
+    await attempt(ctx, audioArgv(ctx, "stop"), "stopping the audio host");
+    await waitFor(
+      ctx,
+      async () => (await readValue(ctx, audioStateArgv(ctx))) === "TERMINATED",
+      "the audio host to become TERMINATED"
+    );
+    ctx.log("audio host TERMINATED");
+  }
 
   await attempt(ctx, sqlPatchArgv(ctx, "NEVER"), "setting the database policy to NEVER");
   ctx.log("database policy NEVER");
@@ -349,6 +444,11 @@ export async function showStatus(ctx: OpsContext): Promise<void> {
   ctx.log(`host       ${host || "unknown"}`);
   ctx.log(`database   ${database || "unknown"}`);
   ctx.log(`address    ${address || "unknown"}`);
+  if (config.audio !== undefined) {
+    const audioState = await readValue(ctx, audioStateArgv(ctx));
+    const gateway = await readGateway(ctx, config.audio.healthUrl);
+    ctx.log(`audio      ${audioState || "unknown"}  gateway ${gateway || "unknown"}`);
+  }
 
   const remote = await ssh(ctx.runner, config, statusScript());
   const fields = new Map<string, string>();
@@ -390,6 +490,8 @@ export async function showStatus(ctx: OpsContext): Promise<void> {
   }
 
   for (const probe of await probeSpeech(config, { dryRun: ctx.dryRun, log: ctx.log })) {
+    // The audio host is the speech tier's own check when one is configured.
+    if (config.audio !== undefined && probe.kind === "tts") continue;
     ctx.log(
       probe.ok
         ? `speech ${probe.kind}: reachable`

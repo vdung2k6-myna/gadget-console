@@ -9,9 +9,12 @@ commands and the three files verbatim.
 | What | Where |
 | --- | --- |
 | Host | `gadget-app`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04 |
+| Audio host | `gadget-audio`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04 |
 | Console tree | `/srv/gadget-console/current` (Next.js) |
 | Runtime tree | `/srv/adaptive-interview-api/current` (Express) |
 | Bridge tree | `/srv/gadget-bridge/current` |
+| Audio tree | `/srv/audio-tier` (compose project); models `/srv/audio-models` |
+| Audio gateway | `10.10.0.3:8082`, reached only from the app host |
 | Environment files | `/etc/gadget/console.env`, `api.env`, `bridge.env` (0600, rewritten at boot) |
 | Secrets fetched at boot | `/usr/local/bin/gadget-secrets.sh`, run by `gadget-secrets.service` |
 | Caddy | `/etc/caddy/Caddyfile`, unit `caddy` |
@@ -156,11 +159,12 @@ npm run ops -- session stop
 npm run ops -- status
 ```
 
-`start` brings Cloud SQL to `RUNNABLE`, then starts the host and waits for every unit and health
-endpoint before reporting the session ready. `stop` refuses while a gadget is connected to the
-bridge or a turn was recorded within the guard window (`guardMinutes`, 15 by default), then stops
-the host and the database; `--force` stops anyway. `status` reports both states, every unit, every
-deployed revision and any drift, without changing anything.
+`start` brings Cloud SQL to `RUNNABLE`, then starts the app host and waits for every unit and health
+endpoint; when the operator configuration names an audio host, it starts that instance next and
+waits for its gateway. `stop` refuses while a gadget is connected to the bridge or a turn was
+recorded within the guard window (`guardMinutes`, 15 by default), then stops the app host, the
+audio host and the database, in that order; `--force` stops anyway. `status` reports every state,
+every unit, every deployed revision, the audio gateway and any drift, without changing anything.
 
 Stopping bills no compute and no database instance; disks, database storage and the reserved address
 remain (about $20–25 a month). The services come back on their own. The budget alert is 1,500,000 ₫
@@ -183,32 +187,33 @@ reachable from the internet.
 
 ## Speech providers
 
-The console's `stt` and `tts` profiles point at services that run on the developer's machine, not
-on the host:
+The console's `stt` and `tts` profiles point at two different places:
 
 | Kind | URL | Runs on | Reaches |
 | --- | --- | --- | --- |
 | `stt` | `https://stt.<domain>` | the developer's machine, Docker (`stt-proxy` → `audiocpp`) | `127.0.0.1:8080` |
-| `tts` | `https://tts.<domain>` | the same machine (`gateway` → three engines) | `127.0.0.1:8082` |
+| `tts` | `http://10.10.0.3:8082` | the audio host `gadget-audio` (`gateway` → three engines) | its private address |
 
-Both hostnames are a **named Cloudflare tunnel** (`gadget-audio`), not a quick tunnel: the URL is
-stable across restarts, and the tunnel runs as the Windows service `cloudflared-gadget-audio`
-(Automatic, LocalSystem), so it starts at boot without a sign-in and the service manager restarts it
-if it exits. Its config and credentials live in `C:\ProgramData\cloudflared-gadget-audio\` so the
-service account can read them. The DNS records are proxied, which is correct for HTTP — unlike `gw`,
-which must stay grey.
+The `stt` hostname is a **named Cloudflare tunnel** (`gadget-audio`), not a quick tunnel: the URL
+is stable across restarts, and the tunnel runs as the Windows service `cloudflared-gadget-audio`
+(Automatic, LocalSystem), so it starts at boot without a sign-in and the service manager restarts
+it if it exits. Its config and credentials live in `C:\ProgramData\cloudflared-gadget-audio\` so
+the service account can read them. The DNS record is proxied, which is correct for HTTP — unlike
+`gw`, which must stay grey.
 
-The audio stack is this repository's `docker-compose.audio.yml`; `docker compose ps` on that machine
-shows the five containers, and the two ports are published on loopback only. When a turn fails at a
-speech call:
+The TTS tier is this repository's `docker-compose.audio.yml`, run on `gadget-audio` as the
+`gateway` and three engines; the STT proxy and `audiocpp` stay on the developer's machine. When a
+turn fails at a speech call:
 
-1. `docker compose ps` — the containers are up and healthy;
-2. `curl -s https://stt.<domain>/health` and `https://tts.<domain>/health` — the tunnel reaches them;
-3. `Get-Service cloudflared-gadget-audio` — `Running`, and `cloudflared tunnel info gadget-audio`
-   lists a connector.
+1. On the audio host,
+   `sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml ps` — the four containers are
+   up and healthy, and `curl -s http://127.0.0.1:8082/health` answers;
+2. From the app host, `curl -s http://10.10.0.3:8082/health` — the private route and the gateway;
+3. For STT, `curl -s https://stt.<domain>/health` and `Get-Service cloudflared-gadget-audio`.
 
-A machine that is off or asleep is an audio tier that is down: the profiles stay valid, and every
-turn fails at its first speech call.
+The audio host is part of the session: `npm run ops -- session start|stop` starts and stops it.
+The developer's machine is not — a machine that is off or asleep is an STT tier that is down, and
+every turn fails at its first speech call.
 
 ## Troubleshooting
 

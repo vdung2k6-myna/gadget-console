@@ -64,6 +64,17 @@ const CONFIG: OpsConfig = {
   },
 };
 
+const AUDIO = {
+  instance: "gadget-audio",
+  zone: "asia-southeast1-a",
+  healthUrl: "http://10.9.9.9:8082/health",
+};
+
+const VALID_SPEECH = {
+  sttUrl: "https://stt.example.com/health",
+  ttsUrl: "https://tts.example.com/health",
+};
+
 function context(runner: Runner, overrides: Partial<OpsContext> = {}): OpsContext {
   return {
     runner,
@@ -106,6 +117,35 @@ describe("the operator configuration", () => {
     const parsed = parseOpsConfig(example);
     assert.equal(parsed.instance, "gadget-app");
     assert.equal(parsed.speech.sttUrl, "https://stt.example.com/health");
+  });
+
+  it("accepts an audio host", () => {
+    const parsed = parseOpsConfig({ ...CONFIG, speech: VALID_SPEECH, audio: AUDIO });
+    assert.deepEqual(parsed.audio, AUDIO);
+  });
+
+  it("refuses an audio host without an instance", () => {
+    assert.throws(
+      () =>
+        parseOpsConfig({
+          ...CONFIG,
+          speech: VALID_SPEECH,
+          audio: { healthUrl: AUDIO.healthUrl },
+        }),
+      /audio.instance is required/
+    );
+  });
+
+  it("refuses an audio health address that is not a URL", () => {
+    assert.throws(
+      () =>
+        parseOpsConfig({
+          ...CONFIG,
+          speech: VALID_SPEECH,
+          audio: { ...AUDIO, healthUrl: "10.9.9.9:8082" },
+        }),
+      /audio.healthUrl must be an http or https URL/
+    );
   });
 
   it("refuses a configuration that the package would carry", async () => {
@@ -418,6 +458,106 @@ describe("a session", () => {
       context(runner, { config: { ...CONFIG, speech: { sttUrl: speechUrl, ttsUrl: speechUrl } } })
     );
     assert.equal(attempts, 2);
+  });
+
+  it("starts the audio host after the app host and waits for its gateway", async () => {
+    const runner = new HarnessRunner((command) => {
+      const text = command.argv.join(" ");
+      if (text.includes("sql instances patch")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("sql instances describe")) return { code: 0, stdout: "RUNNABLE\n", stderr: "" };
+      if (text.includes("instances start")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("instances describe")) return { code: 0, stdout: "RUNNING\n", stderr: "" };
+      if (text.includes("compute ssh")) return { code: 0, stdout: "ready\n", stderr: "" };
+      return undefined;
+    });
+    await startSession(
+      context(runner, {
+        config: { ...CONFIG, audio: AUDIO, speech: { sttUrl: speechUrl, ttsUrl: speechUrl } },
+      })
+    );
+
+    const calls = runner.calls.map((command) => command.argv.join(" "));
+    const appStart = calls.findIndex(
+      (line) => line.includes("instances start") && !line.includes("gadget-audio")
+    );
+    const audioStart = calls.findIndex(
+      (line) => line.includes("instances start") && line.includes("gadget-audio")
+    );
+    const audioWait = calls.findIndex(
+      (line) => line.includes("compute ssh") && line.includes("10.9.9.9")
+    );
+    assert.ok(appStart >= 0 && audioStart > appStart && audioWait > audioStart);
+  });
+
+  it("names the audio host when its gateway never answers", async () => {
+    const runner = new HarnessRunner((command) => {
+      const text = command.argv.join(" ");
+      if (text.includes("sql instances patch")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("sql instances describe")) return { code: 0, stdout: "RUNNABLE\n", stderr: "" };
+      if (text.includes("instances start")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("instances describe")) return { code: 0, stdout: "RUNNING\n", stderr: "" };
+      if (text.includes("compute ssh") && text.includes("10.9.9.9")) {
+        return { code: 1, stdout: "timeout:audio gateway answered 000\n", stderr: "" };
+      }
+      if (text.includes("compute ssh")) return { code: 0, stdout: "ready\n", stderr: "" };
+      return undefined;
+    });
+    await assert.rejects(
+      startSession(
+        context(runner, {
+          config: { ...CONFIG, audio: AUDIO, speech: { sttUrl: speechUrl, ttsUrl: speechUrl } },
+        })
+      ),
+      /did not become healthy: timeout:audio gateway/
+    );
+  });
+
+  it("stops the audio host between the app host and the database", async () => {
+    const runner = new HarnessRunner((command) => {
+      const text = command.argv.join(" ");
+      if (text.includes("compute ssh")) return { code: 0, stdout: "last_turn=0\nsockets=0\n", stderr: "" };
+      if (text.includes("instances stop")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("instances describe")) return { code: 0, stdout: "TERMINATED\n", stderr: "" };
+      if (text.includes("sql instances patch")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("addresses describe")) return { code: 0, stdout: "RESERVED\n", stderr: "" };
+      return undefined;
+    });
+    await stopSession(context(runner, { config: { ...CONFIG, audio: AUDIO } }));
+
+    const calls = runner.calls.map((command) => command.argv.join(" "));
+    const appStop = calls.findIndex(
+      (line) => line.includes("instances stop") && !line.includes("gadget-audio")
+    );
+    const audioStop = calls.findIndex(
+      (line) => line.includes("instances stop") && line.includes("gadget-audio")
+    );
+    const database = calls.findIndex((line) => line.includes("activation-policy=NEVER"));
+    assert.ok(appStop >= 0 && audioStop > appStop && database > audioStop);
+  });
+
+  it("reports the audio host and its gateway", async () => {
+    const runner = new HarnessRunner((command) => {
+      const text = command.argv.join(" ");
+      if (text.includes("instances describe") && text.includes("gadget-audio")) {
+        return { code: 0, stdout: "STOPPED\n", stderr: "" };
+      }
+      if (text.includes("instances describe")) return { code: 0, stdout: "RUNNING\n", stderr: "" };
+      if (text.includes("sql instances describe")) return { code: 0, stdout: "RUNNABLE\n", stderr: "" };
+      if (text.includes("addresses describe")) return { code: 0, stdout: "IN_USE\n", stderr: "" };
+      if (text.includes("compute ssh") && text.includes("10.9.9.9")) {
+        return { code: 0, stdout: "503", stderr: "" };
+      }
+      if (text.includes("compute ssh")) return { code: 0, stdout: "", stderr: "" };
+      return undefined;
+    });
+    const lines: string[] = [];
+    await showStatus(
+      context(runner, {
+        config: { ...CONFIG, audio: AUDIO, speech: { sttUrl: speechUrl, ttsUrl: speechUrl } },
+        log: (line) => lines.push(line),
+      })
+    );
+    assert.match(lines.join("\n"), /audio\s+STOPPED\s+gateway 503/);
   });
 
   it("names the dependency that never arrived", async () => {
