@@ -377,6 +377,47 @@ describe("a session", () => {
     const start = order.findIndex((line) => line.includes("instances start"));
     const wait = order.findIndex((line) => line.includes("compute ssh"));
     assert.ok(patch >= 0 && start > patch && wait > start);
+    assert.ok(runner.calls[patch].argv.includes("--async"));
+    assert.ok(runner.calls[start].argv.includes("--async"));
+  });
+
+  it("continues when an operation collides but the state is already right", async () => {
+    const runner = new HarnessRunner((command) => {
+      const text = command.argv.join(" ");
+      if (text.includes("sql instances patch")) {
+        return { code: 1, stdout: "", stderr: "HTTPError 409: another operation was already in progress" };
+      }
+      if (text.includes("sql instances describe")) return { code: 0, stdout: "RUNNABLE\n", stderr: "" };
+      if (text.includes("instances start")) return { code: 1, stdout: "", stderr: "busy" };
+      if (text.includes("instances describe")) return { code: 0, stdout: "RUNNING\n", stderr: "" };
+      if (text.includes("compute ssh")) return { code: 0, stdout: "ready\n", stderr: "" };
+      return undefined;
+    });
+    await startSession(
+      context(runner, { config: { ...CONFIG, speech: { sttUrl: speechUrl, ttsUrl: speechUrl } } })
+    );
+  });
+
+  it("retries SSH while the host is still booting", async () => {
+    let attempts = 0;
+    const runner = new HarnessRunner((command) => {
+      const text = command.argv.join(" ");
+      if (text.includes("sql instances patch")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("sql instances describe")) return { code: 0, stdout: "RUNNABLE\n", stderr: "" };
+      if (text.includes("instances start")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("instances describe")) return { code: 0, stdout: "RUNNING\n", stderr: "" };
+      if (text.includes("compute ssh")) {
+        attempts += 1;
+        return attempts === 1
+          ? { code: 255, stdout: "", stderr: "Connection refused" }
+          : { code: 0, stdout: "ready\n", stderr: "" };
+      }
+      return undefined;
+    });
+    await startSession(
+      context(runner, { config: { ...CONFIG, speech: { sttUrl: speechUrl, ttsUrl: speechUrl } } })
+    );
+    assert.equal(attempts, 2);
   });
 
   it("names the dependency that never arrived", async () => {
@@ -423,6 +464,8 @@ describe("a session", () => {
     const stop = order.findIndex((line) => line.includes("instances stop"));
     const database = order.findIndex((line) => line.includes("activation-policy=NEVER"));
     assert.ok(stop >= 0 && database > stop);
+    assert.ok(runner.calls[stop].argv.includes("--async"));
+    assert.ok(runner.calls[database].argv.includes("--async"));
   });
 
   it("reports units, revisions and drift without changing anything", async () => {

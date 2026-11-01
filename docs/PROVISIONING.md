@@ -199,12 +199,19 @@ BRIDGE_CONSOLE_URL=http://127.0.0.1:3001
 BRIDGE_CONSOLE_TOKEN=$(secret bridge-token)
 BRIDGE_PUBLIC_HOST=<bridge-host>
 BRIDGE_PUBLIC_URL=https://<bridge-host>
+BRIDGE_VAD_MIN_RMS=2500
 ENV
 
 chmod 600 /etc/gadget/*.env
 SCRIPT
 sudo chmod +x /usr/local/bin/gadget-secrets.sh
 ```
+
+`BRIDGE_VAD_MIN_RMS=2500` is this deployment's measured value, not a default: the gadgets'
+microphones peak around 5 000–8 000 RMS at normal speaking distance, below the bridge's shipped
+7 500 gate, so phrases at that distance never reached 500 ms of counted speech. Below roughly
+2 000 the room's own floor (`2.5 ×`) starts to decide the gate, and the device's own speaker can be
+counted as speech; measure again before changing it.
 
 `<PRIVATE_IP>` is `gcloud sql instances describe gadget-db --format="value(ipAddresses[0].ipAddress)"`.
 
@@ -276,53 +283,50 @@ Both certificates are issued automatically over HTTP-01; port 80 must stay open.
 
 ## 8. The three trees
 
-There is no repository and no GitHub credential on the host. The first install is by hand, into the
-release layout the operator tool uses afterwards; later updates are
-`npm run ops -- deploy <service>` (`RUNBOOK.md`).
+There is no repository and no GitHub credential on the host. The first deploy uses the same
+operator tool as every later one (`RUNBOOK.md`): it packages a committed revision on your machine,
+ships it over IAP, builds it and verifies it on the host.
 
-```bash
-for service in gadget-console gadget-bridge adaptive-interview-api; do
-  sudo mkdir -p "/srv/$service/releases" && sudo chown "$USER":"$USER" "/srv/$service"
-done
-```
-
-Package each committed revision on your machine, copy it over, unpack it under
-`/srv/<service>/releases/<commit>` and point `current` at it:
-
-```bash
-git -C <repo> archive --format=tar.gz -o "$TEMP/<service>.tar.gz" HEAD
-gcloud compute scp "$TEMP/<service>.tar.gz" gadget-app:/tmp/<service>.tar.gz \
-  --zone=$ZONE --tunnel-through-iap
-```
-
-On the host, as the account the units run as (record the commit before packaging):
-
-```bash
-commit=<the packaged commit>
-mkdir -p /srv/gadget-console/releases/$commit
-tar xzf /tmp/console.tar.gz -C /srv/gadget-console/releases/$commit
-cd /srv/gadget-console/releases/$commit && npm ci && npm run build
-ln -sfn /srv/gadget-console/releases/$commit /srv/gadget-console/current
-```
-
-The runtime and the bridge are the same without the build (`npm start` runs `tsx`). Extract and
-build as the user, not with `sudo`: a root-owned tree breaks the next build. And check the build's
-exit status: a failed build leaves no new `.next`, and a service started anyway serves the previous
-release behind a healthy `/health`.
-
-## 9. Start and seed
+The units read their environment from `/etc/gadget/*.env`, which does not exist until
+`gadget-secrets.service` has run. Start it first:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable gadget-secrets gadget-console gadget-api gadget-bridge
-sudo systemctl restart gadget-secrets
-sudo systemctl start gadget-console gadget-api gadget-bridge
+sudo systemctl enable gadget-secrets
+sudo systemctl start gadget-secrets
+sudo systemctl status gadget-secrets --no-pager
+```
+
+Then, in the gadget-console checkout on your machine:
+
+```bash
+cp ops.example.json ops.local.json     # the deployment's own names; gitignored
+npm run ops -- deploy console --migrate
+npm run ops -- deploy bridge
+npm run ops -- deploy runtime
+```
+
+The tool creates `/srv/<service>/releases/<commit>`, points `current` at it, installs and builds
+(where there is a build), restarts the unit and verifies that the shipped revision answers. The
+units' `WorkingDirectory` must already name `current` (§7). It runs the file work as `<deploy-user>`,
+never as root: a root-owned tree breaks the next build. The build's exit status is the check — a
+failed build leaves the previous release answering `/health` while serving old content, and the
+tool refuses to call that success.
+
+## 9. Enable and seed
+
+The deploy in §8 already started each unit. Enable them across reboots, and reload Caddy once its
+configuration is in place:
+
+```bash
+sudo systemctl enable gadget-console gadget-api gadget-bridge
 sudo systemctl reload caddy
+```
 
-# schema
-sudo bash -c 'set -a; . /etc/gadget/console.env; set +a; cd /srv/gadget-console/current && npx drizzle-kit migrate'
+The schema was created by `deploy console --migrate` in §8. What remains is the runtime record the
+agents point at — loopback, and the token from the secret:
 
-# the runtime record the agents point at — loopback, and the token from the secret
+```bash
 sudo bash -c 'set -a; . /etc/gadget/console.env; . /etc/gadget/api.env; set +a; \
   cd /srv/gadget-console/current && RUNTIME_URL=http://127.0.0.1:4000 \
   RUNTIME_TOKEN="$API_AUTH_TOKEN" npm run seed:runtime'

@@ -25,6 +25,9 @@ function sqlPatchArgv(ctx: OpsContext, policy: "ALWAYS" | "NEVER"): string[] {
     `--activation-policy=${policy}`,
     `--project=${ctx.config.project}`,
     "--quiet",
+    // The client's own wait can expire before Cloud SQL finishes a cold start,
+    // returning non-zero for an operation that succeeds. The poll below decides.
+    "--async",
   ];
 }
 
@@ -38,6 +41,8 @@ function vmArgv(ctx: OpsContext, action: "start" | "stop"): string[] {
     `--zone=${ctx.config.zone}`,
     `--project=${ctx.config.project}`,
     "--quiet",
+    // The poll for RUNNING/TERMINATED is the wait; the client need not block.
+    "--async",
   ];
 }
 
@@ -99,6 +104,51 @@ async function waitFor(
 async function readValue(ctx: OpsContext, argv: string[]): Promise<string> {
   const result = await ctx.runner.run({ argv });
   return result.code === 0 ? result.stdout.trim() : "";
+}
+
+/**
+ * The host is up before its SSH daemon and IAP route are; the first attempt
+ * after a start can answer 255. Retry the connection, but treat the script's
+ * own `timeout:` as the answer — re-running that loop would only repeat it.
+ */
+async function waitForRemote(
+  ctx: OpsContext,
+  script: string
+): Promise<{ ok: boolean; detail: string }> {
+  const deadline = Date.now() + Math.min(ctx.poll.timeoutMs, 120_000);
+  let last = "the host did not answer";
+  while (Date.now() < deadline) {
+    const result = await ssh(ctx.runner, ctx.config, script);
+    if (result.code === 0 && result.stdout.split("\n").includes("ready")) {
+      return { ok: true, detail: "" };
+    }
+    const timedOut = result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.startsWith("timeout:"));
+    if (timedOut !== undefined) return { ok: false, detail: timedOut };
+    last =
+      result.stderr
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== "")
+        .at(-1) ?? `exit ${result.code}`;
+    await sleep(Math.min(ctx.poll.intervalMs, 2000));
+  }
+  return { ok: false, detail: last };
+}
+
+/**
+ * A policy change is asynchronous and the client may refuse it because another
+ * operation is in flight. The poll that follows is what decides whether the
+ * resource reached the state the session needs, so a non-zero exit is reported
+ * rather than fatal.
+ */
+async function attempt(ctx: OpsContext, argv: string[], doing: string): Promise<void> {
+  const result = await ctx.runner.run({ argv });
+  if (result.code === 0) return;
+  const detail = result.stderr.trim().split("\n").at(-1) ?? `exit ${result.code}`;
+  ctx.log(`${doing} did not return success (${detail}); the state check decides`);
 }
 
 /**
@@ -189,7 +239,7 @@ export async function startSession(ctx: OpsContext): Promise<void> {
   const { config } = ctx;
   ctx.log(`starting ${config.databaseInstance}, then ${config.instance}`);
 
-  await run(ctx.runner, sqlPatchArgv(ctx, "ALWAYS"), "setting the database policy to ALWAYS");
+  await attempt(ctx, sqlPatchArgv(ctx, "ALWAYS"), "setting the database policy to ALWAYS");
 
   if (ctx.dryRun) {
     await run(ctx.runner, sqlStateArgv(ctx), "reading the database state");
@@ -206,7 +256,7 @@ export async function startSession(ctx: OpsContext): Promise<void> {
   );
   ctx.log("database RUNNABLE");
 
-  await run(ctx.runner, vmArgv(ctx, "start"), "starting the host");
+  await attempt(ctx, vmArgv(ctx, "start"), "starting the host");
   await waitFor(
     ctx,
     async () => (await readValue(ctx, vmStateArgv(ctx))) === "RUNNING",
@@ -214,15 +264,9 @@ export async function startSession(ctx: OpsContext): Promise<void> {
   );
   ctx.log("host RUNNING");
 
-  const ready = await ssh(ctx.runner, config, waitScript());
-  if (ready.code !== 0 || !ready.stdout.split("\n").includes("ready")) {
-    const detail =
-      ready.stdout
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.startsWith("timeout:"))
-        .at(-1) ?? `(exit ${ready.code})`;
-    throw new Error(`the session did not become healthy: ${detail}`);
+  const ready = await waitForRemote(ctx, waitScript());
+  if (!ready.ok) {
+    throw new Error(`the session did not become healthy: ${ready.detail}`);
   }
   ctx.log("every unit and health endpoint answered");
 
@@ -265,7 +309,7 @@ export async function stopSession(
     ctx.log(`--force: ignoring ${reasons.join("; ")}`);
   }
 
-  await run(ctx.runner, vmArgv(ctx, "stop"), "stopping the host");
+  await attempt(ctx, vmArgv(ctx, "stop"), "stopping the host");
   await waitFor(
     ctx,
     async () => (await readValue(ctx, vmStateArgv(ctx))) === "TERMINATED",
@@ -273,7 +317,7 @@ export async function stopSession(
   );
   ctx.log("host TERMINATED");
 
-  await run(ctx.runner, sqlPatchArgv(ctx, "NEVER"), "setting the database policy to NEVER");
+  await attempt(ctx, sqlPatchArgv(ctx, "NEVER"), "setting the database policy to NEVER");
   ctx.log("database policy NEVER");
 
   const address = await readValue(ctx, addressStateArgv(ctx));
