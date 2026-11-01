@@ -192,6 +192,7 @@ NODE_ENV=production
 HOST=127.0.0.1
 PORT=4000
 API_AUTH_TOKEN=$(secret runtime-token)
+VOICE_AGENT_MAX_HISTORY=8
 ENV
 
 cat > /etc/gadget/bridge.env <<ENV
@@ -200,6 +201,7 @@ BRIDGE_CONSOLE_TOKEN=$(secret bridge-token)
 BRIDGE_PUBLIC_HOST=<bridge-host>
 BRIDGE_PUBLIC_URL=https://<bridge-host>
 BRIDGE_VAD_MIN_RMS=2500
+BRIDGE_HISTORY_TURNS=8
 ENV
 
 chmod 600 /etc/gadget/*.env
@@ -212,6 +214,12 @@ microphones peak around 5 000–8 000 RMS at normal speaking distance, below the
 7 500 gate, so phrases at that distance never reached 500 ms of counted speech. Below roughly
 2 000 the room's own floor (`2.5 ×`) starts to decide the gate, and the device's own speaker can be
 counted as speech; measure again before changing it.
+
+`VOICE_AGENT_MAX_HISTORY=8` bounds the runtime's conversation context to eight exchanges. The
+bridge carries only turns that were answered; eight keeps enough context for a follow-up while
+keeping a completed request from much earlier out of reach of a repeated tool call.
+`BRIDGE_HISTORY_TURNS=8` gives the bridge the same bound, so it does not carry more conversation
+than the runtime shows the model.
 
 `<PRIVATE_IP>` is `gcloud sql instances describe gadget-db --format="value(ipAddresses[0].ipAddress)"`.
 
