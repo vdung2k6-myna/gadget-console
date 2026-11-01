@@ -201,11 +201,32 @@ The console's `stt` and `tts` profiles point at two different places:
 | `tts` | `http://gadget-audio:8082` | the audio host `gadget-audio` (`gateway` → three engines) | its internal DNS name |
 
 The `stt` hostname is a **named Cloudflare tunnel** (`gadget-audio`), not a quick tunnel: the URL
-is stable across restarts, and the tunnel runs as the Windows service `cloudflared-gadget-audio`
-(Automatic, LocalSystem), so it starts at boot without a sign-in and the service manager restarts
-it if it exits. Its config and credentials live in `C:\ProgramData\cloudflared-gadget-audio\` so
-the service account can read them. The DNS record is proxied, which is correct for HTTP — unlike
-`gw`, which must stay grey.
+is stable across restarts, and the tunnel runs on the developer's machine as the systemd unit
+`cloudflared-gadget-audio`, so it starts at boot and the service manager restarts it if it exits.
+Its config and credentials live in `/etc/cloudflared/` (root-only: `config.yml` plus the tunnel's
+JSON credentials). The DNS record is proxied, which is correct for HTTP — unlike `gw`, which must
+stay grey.
+
+The same tunnel carries every hostname the machine publishes; each is one ingress entry, and a
+hostname without one falls through to the `http_status:404` rule:
+
+```yaml
+ingress:
+  - hostname: stt.<domain>
+    service: http://127.0.0.1:8080
+  - hostname: tts.<domain>
+    service: http://127.0.0.1:8082
+  # a local client served on :3000, if this machine hosts one
+  - hostname: demo.<domain>
+    service: http://localhost:3000
+  - service: http_status:404
+```
+
+A hostname answered with **HTTP 530 / error 1033** is not an ingress problem: the DNS record still
+points at a different tunnel. There is no `cert.pem` on this host, so `cloudflared tunnel route dns`
+cannot run; the record is edited in the Cloudflare dashboard as a proxied `CNAME` to
+`<tunnel-id>.cfargotunnel.com`. A hostname that answers 404 while others on the same tunnel work is
+the missing ingress entry. After an edit: `sudo systemctl restart cloudflared-gadget-audio`.
 
 The TTS tier is this repository's `docker-compose.audio.yml`, run on `gadget-audio` as the
 `gateway` and three engines; the STT proxy and `audiocpp` stay on the developer's machine. When a
@@ -215,7 +236,7 @@ turn fails at a speech call:
    `sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml ps` — the four containers are
    up and healthy, and `curl -s http://127.0.0.1:8082/health` answers;
 2. From the app host, `curl -s http://gadget-audio:8082/health` — the internal name and the gateway;
-3. For STT, `curl -s https://stt.<domain>/health` and `Get-Service cloudflared-gadget-audio`.
+3. For STT, `curl -s https://stt.<domain>/health` and `systemctl status cloudflared-gadget-audio`.
 
 The audio host is part of the session: `npm run ops -- session start|stop` starts and stops it.
 The developer's machine is not — a machine that is off or asleep is an STT tier that is down, and
