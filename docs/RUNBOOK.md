@@ -9,9 +9,9 @@ commands and the three files verbatim.
 | What | Where |
 | --- | --- |
 | Host | `gadget-app`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04 |
-| Console tree | `/srv/gadget-console` (Next.js) |
-| Runtime tree | `/srv/adaptive-interview-api` (Express) |
-| Bridge tree | `/srv/gadget-bridge` |
+| Console tree | `/srv/gadget-console/current` (Next.js) |
+| Runtime tree | `/srv/adaptive-interview-api/current` (Express) |
+| Bridge tree | `/srv/gadget-bridge/current` |
 | Environment files | `/etc/gadget/console.env`, `api.env`, `bridge.env` (0600, rewritten at boot) |
 | Secrets fetched at boot | `/usr/local/bin/gadget-secrets.sh`, run by `gadget-secrets.service` |
 | Caddy | `/etc/caddy/Caddyfile`, unit `caddy` |
@@ -31,55 +31,40 @@ console --> Cloud SQL <db-private-ip>:5432
 
 ## Deploying an update
 
-The trees are deployed from a tarball of a committed revision — the host has no repository and no
-GitHub credential. On your machine:
+The host has no repository and no GitHub credential. The operator's machine packages and ships a
+committed revision over IAP, from the console checkout:
 
 ```bash
-git -C <repo> archive --format=tar.gz -o "$TEMP/<service>.tar.gz" HEAD
-gcloud compute scp "$TEMP/<service>.tar.gz" gadget-app:/tmp/<service>.tar.gz \
-  --zone=asia-southeast1-a --tunnel-through-iap
+cp ops.example.json ops.local.json         # once; the deployment's own names, gitignored
+npm run ops -- deploy console              # ship, build, switch, verify
+npm run ops -- deploy console --migrate    # when the release changes the schema
+npm run ops -- deploy console --rollback   # return to the release that served before
+npm run ops -- deploy bridge
+npm run ops -- deploy runtime
 ```
 
-On the host, for the console:
+`deploy` refuses a working tree with uncommitted changes, packages only the committed revision with
+a `REVISION` file, installs and builds in a new release directory, and switches `current` only after
+the build exits zero. It then restarts the unit and verifies that the revision answering is the one
+shipped, that the unit restarted after the switch, and that the unit's `WorkingDirectory` names
+`current`. A failed build leaves the previous release serving and exits non-zero. `--rollback`
+returns to the previous release; migrations are not reversed.
 
-```bash
-sudo systemctl stop gadget-console
-tar xzf /tmp/console.tar.gz -C /srv/gadget-console
-cd /srv/gadget-console
-npm ci                                   # only when package.json or the lockfile changed
-if npm run build > "$HOME/console-build.log" 2>&1; then
-  sudo systemctl start gadget-console
-else
-  echo "build failed — .next is still the previous release; read $HOME/console-build.log"
-fi
-curl -s localhost:3001/health
-```
+The tool exists because three ways of deploying the wrong thing were seen here:
 
-The tree belongs to the account the units run as (`<deploy-user>`): extract, install and build as that
-account, and keep `sudo` for `systemctl` alone. A tree extracted with `sudo tar` comes out
-root-owned, and the next build as the user then fails on permissions.
+- **The tarball is old.** The package is now built and shipped in one command and deleted afterwards,
+  so no `console.tar.gz` survives to be deployed by mistake. The `REVISION` file names the commit.
+- **The build failed and nobody noticed.** The build's exit status is the gate: no switch, no restart,
+  no success. `/health` is not the check — the deploy refuses to claim success unless the shipped
+  revision is what answers.
+- **The log file is not writable.** There is no shared log file to become root-owned; the build's
+  output is the command's output, and the tree belongs to `<deploy-user>`.
 
-Three ways this silently deploys the wrong thing, all seen:
+A deployment is still verified by **something the release changed** — a string on `/help`, a route, a
+column — as the final check after the tool reports the revision.
 
-- **The tarball is old.** It holds whatever `HEAD` was when it was made, and a `console.tar.gz` left
-  in `$TEMP` by the previous release deploys that release. Record `git log --oneline -1` before
-  packaging, and after deploying check that the tree carries it (`grep` the file a release changed,
-  or open the page it changed).
-- **The build failed and nobody noticed.** A failed build leaves `.next` from the previous release;
-  the unit starts on it and `/health` answers 200 while the site serves old content. The build's
-  exit status is the check, not the health endpoint.
-- **The log file is not writable.** `/tmp/console-build.log` written by an earlier `sudo` run belongs
-  to root, so the redirect fails before the build starts and the "build" is a `Permission denied`.
-  Write the log where the service's user owns it, such as `$HOME`.
-
-So a deployment is verified by **something the release changed** — a string on `/help`, a route, a
-column — and never by `/health` alone.
-
-For the runtime and the bridge the same three steps without the build (`npm start` runs `tsx`
-directly), and their health checks are `localhost:4000/health` and `http://127.0.0.1:8003/`.
-
-A tarball holds the committed tree; anything uncommitted is not deployed. `git status` before
-packaging is the check.
+Releases live under `/srv/<service>/releases/<commit>`, with `/srv/<service>/current` a symlink to the
+one serving. The three most recent are kept.
 
 ## Configuration and secrets
 
@@ -166,13 +151,20 @@ until the VM's service account holds `roles/logging.logWriter` and `roles/monito
 ## Start and stop
 
 ```bash
-gcloud compute instances stop gadget-app --zone=asia-southeast1-a
-gcloud compute instances start gadget-app --zone=asia-southeast1-a
+npm run ops -- session start
+npm run ops -- session stop
+npm run ops -- status
 ```
 
-Stopping bills no compute; disks, database storage and the reserved address remain (about $20–25 a
-month). The services come back on their own. The budget alert is 1,500,000 ₫ (about $60) at 50, 90
-and 100 percent.
+`start` brings Cloud SQL to `RUNNABLE`, then starts the host and waits for every unit and health
+endpoint before reporting the session ready. `stop` refuses while a gadget is connected to the
+bridge or a turn was recorded within the guard window (`guardMinutes`, 15 by default), then stops
+the host and the database; `--force` stops anyway. `status` reports both states, every unit, every
+deployed revision and any drift, without changing anything.
+
+Stopping bills no compute and no database instance; disks, database storage and the reserved address
+remain (about $20–25 a month). The services come back on their own. The budget alert is 1,500,000 ₫
+(about $60) at 50, 90 and 100 percent.
 
 ## Changing the public surface
 
@@ -236,7 +228,8 @@ The profiles live in the console, not on the host: a change there is made at
 
 ## What not to do
 
-- Do not edit files under `/srv/…` on the host: the next tarball overwrites the tree.
+- Do not edit files under `/srv/…` on the host: the next release replaces `current`, and pruning
+  removes old releases.
 - Do not edit `/etc/gadget/*.env`: they are rewritten at boot.
 - Do not open 8001 or 8003 in a firewall rule; the front exists so they stay closed.
 - Do not commit a secret, a real device identifier or an environment file.

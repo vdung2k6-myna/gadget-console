@@ -228,9 +228,9 @@ EOF
 
 for name in api console bridge; do
   case $name in
-    api)     DESC="Gadget runtime (adaptive-interview-api)"; DIR=/srv/adaptive-interview-api ;;
-    console) DESC="Gadget console";                          DIR=/srv/gadget-console ;;
-    bridge)  DESC="Gadget bridge";                           DIR=/srv/gadget-bridge ;;
+    api)     DESC="Gadget runtime (adaptive-interview-api)"; DIR=/srv/adaptive-interview-api/current ;;
+    console) DESC="Gadget console";                          DIR=/srv/gadget-console/current ;;
+    bridge)  DESC="Gadget bridge";                           DIR=/srv/gadget-bridge/current ;;
   esac
   sudo tee /etc/systemd/system/gadget-$name.service >/dev/null <<EOF
 [Unit]
@@ -276,8 +276,18 @@ Both certificates are issued automatically over HTTP-01; port 80 must stay open.
 
 ## 8. The three trees
 
-There is no repository and no GitHub credential on the host. From your machine, package each
-committed revision and copy it over:
+There is no repository and no GitHub credential on the host. The first install is by hand, into the
+release layout the operator tool uses afterwards; later updates are
+`npm run ops -- deploy <service>` (`RUNBOOK.md`).
+
+```bash
+for service in gadget-console gadget-bridge adaptive-interview-api; do
+  sudo mkdir -p "/srv/$service/releases" && sudo chown "$USER":"$USER" "/srv/$service"
+done
+```
+
+Package each committed revision on your machine, copy it over, unpack it under
+`/srv/<service>/releases/<commit>` and point `current` at it:
 
 ```bash
 git -C <repo> archive --format=tar.gz -o "$TEMP/<service>.tar.gz" HEAD
@@ -285,12 +295,14 @@ gcloud compute scp "$TEMP/<service>.tar.gz" gadget-app:/tmp/<service>.tar.gz \
   --zone=$ZONE --tunnel-through-iap
 ```
 
-On the host, as the account the units run as:
+On the host, as the account the units run as (record the commit before packaging):
 
 ```bash
-sudo mkdir -p /srv/gadget-console && sudo chown "$USER":"$USER" /srv/gadget-console
-tar xzf /tmp/console.tar.gz -C /srv/gadget-console
-cd /srv/gadget-console && npm ci && npm run build
+commit=<the packaged commit>
+mkdir -p /srv/gadget-console/releases/$commit
+tar xzf /tmp/console.tar.gz -C /srv/gadget-console/releases/$commit
+cd /srv/gadget-console/releases/$commit && npm ci && npm run build
+ln -sfn /srv/gadget-console/releases/$commit /srv/gadget-console/current
 ```
 
 The runtime and the bridge are the same without the build (`npm start` runs `tsx`). Extract and
@@ -308,11 +320,11 @@ sudo systemctl start gadget-console gadget-api gadget-bridge
 sudo systemctl reload caddy
 
 # schema
-sudo bash -c 'set -a; . /etc/gadget/console.env; set +a; cd /srv/gadget-console && npx drizzle-kit migrate'
+sudo bash -c 'set -a; . /etc/gadget/console.env; set +a; cd /srv/gadget-console/current && npx drizzle-kit migrate'
 
 # the runtime record the agents point at — loopback, and the token from the secret
 sudo bash -c 'set -a; . /etc/gadget/console.env; . /etc/gadget/api.env; set +a; \
-  cd /srv/gadget-console && RUNTIME_URL=http://127.0.0.1:4000 \
+  cd /srv/gadget-console/current && RUNTIME_URL=http://127.0.0.1:4000 \
   RUNTIME_TOKEN="$API_AUTH_TOKEN" npm run seed:runtime'
 ```
 

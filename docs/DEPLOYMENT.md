@@ -115,20 +115,16 @@ Ollama, LM Studio) is registered with a placeholder key the endpoint ignores.
 The host is started for a session and stopped afterwards; the disks persist.
 
 ```bash
-# start
-gcloud sql instances patch gadget-db --activation-policy=ALWAYS    # if the instance was stopped
-gcloud compute instances start gadget-app --zone=asia-southeast1-a
-# wait for the three units, which start themselves
-curl -s localhost:3001/health; curl -s localhost:4000/health
-curl -s http://127.0.0.1:8003/
-
-# stop
-gcloud compute instances stop gadget-app --zone=asia-southeast1-a
-gcloud sql instances patch gadget-db --activation-policy=NEVER     # optional
+npm run ops -- session start   # Cloud SQL RUNNABLE, host RUNNING, every health endpoint
+npm run ops -- session stop    # host TERMINATED, then Cloud SQL stopped
+npm run ops -- status          # both states, every unit, every revision, no changes
 ```
 
-Stopping deletes nothing. An unattached static IP costs about $7 a month, which is why the address
-is kept only while the deployment is in use.
+`start` waits for the services and names the dependency that did not arrive. `stop` refuses while a
+gadget is connected to the bridge or a turn is recent; `--force` stops anyway. Stopping deletes
+nothing. The reserved address still bills while the host is stopped (about $7 a month) until it is
+released; the tool reports it rather than releasing it, because re-pointing DNS from a deploy is a
+worse failure than seven dollars.
 
 ## Cost
 
@@ -144,18 +140,21 @@ at 50, 90 and 100 percent, so a month that runs continuously is visible before i
 
 ## Updating a service
 
-Each service is a tree under `/srv`, deployed from a tarball of the repository's `HEAD`;
-`RUNBOOK.md` has the commands and the three ways a deploy goes wrong quietly. Two rules apply to
-every one of them:
+Each service is a release under `/srv/<service>/releases/<commit>`, reached through
+`/srv/<service>/current`. `npm run ops -- deploy <service>` packages a committed revision, ships it
+over IAP, builds it, switches the symlink and verifies the result; `RUNBOOK.md` has the commands.
+The rules it enforces:
 
-- **The build's exit status is the check that it happened.** A failed build leaves `.next` from the
-  previous release, the unit starts on it, and `/health` answers 200 while the site serves old
-  content.
-- **Extract and build as the account the units run as**, keeping `sudo` for `systemctl`: a tree
-  unpacked by `sudo tar` is root-owned and the next build as the user fails on permissions.
+- **The build's exit status is the check that it happened.** A failed build leaves the previous
+  release serving; the unit is not restarted and the deploy exits non-zero. `/health` answering 200
+  is not proof that the new release is serving.
+- **Extract and build as the account the units run as.** The deploy runs as the operator over IAP,
+  which must be `<deploy-user>`; `sudo` is kept for `systemctl` alone.
+- **The revision is written into the package** as `REVISION`. A deploy that cannot show that revision
+  answering, after the switch, exits non-zero.
 
-The database migration is a separate, explicit step: `npm run db:migrate` from `/srv/gadget-console`
-after a release that changes the schema.
+The database migration is explicit: `npm run ops -- deploy console --migrate`. `--rollback` returns
+to the previous release; it does not reverse a migration.
 
 ## Known gaps
 

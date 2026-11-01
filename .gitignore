@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# the operator's own deployment names — private, never packaged
+/ops.local.json
+
 # vercel
 .vercel
 
