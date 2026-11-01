@@ -17,7 +17,7 @@ deployment names no speech or model provider — an account configures its own `
 | console (`gadget-console`) | `gadget-app` | `:3001` | Caddy, over loopback |
 | runtime (`adaptive-interview-api`) | `gadget-app` | `127.0.0.1:4000` | the bridge, over loopback |
 | bridge (`gadget-bridge`) | `gadget-app` | `:8003` OTA, `:8001` WS | Caddy only; no firewall rule opens them |
-| audio gateway (`interview-audio/gateway`) | `gadget-audio` | `10.10.0.3:8082` | the app host, over the private subnet |
+| audio gateway (`interview-audio/gateway`) | `gadget-audio` | `gadget-audio:8082` | the app host, over the private subnet |
 | TTS engines (`kokoro`, `piper`, `supertonic`) | `gadget-audio` | inside the compose network | the gateway, over the compose network |
 | STT proxy and `audiocpp` | the developer's machine | behind `stt.<domain>` (Cloudflare tunnel) | the runtime, over HTTPS |
 | Cloud SQL Postgres | managed | `<db-private-ip>:5432` | the host's subnet |

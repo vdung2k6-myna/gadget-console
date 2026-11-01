@@ -14,7 +14,7 @@ commands and the three files verbatim.
 | Runtime tree | `/srv/adaptive-interview-api/current` (Express) |
 | Bridge tree | `/srv/gadget-bridge/current` |
 | Audio tree | `/srv/audio-tier` (compose project); models `/srv/audio-models` |
-| Audio gateway | `10.10.0.3:8082`, reached only from the app host |
+| Audio gateway | `gadget-audio:8082` (the instance's internal DNS name), reached only from the app host |
 | Environment files | `/etc/gadget/console.env`, `api.env`, `bridge.env` (0600, rewritten at boot) |
 | Secrets fetched at boot | `/usr/local/bin/gadget-secrets.sh`, run by `gadget-secrets.service` |
 | Caddy | `/etc/caddy/Caddyfile`, unit `caddy` |
@@ -198,7 +198,7 @@ The console's `stt` and `tts` profiles point at two different places:
 | Kind | URL | Runs on | Reaches |
 | --- | --- | --- | --- |
 | `stt` | `https://stt.<domain>` | the developer's machine, Docker (`stt-proxy` → `audiocpp`) | `127.0.0.1:8080` |
-| `tts` | `http://10.10.0.3:8082` | the audio host `gadget-audio` (`gateway` → three engines) | its private address |
+| `tts` | `http://gadget-audio:8082` | the audio host `gadget-audio` (`gateway` → three engines) | its internal DNS name |
 
 The `stt` hostname is a **named Cloudflare tunnel** (`gadget-audio`), not a quick tunnel: the URL
 is stable across restarts, and the tunnel runs as the Windows service `cloudflared-gadget-audio`
@@ -214,7 +214,7 @@ turn fails at a speech call:
 1. On the audio host,
    `sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml ps` — the four containers are
    up and healthy, and `curl -s http://127.0.0.1:8082/health` answers;
-2. From the app host, `curl -s http://10.10.0.3:8082/health` — the private route and the gateway;
+2. From the app host, `curl -s http://gadget-audio:8082/health` — the internal name and the gateway;
 3. For STT, `curl -s https://stt.<domain>/health` and `Get-Service cloudflared-gadget-audio`.
 
 The audio host is part of the session: `npm run ops -- session start|stop` starts and stops it.

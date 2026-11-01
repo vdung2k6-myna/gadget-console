@@ -13,7 +13,7 @@
   "audio": {
     "instance": "gadget-audio",
     "zone": "asia-southeast1-a",
-    "healthUrl": "http://10.0.0.10:8082/health"
+    "healthUrl": "http://gadget-audio:8082/health"
   },
   "repositories": {
     "bridge": "../gadget-bridge",

@@ -369,7 +369,8 @@ sudo env AUDIO_BIND_ADDR=<audio-private-ip> AUDIO_MODELS_DIR=/srv/audio-models \
   docker compose -f docker-compose.audio.yml up -d --build gateway kokoro piper supertonic
 ```
 
-The gateway answers at `http://<audio-private-ip>:8082/health`; only the app host's tag may reach it.
+The gateway answers at `http://<audio-host>:8082/health`; the app host resolves the instance's
+internal DNS name, and only its tag may reach the port.
 Point each account's `tts` profile at that address — TTS uses no public tunnel.
 
 ## 9. Enable and seed
