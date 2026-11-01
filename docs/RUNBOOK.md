@@ -227,7 +227,7 @@ every turn fails at its first speech call.
 | --- | --- |
 | Bridge logs `the console did not take … (401)` | `BRIDGE_TOKEN` vs `BRIDGE_CONSOLE_TOKEN` |
 | Turn rejected `no transcription provider is configured` | the agent's `stt` profile is unset or unreachable |
-| Turn rejected `fetch failed` | the agent's `llm` profile is unbound, deleted or unreachable; deleting a profile unbinds the agent (`ON DELETE SET NULL`), and the runtime then tries its own `localhost:11434` |
+| Turn rejected `fetch failed` | the agent's `llm` profile is unbound, deleted or unreachable; deleting a profile unbinds the agent (`ON DELETE SET NULL`), and the runtime then tries its own `localhost:11434`. A binding saved in the console reaches the next session, not the open one — wake the device or restart the bridge |
 | Turn rejected `STT failed (404)` | the profile's base URL already ends in `/v1`; the runtime appends `/v1/audio/…` itself |
 | Device page lists no tools | the bridge's warning carries the console's reason; see `TOOL_LIMITS` in `src/lib/device-tools.ts` |
 | `wss` handshake fails from outside | the `gw` block in the Caddyfile, then `journalctl -u caddy` |
