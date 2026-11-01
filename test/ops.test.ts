@@ -517,6 +517,7 @@ describe("a session", () => {
       const text = command.argv.join(" ");
       if (text.includes("compute ssh")) return { code: 0, stdout: "last_turn=0\nsockets=0\n", stderr: "" };
       if (text.includes("instances stop")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("sql instances describe")) return { code: 0, stdout: "STOPPED\n", stderr: "" };
       if (text.includes("instances describe")) return { code: 0, stdout: "TERMINATED\n", stderr: "" };
       if (text.includes("sql instances patch")) return { code: 0, stdout: "", stderr: "" };
       if (text.includes("addresses describe")) return { code: 0, stdout: "RESERVED\n", stderr: "" };
@@ -594,6 +595,7 @@ describe("a session", () => {
       const text = command.argv.join(" ");
       if (text.includes("compute ssh")) return { code: 0, stdout: "last_turn=0\nsockets=0\n", stderr: "" };
       if (text.includes("instances stop")) return { code: 0, stdout: "", stderr: "" };
+      if (text.includes("sql instances describe")) return { code: 0, stdout: "STOPPED\n", stderr: "" };
       if (text.includes("instances describe")) return { code: 0, stdout: "TERMINATED\n", stderr: "" };
       if (text.includes("sql instances patch")) return { code: 0, stdout: "", stderr: "" };
       if (text.includes("addresses describe")) return { code: 0, stdout: "RESERVED\n", stderr: "" };

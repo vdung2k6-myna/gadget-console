@@ -19,6 +19,7 @@ deployment names no speech or model provider — an account configures its own `
 | bridge (`gadget-bridge`) | `gadget-app` | `:8003` OTA, `:8001` WS | Caddy only; no firewall rule opens them |
 | audio gateway (`interview-audio/gateway`) | `gadget-audio` | `10.10.0.3:8082` | the app host, over the private subnet |
 | TTS engines (`kokoro`, `piper`, `supertonic`) | `gadget-audio` | inside the compose network | the gateway, over the compose network |
+| STT proxy and `audiocpp` | the developer's machine | behind `stt.<domain>` (Cloudflare tunnel) | the runtime, over HTTPS |
 | Cloud SQL Postgres | managed | `<db-private-ip>:5432` | the host's subnet |
 
 Only 80 and 443 are opened to the internet. Caddy terminates TLS for both hostnames and proxies
@@ -134,10 +135,11 @@ npm run ops -- status          # every state, unit, revision and the audio gatew
 
 `start` waits for the app host's services and, when the operator configuration names an audio host,
 starts it and waits for the gateway; it names the dependency that did not arrive. `stop` refuses
-while a gadget is connected to the bridge or a turn is recent; `--force` stops anyway. Stopping
-deletes nothing. The reserved address still bills while the host is stopped (about $7 a month)
-until it is released; the tool reports it rather than releasing it, because re-pointing DNS from a
-deploy is a worse failure than seven dollars.
+while a gadget is connected to the bridge or a turn is recent; `--force` stops anyway. It waits
+for the database to reach `STOPPED` before reporting, so the start that follows does not collide
+with the stop's own operation. Stopping deletes nothing. The reserved address still bills while the
+host is stopped (about $7 a month) until it is released; the tool reports it rather than releasing
+it, because re-pointing DNS from a deploy is a worse failure than seven dollars.
 
 ## Cost
 
@@ -172,8 +174,10 @@ to the previous release; it does not reverse a migration.
 
 ## Known gaps
 
-- No audio tier, no model and no knowledge retrieval: `material` answer mode has nothing to speak,
-  and the document-extraction service is not deployed.
+- The audio host runs the TTS tier only. STT (`audiocpp`) stays on the developer's machine behind
+  `stt.<domain>` and a Cloudflare tunnel, so a machine that is off or asleep is a speech tier that
+  is down at its first call. No model and no knowledge retrieval: `material` answer mode has
+  nothing to speak, and the document-extraction service is not deployed.
 - An agent with no `llm` profile fails its turn with `fetch failed` — the runtime's own model
   address, which nothing serves — rather than a message naming what is missing; an agent with no
   `stt` profile is told `no transcription provider is configured for this turn`.

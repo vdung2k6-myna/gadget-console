@@ -217,7 +217,10 @@ export function waitScript(): string {
   const lines = [
     "set -uo pipefail",
     'fail=""',
-    "for i in $(seq 1 60); do",
+    // Five minutes: a Cloud SQL cold start can leave the database in maintenance
+    // for longer than the console takes to start, and the first connection fails
+    // while it waits there.
+    "for i in $(seq 1 150); do",
     "  ok=1",
   ];
   for (const name of SERVICE_NAMES) {
@@ -413,7 +416,14 @@ export async function stopSession(
   }
 
   await attempt(ctx, sqlPatchArgv(ctx, "NEVER"), "setting the database policy to NEVER");
-  ctx.log("database policy NEVER");
+  // The stop is asynchronous. Waiting for the state is what makes a later start's
+  // ALWAYS patch land: a patch issued while this one is still running is refused.
+  await waitFor(
+    ctx,
+    async () => (await readValue(ctx, sqlStateArgv(ctx))) === "STOPPED",
+    "the database to become STOPPED"
+  );
+  ctx.log("database STOPPED");
 
   const address = await readValue(ctx, addressStateArgv(ctx));
   ctx.log(

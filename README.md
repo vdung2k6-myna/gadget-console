@@ -36,6 +36,7 @@ owns 3000 on a development machine. It is set by the npm scripts, because
 | `npm run seed:runtime` | Seed the runtime an agent points at (idempotent by name). |
 | `npm run prune` | Delete what is past its time now: unowned devices, dead claims, old turns. |
 | `npm run role -- <email> <user\|admin>` | Grant or take away the admin role. |
+| `npm run ops -- …` | The operator tool: `status`, `deploy <service>`, `session start\|stop`. It needs `ops.local.json` (gitignored); see `docs/RUNBOOK.md`. |
 
 ## Configuration
 

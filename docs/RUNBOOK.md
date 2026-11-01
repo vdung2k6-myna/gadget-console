@@ -127,6 +127,10 @@ gcloud sql instances delete gadget-db-restore
 ```bash
 sudo journalctl -u gadget-bridge -f
 sudo journalctl -u gadget-console -n 100 --no-pager
+
+# the audio host's gateway and engines
+gcloud compute ssh gadget-audio --zone=asia-southeast1-a --tunnel-through-iap \
+  --command='sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml logs -f gateway'
 ```
 
 A healthy bridge session prints `device connected`, the client and server hellos, and then either
@@ -163,8 +167,10 @@ npm run ops -- status
 endpoint; when the operator configuration names an audio host, it starts that instance next and
 waits for its gateway. `stop` refuses while a gadget is connected to the bridge or a turn was
 recorded within the guard window (`guardMinutes`, 15 by default), then stops the app host, the
-audio host and the database, in that order; `--force` stops anyway. `status` reports every state,
-every unit, every deployed revision, the audio gateway and any drift, without changing anything.
+audio host and the database, in that order; `--force` stops anyway. It waits for the database to
+reach `STOPPED` before it reports, so a start that follows can set `ALWAYS` without colliding with
+the stop's own operation. `status` reports every state, every unit, every deployed revision, the
+audio gateway and any drift, without changing anything.
 
 Stopping bills no compute and no database instance; disks, database storage and the reserved address
 remain (about $20–25 a month). The services come back on their own. The budget alert is 1,500,000 ₫
