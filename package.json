@@ -16,7 +16,8 @@
     "seed:providers": "tsx scripts/seed-provider-profiles.ts",
     "prune": "tsx scripts/prune.ts",
     "role": "tsx scripts/role.ts",
-    "ops": "tsx scripts/ops.ts"
+    "ops": "tsx scripts/ops.ts",
+    "seed:soak": "tsx scripts/seed-soak-devices.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",
