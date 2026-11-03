@@ -204,9 +204,11 @@ BRIDGE_VAD_MIN_RMS=2500
 BRIDGE_HISTORY_TURNS=8
 BRIDGE_MUSIC_DIR=/srv/music
 BRIDGE_MUSIC_GAIN_DB=-3
-# This board's voice scored 0.348 at its loudest frame; 0.3 admits it while the
-# room's noise stays at 0.11-0.14. See docs/DEPLOYMENT.md.
-BRIDGE_SPEECH_PROB_MIN=0.3
+# A quiet sentence scored 0.209 while the room's noise peaked at 0.162, so this
+# board admits at 0.2 and two qualifying frames. The margin is narrow: if noise
+# returns, raise the frame minimum rather than the probability. See docs/DEPLOYMENT.md.
+BRIDGE_SPEECH_PROB_MIN=0.2
+BRIDGE_SPEECH_MIN_FRAMES=2
 ENV
 
 chmod 600 /etc/gadget/*.env
