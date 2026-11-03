@@ -202,6 +202,8 @@ BRIDGE_PUBLIC_HOST=<bridge-host>
 BRIDGE_PUBLIC_URL=https://<bridge-host>
 BRIDGE_VAD_MIN_RMS=2500
 BRIDGE_HISTORY_TURNS=8
+BRIDGE_MUSIC_DIR=/srv/music
+BRIDGE_MUSIC_GAIN_DB=-3
 ENV
 
 chmod 600 /etc/gadget/*.env
@@ -220,6 +222,13 @@ bridge carries only turns that were answered; eight keeps enough context for a f
 keeping a completed request from much earlier out of reach of a repeated tool call.
 `BRIDGE_HISTORY_TURNS=8` gives the bridge the same bound, so it does not carry more conversation
 than the runtime shows the model.
+
+`BRIDGE_MUSIC_DIR=/srv/music` enables the bridge's own music: the MP3s under that directory
+(subdirectories included) are what a gadget can ask it to play. The directory is read per request,
+so a track added later needs no restart, and an empty or missing directory means no music at all —
+the spoken commands then fall through as ordinary utterances. Only MP3 is decoded;
+`BRIDGE_MUSIC_GAIN_DB=-3` is the level offset applied to it. The directory must be readable by the
+bridge's own user (`vdung` on this host).
 
 `<PRIVATE_IP>` is `gcloud sql instances describe gadget-db --format="value(ipAddresses[0].ipAddress)"`.
 
