@@ -208,11 +208,12 @@ BRIDGE_VAD_FLOOR_RATIO=2.0
 BRIDGE_HISTORY_TURNS=8
 BRIDGE_MUSIC_DIR=/srv/music
 BRIDGE_MUSIC_GAIN_DB=-3
-# The room's noise has never scored above 0.181; a quiet sentence peaked at 0.326
-# but cleared only two frames at 0.2. 0.25 with two frames rejects every noise
-# window on probability and admits the quiet phrase on count. See docs/DEPLOYMENT.md.
-BRIDGE_SPEECH_PROB_MIN=0.25
-BRIDGE_SPEECH_MIN_FRAMES=2
+# Measured on the pilot 2026-11-03: real speech scores 0.94-0.99 and clears dozens
+# of 512-sample frames at 0.5, while the room's low-frequency rumble (a fan beside
+# the board) tops out around 0.40 and clears none. The shipped defaults separate the
+# two populations; a window needs three qualifying frames. See docs/DEPLOYMENT.md.
+BRIDGE_SPEECH_PROB_MIN=0.5
+BRIDGE_SPEECH_MIN_FRAMES=3
 ENV
 
 chmod 600 /etc/gadget/*.env
