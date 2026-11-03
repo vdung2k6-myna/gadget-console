@@ -229,8 +229,18 @@ cannot run; the record is edited in the Cloudflare dashboard as a proxied `CNAME
 the missing ingress entry. After an edit: `sudo systemctl restart cloudflared-gadget-audio`.
 
 The TTS tier is this repository's `docker-compose.audio.yml`, run on `gadget-audio` as the
-`gateway` and three engines; the STT proxy and `audiocpp` stay on the developer's machine. When a
-turn fails at a speech call:
+`gateway`, the `tts-proxy` and three engines; the STT proxy and `audiocpp` stay on the developer's
+machine. The tree has no `.env`, so the provisioning environment must be passed on every `up` —
+without it the gateway is republished on loopback and the app host loses it:
+
+```bash
+cd /srv/audio-tier && sudo env AUDIO_BIND_ADDR=<audio-private-ip> \
+  AUDIO_MODELS_DIR=/srv/audio-models \
+  docker compose -f docker-compose.audio.yml up -d gateway tts-proxy kokoro piper supertonic
+```
+
+`tts-proxy` fronts the engines. Add a replica with `--scale <engine>=N` and restart `tts-proxy`
+so Caddy resolves the new address. When a turn fails at a speech call:
 
 1. On the audio host,
    `sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml ps` — the four containers are
