@@ -201,6 +201,10 @@ BRIDGE_CONSOLE_TOKEN=$(secret bridge-token)
 BRIDGE_PUBLIC_HOST=<bridge-host>
 BRIDGE_PUBLIC_URL=https://<bridge-host>
 BRIDGE_VAD_MIN_RMS=2500
+# Quiet speech on this board peaked at 4.8-5.4k against a 2.5x floor of ~5-6k, so
+# the ratio is 2.0: the window closes, and the speech gate below drops the extra
+# noise a lower gate lets through.
+BRIDGE_VAD_FLOOR_RATIO=2.0
 BRIDGE_HISTORY_TURNS=8
 BRIDGE_MUSIC_DIR=/srv/music
 BRIDGE_MUSIC_GAIN_DB=-3

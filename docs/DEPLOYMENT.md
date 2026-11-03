@@ -76,7 +76,7 @@ those files; no secret is written anywhere else on the host.
 | --- | --- |
 | console | `NODE_ENV`, `DATABASE_URL`, `BRIDGE_TOKEN`, `LLM_KEY_SECRET`, `FIRMWARE_DIR=/var/lib/firmware`, `CONSOLE_PUBLIC_URL` |
 | runtime | `NODE_ENV=production`, `HOST=127.0.0.1`, `PORT=4000`, `API_AUTH_TOKEN`, `VOICE_AGENT_MAX_HISTORY=8` |
-| bridge | `BRIDGE_CONSOLE_URL=http://127.0.0.1:3001`, `BRIDGE_CONSOLE_TOKEN`, `BRIDGE_PUBLIC_HOST=gw.<domain>`, `BRIDGE_PUBLIC_URL=https://gw.<domain>`, `BRIDGE_VAD_MIN_RMS=2500`, `BRIDGE_HISTORY_TURNS=8`, `BRIDGE_MUSIC_DIR=/srv/music`, `BRIDGE_MUSIC_GAIN_DB=-3`, `BRIDGE_SPEECH_PROB_MIN=0.2`, `BRIDGE_SPEECH_MIN_FRAMES=3`; `OTA_PORT` and `WS_PORT` keep their defaults (8003 and 8001) |
+| bridge | `BRIDGE_CONSOLE_URL=http://127.0.0.1:3001`, `BRIDGE_CONSOLE_TOKEN`, `BRIDGE_PUBLIC_HOST=gw.<domain>`, `BRIDGE_PUBLIC_URL=https://gw.<domain>`, `BRIDGE_VAD_MIN_RMS=2500`, `BRIDGE_VAD_FLOOR_RATIO=2.0`, `BRIDGE_HISTORY_TURNS=8`, `BRIDGE_MUSIC_DIR=/srv/music`, `BRIDGE_MUSIC_GAIN_DB=-3`, `BRIDGE_SPEECH_PROB_MIN=0.2`, `BRIDGE_SPEECH_MIN_FRAMES=3`; `OTA_PORT` and `WS_PORT` keep their defaults (8003 and 8001) |
 
 The runtime is given no `DATABASE_URL`, no `OLLAMA_*`, no `AUDIOCPP_BASE_URL`, no
 `AUDIO_GATEWAY_URL` and no `PROVIDER_CATALOG`. Its interview routes therefore answer 500; this
