@@ -208,11 +208,11 @@ BRIDGE_VAD_FLOOR_RATIO=2.0
 BRIDGE_HISTORY_TURNS=8
 BRIDGE_MUSIC_DIR=/srv/music
 BRIDGE_MUSIC_GAIN_DB=-3
-# A quiet sentence scored 0.209 while the room's noise peaked at 0.162, so this
-# board admits at 0.2 with three qualifying frames. Two frames let a noise window
-# through; the frame minimum is the lever, not the probability. See docs/DEPLOYMENT.md.
-BRIDGE_SPEECH_PROB_MIN=0.2
-BRIDGE_SPEECH_MIN_FRAMES=3
+# The room's noise has never scored above 0.181; a quiet sentence peaked at 0.326
+# but cleared only two frames at 0.2. 0.25 with two frames rejects every noise
+# window on probability and admits the quiet phrase on count. See docs/DEPLOYMENT.md.
+BRIDGE_SPEECH_PROB_MIN=0.25
+BRIDGE_SPEECH_MIN_FRAMES=2
 ENV
 
 chmod 600 /etc/gadget/*.env
