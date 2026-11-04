@@ -134,6 +134,8 @@ own credentials, not a gadget.
 | `/help` | The guide: every step from unboxing to release, and what each common failure means. |
 | `/admin/devices`, `/admin/users`, `/admin/claims` | The admin area: every device, every account, and the requests waiting for a decision. Visible in the header only to an admin. |
 | `/admin/firmware` | The firmware releases, with an upload form, the target for each board type, and the controls that move or clear it. |
+| `/admin/devices/[id]` | Any gadget, with its speech calibration: the pair it uses, whether it comes from the device or the default, and an edit and reset-to-default. A change applies when the gadget next connects. |
+| `/admin/calibration` | The deployment's default speech-gate pair, for devices that have not calibrated their own. |
 
 A walk through it, in order:
 
@@ -288,3 +290,19 @@ area and its role rules, the guide's two languages, and retention.
   language)`, so an agent chooses those two and nothing else.
 - The admin area's own strings are kept out of the shared dictionary, so an
   ordinary account's page never carries them.
+
+## The calibration API
+
+The console holds each device's speech-gate pair and the deployment default; the bridge is told the
+effective pair when it resolves a gadget, so every bridge replica starts a connection from the same
+value.
+
+| Route | Who | What |
+| --- | --- | --- |
+| `GET/PUT/DELETE /api/devices/:id/calibration` | administrator | A device's pair; DELETE returns it to the default |
+| `GET/PUT /api/calibration/default` | administrator | The deployment default |
+| `PUT /api/bridge/calibration` | the bridge's token | A device's own session saving the pair it measured |
+
+Writes validate the threshold strictly between 0 and 1 and the frame count at least 1, and each
+change leaves an audit row naming the actor — an operator account or the device's session — and the
+pair that was in effect before.

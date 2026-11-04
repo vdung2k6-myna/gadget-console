@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CalibrationForm } from "@/components/CalibrationForm";
 import { DeviceActions } from "@/components/DeviceActions";
 import { adminDevice, adminTurns, listAllDevices } from "@/lib/admin";
+import { getCalibration } from "@/lib/device-calibration";
 import { listAgents } from "@/lib/agents";
 import { requireAdmin } from "@/lib/auth/admin";
 import { boardView, firmwareView } from "@/lib/device-board";
@@ -38,6 +40,7 @@ export default async function AdminDevicePage({ params }: Params) {
   const agent = ownerAgents.find((entry) => entry.id === device.agentId);
   const partner = ownerDevices.find((entry) => entry.id === device.partnerDeviceId);
   const turns = await adminTurns(device.id, 50);
+  const calibration = await getCalibration({ id });
   const board = boardView(device.hardware, strings);
   const target =
     device.hardware?.board?.type === undefined ? undefined : await targetFor(device.hardware.board.type);
@@ -71,6 +74,13 @@ export default async function AdminDevicePage({ params }: Params) {
           <dd>{elapsedText(elapsed(device.lastSeenAt, now), strings, locale)}</dd>
         </div>
       </dl>
+
+      {calibration !== null && (
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold">Speech calibration</h2>
+          <CalibrationForm id={id} initial={calibration} />
+        </section>
+      )}
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold">{strings.device.boardHeading}</h2>
