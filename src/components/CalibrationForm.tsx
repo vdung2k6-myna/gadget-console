@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { CalibrationStrings } from "@/lib/i18n/admin-strings";
 
 interface Pair {
   threshold: number;
@@ -14,14 +15,25 @@ export interface CalibrationView {
   default: Pair;
 }
 
+const fill = (template: string, values: Record<string, string>): string =>
+  template.replace(/\{(\w+)\}/g, (_whole, key: string) => values[key] ?? "");
+
 /**
  * A device's calibration: the pair it uses, where it came from, and the pair it owns.
  *
  * A change takes effect when the gadget next connects — the bridge resolves a device once per
- * socket — and the page says so, because an operator who changes a number and hears no difference
- * should not conclude the write failed.
+ * socket — and the section says so, because an operator who changes a number and hears no
+ * difference should not conclude the write failed.
  */
-export function CalibrationForm({ id, initial }: { id: string; initial: CalibrationView }) {
+export function CalibrationForm({
+  id,
+  initial,
+  labels,
+}: {
+  id: string;
+  initial: CalibrationView;
+  labels: CalibrationStrings;
+}) {
   const [view, setView] = useState(initial);
   const [threshold, setThreshold] = useState(String(initial.effective.threshold));
   const [minFrames, setMinFrames] = useState(String(initial.effective.minFrames));
@@ -43,16 +55,15 @@ export function CalibrationForm({ id, initial }: { id: string; initial: Calibrat
       });
       const body = (await response.json().catch(() => ({}))) as CalibrationView & {
         errors?: string[];
-        error?: string;
       };
       if (!response.ok) {
-        setMessage((body.errors ?? [body.error ?? "the request failed"]).join("; "));
+        setMessage(body.errors === undefined ? labels.failed : body.errors.join("; "));
         return;
       }
       setView(body);
       setThreshold(String(body.effective.threshold));
       setMinFrames(String(body.effective.minFrames));
-      setMessage(method === "DELETE" ? "Reset to the deployment default." : "Saved.");
+      setMessage(method === "DELETE" ? labels.resetDone : labels.saved);
     } finally {
       setBusy(false);
     }
@@ -61,17 +72,24 @@ export function CalibrationForm({ id, initial }: { id: string; initial: Calibrat
   return (
     <div className="mt-2 space-y-3 text-sm">
       <p>
-        Using <strong>{view.effective.threshold}</strong> with <strong>{view.effective.minFrames}</strong>{" "}
-        frame(s) — from {view.source === "device" ? "this device" : "the deployment default"}.
+        {fill(labels.effective, {
+          threshold: String(view.effective.threshold),
+          frames: String(view.effective.minFrames),
+          source: view.source === "device" ? labels.fromDevice : labels.fromDefault,
+        })}
         {view.source === "device" && (
           <>
-            {" "}Default: {view.default.threshold} / {view.default.minFrames}.
+            {" "}
+            {fill(labels.defaultLine, {
+              threshold: String(view.default.threshold),
+              frames: String(view.default.minFrames),
+            })}
           </>
         )}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-zinc-500 dark:text-zinc-400">Threshold (0–1)</span>
+          <span className="text-zinc-500 dark:text-zinc-400">{labels.threshold}</span>
           <input
             className="w-28 rounded border border-zinc-300 bg-transparent px-2 py-1 font-mono dark:border-zinc-700"
             inputMode="decimal"
@@ -80,7 +98,7 @@ export function CalibrationForm({ id, initial }: { id: string; initial: Calibrat
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-zinc-500 dark:text-zinc-400">Frames</span>
+          <span className="text-zinc-500 dark:text-zinc-400">{labels.frames}</span>
           <input
             className="w-24 rounded border border-zinc-300 bg-transparent px-2 py-1 font-mono dark:border-zinc-700"
             inputMode="numeric"
@@ -93,20 +111,18 @@ export function CalibrationForm({ id, initial }: { id: string; initial: Calibrat
           disabled={busy}
           onClick={() => void send("PUT")}
         >
-          Save
+          {labels.save}
         </button>
         <button
           className="rounded border border-zinc-300 px-3 py-1.5 disabled:opacity-50 dark:border-zinc-700"
           disabled={busy || view.device === null}
           onClick={() => void send("DELETE")}
         >
-          Reset to default
+          {labels.reset}
         </button>
       </div>
       {message !== null && <p className="text-zinc-600 dark:text-zinc-400">{message}</p>}
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        A change applies when the gadget next connects.
-      </p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{labels.applies}</p>
     </div>
   );
 }

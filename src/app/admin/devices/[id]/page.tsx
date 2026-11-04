@@ -77,8 +77,8 @@ export default async function AdminDevicePage({ params }: Params) {
 
       {calibration !== null && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold">Speech calibration</h2>
-          <CalibrationForm id={id} initial={calibration} />
+          <h2 className="text-lg font-semibold">{adminStrings.calibration.heading}</h2>
+          <CalibrationForm id={id} initial={calibration} labels={adminStrings.calibration} />
         </section>
       )}
 

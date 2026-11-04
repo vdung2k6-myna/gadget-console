@@ -1,9 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import type { CalibrationStrings } from "@/lib/i18n/admin-strings";
+
+const fill = (template: string, values: Record<string, string>): string =>
+  template.replace(/\{(\w+)\}/g, (_whole, key: string) => values[key] ?? "");
 
 /** The deployment default: what a device without its own pair uses. */
-export function CalibrationDefaultForm({ initial }: { initial: { threshold: number; minFrames: number } }) {
+export function CalibrationDefaultForm({
+  initial,
+  labels,
+}: {
+  initial: { threshold: number; minFrames: number };
+  labels: CalibrationStrings;
+}) {
   const [threshold, setThreshold] = useState(String(initial.threshold));
   const [minFrames, setMinFrames] = useState(String(initial.minFrames));
   const [message, setMessage] = useState<string | null>(null);
@@ -23,12 +33,12 @@ export function CalibrationDefaultForm({ initial }: { initial: { threshold: numb
         errors?: string[];
       };
       if (!response.ok || body.default === undefined) {
-        setMessage((body.errors ?? ["the request failed"]).join("; "));
+        setMessage(body.errors === undefined ? labels.failed : body.errors.join("; "));
         return;
       }
       setThreshold(String(body.default.threshold));
       setMinFrames(String(body.default.minFrames));
-      setMessage("Saved.");
+      setMessage(labels.saved);
     } finally {
       setBusy(false);
     }
@@ -37,12 +47,14 @@ export function CalibrationDefaultForm({ initial }: { initial: { threshold: numb
   return (
     <div className="mt-2 space-y-3 text-sm">
       <p>
-        Devices without their own pair use <strong>{initial.threshold}</strong> with{" "}
-        <strong>{initial.minFrames}</strong> frame(s).
+        {fill(labels.usingDefault, {
+          threshold: String(initial.threshold),
+          frames: String(initial.minFrames),
+        })}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-zinc-500 dark:text-zinc-400">Threshold (0–1)</span>
+          <span className="text-zinc-500 dark:text-zinc-400">{labels.threshold}</span>
           <input
             className="w-28 rounded border border-zinc-300 bg-transparent px-2 py-1 font-mono dark:border-zinc-700"
             value={threshold}
@@ -50,7 +62,7 @@ export function CalibrationDefaultForm({ initial }: { initial: { threshold: numb
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-zinc-500 dark:text-zinc-400">Frames</span>
+          <span className="text-zinc-500 dark:text-zinc-400">{labels.frames}</span>
           <input
             className="w-24 rounded border border-zinc-300 bg-transparent px-2 py-1 font-mono dark:border-zinc-700"
             value={minFrames}
@@ -62,7 +74,7 @@ export function CalibrationDefaultForm({ initial }: { initial: { threshold: numb
           disabled={busy}
           onClick={() => void save()}
         >
-          Save default
+          {labels.defaultSave}
         </button>
       </div>
       {message !== null && <p className="text-zinc-600 dark:text-zinc-400">{message}</p>}

@@ -125,12 +125,56 @@ export interface AdminStrings {
   unsigned: string;
   blocks: string;
   patchResign: string;
+  calibration: CalibrationStrings;
+}
+
+/** The calibration section's words, kept with the rest of the admin area's. */
+export interface CalibrationStrings {
+  heading: string;
+  threshold: string;
+  frames: string;
+  save: string;
+  reset: string;
+  saved: string;
+  resetDone: string;
+  applies: string;
+  fromDevice: string;
+  fromDefault: string;
+  /** `{threshold}`, `{frames}` and `{source}` are replaced before it is shown. */
+  effective: string;
+  /** `{threshold}` and `{frames}` are replaced before it is shown. */
+  defaultLine: string;
+  failed: string;
+  defaultHeading: string;
+  defaultHelp: string;
+  defaultSave: string;
+  /** `{threshold}` and `{frames}` are replaced before it is shown. */
+  usingDefault: string;
 }
 
 const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
   vi: {
     nav: "Quản trị",
     heading: "Quản trị",
+    calibration: {
+      heading: "Hiệu chuẩn giọng nói",
+      threshold: "Ngưỡng (0–1)",
+      frames: "Số khung",
+      save: "Lưu",
+      reset: "Về mặc định",
+      saved: "Đã lưu.",
+      resetDone: "Đã đưa về mặc định của deployment.",
+      applies: "Thay đổi có hiệu lực khi thiết bị kết nối lại.",
+      fromDevice: "thiết bị này",
+      fromDefault: "mặc định của deployment",
+      effective: "Đang dùng {threshold} với {frames} khung — từ {source}.",
+      defaultLine: "Mặc định: {threshold} / {frames}.",
+      failed: "Yêu cầu không thành công.",
+      defaultHeading: "Mặc định hiệu chuẩn",
+      defaultHelp: "Cặp ngưỡng cho các thiết bị chưa tự hiệu chuẩn.",
+      defaultSave: "Lưu mặc định",
+      usingDefault: "Thiết bị chưa có cặp riêng dùng {threshold} với {frames} khung.",
+    },
     devices: "Tất cả thiết bị",
     users: "Tài khoản",
     owner: "Chủ",
@@ -251,6 +295,25 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
   en: {
     nav: "Admin",
     heading: "Admin",
+    calibration: {
+      heading: "Speech calibration",
+      threshold: "Threshold (0–1)",
+      frames: "Frames",
+      save: "Save",
+      reset: "Reset to default",
+      saved: "Saved.",
+      resetDone: "Reset to the deployment default.",
+      applies: "A change applies when the gadget next connects.",
+      fromDevice: "this device",
+      fromDefault: "the deployment default",
+      effective: "Using {threshold} with {frames} frame(s) — from {source}.",
+      defaultLine: "Default: {threshold} / {frames}.",
+      failed: "The request failed.",
+      defaultHeading: "Calibration default",
+      defaultHelp: "The speech gate's pair for devices that have not calibrated their own.",
+      defaultSave: "Save default",
+      usingDefault: "Devices without their own pair use {threshold} with {frames} frame(s).",
+    },
     devices: "All devices",
     users: "Accounts",
     owner: "Owner",
