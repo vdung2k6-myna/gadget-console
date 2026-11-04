@@ -85,6 +85,13 @@
       "when": 1793322646927,
       "tag": "0011_purple_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793785427799,
+      "tag": "0012_acoustic_black_bolt",
+      "breakpoints": true
     }
   ]
 }

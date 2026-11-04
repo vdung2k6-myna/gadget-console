@@ -4,6 +4,7 @@ import {
   boolean,
   doublePrecision,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -296,4 +297,47 @@ export const turns = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("turns_device_started_idx").on(table.deviceId, table.startedAt)]
+);
+
+/**
+ * A device's calibration pair, and the deployment default underneath it.
+ *
+ * A measurement describes a room and a microphone, so it belongs to the device that took it;
+ * one bridge can serve several gadgets in different places and every replica resolves the same
+ * value from here. The effective pair is the device's when it has one, the default otherwise.
+ */
+export const deviceCalibration = pgTable("device_calibration", {
+  deviceId: uuid("device_id")
+    .primaryKey()
+    .references(() => devices.id, { onDelete: "cascade" }),
+  threshold: doublePrecision("threshold").notNull(),
+  minFrames: integer("min_frames").notNull(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).defaultNow().notNull(),
+  /** `operator:<email>` for an administrator, `session` for the device's own calibration. */
+  appliedBy: text("applied_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** The one row a deployment has: the pair a device without its own entry uses. */
+export const calibrationDefault = pgTable("calibration_default", {
+  id: text("id").primaryKey(),
+  threshold: doublePrecision("threshold").notNull(),
+  minFrames: integer("min_frames").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** One row per change, with the pair that was in effect before it. */
+export const calibrationAudit = pgTable(
+  "calibration_audit",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    deviceId: uuid("device_id").references(() => devices.id, { onDelete: "cascade" }),
+    threshold: doublePrecision("threshold"),
+    minFrames: integer("min_frames"),
+    previousThreshold: doublePrecision("previous_threshold"),
+    previousMinFrames: integer("previous_min_frames"),
+    actor: text("actor").notNull(),
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("calibration_audit_device_idx").on(table.deviceId, table.at)]
 );

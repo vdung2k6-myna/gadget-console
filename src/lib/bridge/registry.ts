@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db/client";
 import { agents, devices, turns } from "@/lib/db/schema";
 import { allowClaimIssue, awaitingApproval, issueClaim, isPendingClaim, normalizeDeviceId } from "@/lib/claims";
 import { providersForAgent } from "@/lib/provider-profiles";
+import { getCalibration } from "@/lib/device-calibration";
 import { targetFor } from "@/lib/firmware";
 
 /**
@@ -64,6 +65,9 @@ export async function resolveDevice(rawDeviceId: string): Promise<Resolution> {
 
   const partner = device.partnerDeviceId === null ? null : await partnerDeviceId(device.partnerDeviceId);
   const firmware = await firmwareTarget(device);
+  // The pair this device actually uses, so every bridge replica starts a connection from the
+  // same value; the bridge falls back to its configured pair when this is absent.
+  const calibration = await getCalibration({ deviceId });
 
   return {
     kind: "owned",
@@ -74,6 +78,7 @@ export async function resolveDevice(rawDeviceId: string): Promise<Resolution> {
       secret: device.secret,
       partner,
       ...(firmware === null ? {} : { firmware }),
+      ...(calibration === null ? {} : { calibration: calibration.effective }),
       agent:
         agent === undefined
           ? null
