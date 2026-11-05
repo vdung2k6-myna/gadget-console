@@ -257,22 +257,8 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
       sttProfileId: sttProfileId === "" ? null : sttProfileId,
       ttsProfileId: ttsProfileId === "" ? null : ttsProfileId,
       voice: voice.trim() === "" ? null : voice.trim(),
-      ovcConfig:
-        ovcMode === "inherit"
-          ? null
-          : ovcMode === "off"
-            ? { enabled: false }
-            : {
-                pitchShift: ovcPitch,
-                formantShift: ovcFormant,
-                f0Method: ovcF0,
-                indexRate: ovcIndexRate,
-                protect: ovcProtect,
-                rmsMixRate: ovcRmsMix,
-                filterRadius: ovcFilterRadius,
-                crepeHopLength: ovcCrepeHop,
-                effects: ovcEffects,
-              },
+      // The same object the form rehearses, so what is shown is what is stored.
+      ovcConfig: previewConversion,
       topics: topics
         .split("\n")
         .map((topic) => topic.trim())
