@@ -201,6 +201,12 @@ export const vi = {
     ovcOff: "Không dùng đổi giọng",
     ovcOffHint:
       "Câu trả lời được phát bằng giọng của nhà cung cấp TTS; không có yêu cầu chuyển giọng nào.",
+    ovcRehearsal: "Xem trước",
+    ovcPreviewStored: "Lưu trên agent",
+    ovcPreviewSent: "Gửi trong mỗi lượt",
+    ovcPreviewOmitted: "bỏ trống — lượt dùng mặc định của triển khai",
+    ovcRehearsalHint:
+      "Xem trước những gì nút Lưu sẽ lưu và cầu nối sẽ gửi. Giọng chuyển là model đang hoạt động của triển khai.",
     ovcCustom: "Tạo hình tuỳ chỉnh",
     ovcPreset: "Mẫu",
     ovcPresetCustom: "Tuỳ chỉnh",

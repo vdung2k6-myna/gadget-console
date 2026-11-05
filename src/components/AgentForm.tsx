@@ -190,6 +190,33 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
     );
   }
 
+  function formatSemitones(value: number): string {
+    return `${value > 0 ? "+" : ""}${value.toFixed(1)} st`;
+  }
+
+  /** The value a save would store, and the `ovc` field the bridge would send. */
+  const previewConversion =
+    ovcMode === "inherit"
+      ? null
+      : ovcMode === "off"
+        ? { enabled: false }
+        : {
+            pitchShift: ovcPitch,
+            formantShift: ovcFormant,
+            f0Method: ovcF0,
+            indexRate: ovcIndexRate,
+            protect: ovcProtect,
+            rmsMixRate: ovcRmsMix,
+            filterRadius: ovcFilterRadius,
+            crepeHopLength: ovcCrepeHop,
+            effects: ovcEffects,
+          };
+  const previewStored = JSON.stringify(previewConversion, null, 2);
+  const previewSent =
+    previewConversion === null
+      ? strings.agentForm.ovcPreviewOmitted
+      : `ovc=${JSON.stringify(previewConversion)}`;
+
   /** Ask the account's TTS provider whether it holds this voice. */
   async function checkVoice(value: string): Promise<void> {
     if (value.trim() === "") {
@@ -417,28 +444,43 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
 
         {ovcMode === "custom" && (
           <>
-            <label className="mt-3 block text-sm">
-              {strings.agentForm.ovcPreset}
-              <select
-                className={field}
-                value={ovcPreset}
-                onChange={(event) => applyOvcPreset(event.target.value)}
-              >
-                <option value="custom">{strings.agentForm.ovcPresetCustom}</option>
+            <div className="mt-3">
+              <p className="text-sm">{strings.agentForm.ovcPreset}</p>
+              <div className="mt-1 flex flex-wrap gap-2">
                 {Object.keys(OVC_PRESETS).map((name) => (
-                  <option key={name} value={name}>
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => applyOvcPreset(name)}
+                    aria-pressed={ovcPreset === name}
+                    className={`rounded-full border px-3 py-1 text-sm ${
+                      ovcPreset === name
+                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900"
+                        : "border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
                     {presetLabels[name]}
-                  </option>
+                  </button>
                 ))}
-              </select>
-            </label>
+                {ovcPreset === "custom" && (
+                  <span className="rounded-full border border-dashed border-zinc-400 px-3 py-1 text-sm text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+                    {strings.agentForm.ovcPresetCustom}
+                  </span>
+                )}
+              </div>
+            </div>
 
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <label className="block text-sm">
-                {strings.agentForm.ovcPitch}
+              <div className="text-sm">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="ovc-pitch">{strings.agentForm.ovcPitch}</label>
+                  <output htmlFor="ovc-pitch" className="font-mono text-xs tabular-nums">
+                    {formatSemitones(ovcPitch)}
+                  </output>
+                </div>
                 <input
-                  className={field}
-                  type="number"
+                  id="ovc-pitch"
+                  type="range"
                   min={-24}
                   max={24}
                   step={0.5}
@@ -447,13 +489,19 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
                     setOvcPreset("custom");
                     setOvcPitch(Number(event.target.value));
                   }}
+                  className="mt-1 w-full accent-zinc-900 dark:accent-zinc-100"
                 />
-              </label>
-              <label className="block text-sm">
-                {strings.agentForm.ovcFormant}
+              </div>
+              <div className="text-sm">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="ovc-formant">{strings.agentForm.ovcFormant}</label>
+                  <output htmlFor="ovc-formant" className="font-mono text-xs tabular-nums">
+                    {formatSemitones(ovcFormant)}
+                  </output>
+                </div>
                 <input
-                  className={field}
-                  type="number"
+                  id="ovc-formant"
+                  type="range"
                   min={-24}
                   max={24}
                   step={0.5}
@@ -462,8 +510,9 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
                     setOvcPreset("custom");
                     setOvcFormant(Number(event.target.value));
                   }}
+                  className="mt-1 w-full accent-zinc-900 dark:accent-zinc-100"
                 />
-              </label>
+              </div>
             </div>
 
             <label className="mt-3 block text-sm">
@@ -592,6 +641,29 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
             </fieldset>
           </>
         )}
+
+        <div className="mt-4 rounded border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            {strings.agentForm.ovcRehearsal}
+          </p>
+          <div className="mt-2 grid gap-3 md:grid-cols-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium">{strings.agentForm.ovcPreviewStored}</p>
+              <pre className="mt-1 overflow-x-auto rounded bg-zinc-100 p-2 text-xs text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100">
+                {previewStored}
+              </pre>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium">{strings.agentForm.ovcPreviewSent}</p>
+              <pre className="mt-1 overflow-x-auto rounded bg-zinc-100 p-2 text-xs text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100">
+                {previewSent}
+              </pre>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            {strings.agentForm.ovcRehearsalHint}
+          </p>
+        </div>
       </fieldset>
 
       <label className="mt-3 block text-sm">

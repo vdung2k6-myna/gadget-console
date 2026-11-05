@@ -200,6 +200,12 @@ export const en: Strings = {
     ovcOff: "No voice changer",
     ovcOffHint:
       "Replies are delivered in the TTS provider's voice; no conversion request is made.",
+    ovcRehearsal: "Rehearsal",
+    ovcPreviewStored: "Stored on the agent",
+    ovcPreviewSent: "Sent with every turn",
+    ovcPreviewOmitted: "omitted — the turn inherits the deployment default",
+    ovcRehearsalHint:
+      "A preview of what Save will store and the bridge will send. The conversion voice itself is the deployment's active model.",
     ovcCustom: "Custom shaping",
     ovcPreset: "Preset",
     ovcPresetCustom: "Custom",
