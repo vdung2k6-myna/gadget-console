@@ -115,6 +115,37 @@ function audioStateArgv(ctx: OpsContext): string[] {
   ];
 }
 
+function ovcArgv(ctx: OpsContext, action: "start" | "stop"): string[] {
+  const ovc = ctx.config.ovc;
+  if (ovc === undefined) throw new Error("no OVC host is configured");
+  return [
+    "gcloud",
+    "compute",
+    "instances",
+    action,
+    ovc.instance,
+    `--zone=${ovc.zone ?? ctx.config.zone}`,
+    `--project=${ctx.config.project}`,
+    "--quiet",
+    "--async",
+  ];
+}
+
+function ovcStateArgv(ctx: OpsContext): string[] {
+  const ovc = ctx.config.ovc;
+  if (ovc === undefined) throw new Error("no OVC host is configured");
+  return [
+    "gcloud",
+    "compute",
+    "instances",
+    "describe",
+    ovc.instance,
+    `--zone=${ovc.zone ?? ctx.config.zone}`,
+    `--project=${ctx.config.project}`,
+    "--format=value(status)",
+  ];
+}
+
 /**
  * The audio gateway is private; the app host is the machine allowed to reach it,
  * so this loop runs there. The engines are allowed five minutes to warm up.
@@ -140,6 +171,29 @@ async function readGateway(ctx: OpsContext, url: string): Promise<string> {
     `printf '%s' "$(curl -s -o /dev/null -w '%{http_code}' -m 3 ${sh(url)})"`
   );
   return result.code === 0 ? result.stdout.trim() : "";
+}
+
+/**
+ * The conversion model lives in the service's memory, so a host that answers
+ * `/health` can still be unable to convert. This loop asks the model-status
+ * endpoint and waits for the active flag, not merely a 200.
+ */
+export function ovcWaitScript(url: string): string {
+  return [
+    "set -uo pipefail",
+    "for i in $(seq 1 60); do",
+    `  if curl -s -m 3 ${sh(url)} | grep -q '\"active\":true'; then echo ready; exit 0; fi`,
+    "  sleep 5",
+    "done",
+    'echo "timeout:the conversion model is not active"',
+    "exit 1",
+  ].join("\n");
+}
+
+async function readOvcModel(ctx: OpsContext, url: string): Promise<string> {
+  const result = await ssh(ctx.runner, ctx.config, `curl -s -m 3 ${sh(url)}`);
+  if (result.code !== 0) return "unknown";
+  return result.stdout.includes('"active":true') ? "active" : "inactive";
 }
 
 function sleep(ms: number): Promise<void> {
@@ -311,6 +365,11 @@ export async function startSession(ctx: OpsContext): Promise<void> {
       await run(ctx.runner, audioStateArgv(ctx), "reading the audio host state");
       await ssh(ctx.runner, config, audioWaitScript(config.audio.healthUrl));
     }
+    if (config.ovc !== undefined) {
+      await run(ctx.runner, ovcArgv(ctx, "start"), "starting the OVC host");
+      await run(ctx.runner, ovcStateArgv(ctx), "reading the OVC host state");
+      await ssh(ctx.runner, config, ovcWaitScript(config.ovc.healthUrl));
+    }
     ctx.log("dry run: the speech endpoints are not probed");
     return;
   }
@@ -352,6 +411,22 @@ export async function startSession(ctx: OpsContext): Promise<void> {
     ctx.log("audio gateway answered");
   }
 
+  if (config.ovc !== undefined) {
+    await attempt(ctx, ovcArgv(ctx, "start"), "starting the OVC host");
+    await waitFor(
+      ctx,
+      async () => (await readValue(ctx, ovcStateArgv(ctx))) === "RUNNING",
+      "the OVC host to become RUNNING"
+    );
+    ctx.log("ovc host RUNNING");
+
+    const modelReady = await waitForRemote(ctx, ovcWaitScript(config.ovc.healthUrl));
+    if (!modelReady.ok) {
+      throw new Error(`the session did not become healthy: ${modelReady.detail}`);
+    }
+    ctx.log("ovc model active");
+  }
+
   for (const probe of await probeSpeech(config)) {
     // The audio host is the speech tier's own check when one is configured.
     if (config.audio !== undefined && probe.kind === "tts") continue;
@@ -378,6 +453,10 @@ export async function stopSession(
     if (config.audio !== undefined) {
       await run(ctx.runner, audioArgv(ctx, "stop"), "stopping the audio host");
       await run(ctx.runner, audioStateArgv(ctx), "reading the audio host state");
+    }
+    if (config.ovc !== undefined) {
+      await run(ctx.runner, ovcArgv(ctx, "stop"), "stopping the OVC host");
+      await run(ctx.runner, ovcStateArgv(ctx), "reading the OVC host state");
     }
     await run(ctx.runner, sqlPatchArgv(ctx, "NEVER"), "setting the database policy to NEVER");
     await run(ctx.runner, addressStateArgv(ctx), "reading the reserved address");
@@ -413,6 +492,16 @@ export async function stopSession(
       "the audio host to become TERMINATED"
     );
     ctx.log("audio host TERMINATED");
+  }
+
+  if (config.ovc !== undefined) {
+    await attempt(ctx, ovcArgv(ctx, "stop"), "stopping the OVC host");
+    await waitFor(
+      ctx,
+      async () => (await readValue(ctx, ovcStateArgv(ctx))) === "TERMINATED",
+      "the OVC host to become TERMINATED"
+    );
+    ctx.log("ovc host TERMINATED");
   }
 
   await attempt(ctx, sqlPatchArgv(ctx, "NEVER"), "setting the database policy to NEVER");
@@ -458,6 +547,11 @@ export async function showStatus(ctx: OpsContext): Promise<void> {
     const audioState = await readValue(ctx, audioStateArgv(ctx));
     const gateway = await readGateway(ctx, config.audio.healthUrl);
     ctx.log(`audio      ${audioState || "unknown"}  gateway ${gateway || "unknown"}`);
+  }
+  if (config.ovc !== undefined) {
+    const ovcState = await readValue(ctx, ovcStateArgv(ctx));
+    const model = await readOvcModel(ctx, config.ovc.healthUrl);
+    ctx.log(`ovc        ${ovcState || "unknown"}  model ${model}`);
   }
 
   const remote = await ssh(ctx.runner, config, statusScript());

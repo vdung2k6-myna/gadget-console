@@ -392,6 +392,143 @@ The gateway answers at `http://<audio-host>:8082/health`; the app host resolves 
 internal DNS name, and only its tag may reach the port.
 Point each account's `tts` profile at that address — TTS uses no public tunnel.
 
+### The OVC host (conversion, optional)
+
+`gadget-ovc` is a CPU VM in the same VPC and subnet, tag `ovc`, `e2-medium`, 100 GB boot disk, no
+external IP and no service account. It runs the voice-conversion service with its model on the
+disk. The CPU image is large (~17 GB) and slow to build (~an hour on two vCPUs); the disk is sized
+for it.
+
+```bash
+gcloud compute instances create gadget-ovc --zone=$ZONE --machine-type=e2-medium \
+  --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud \
+  --boot-disk-size=100GB --boot-disk-type=pd-balanced \
+  --network=gadget-vpc --subnet=gadget-subnet --tags=ovc \
+  --no-address --no-service-account --no-scopes
+
+gcloud compute firewall-rules create gadget-ovc-api --network=gadget-vpc \
+  --direction=INGRESS --action=ALLOW --rules=tcp:8085 \
+  --source-tags=app --target-tags=ovc --priority=900
+gcloud compute firewall-rules create gadget-ovc-deny-ssh --network=gadget-vpc \
+  --direction=INGRESS --action=DENY --rules=tcp:22 \
+  --source-ranges=0.0.0.0/0 --target-tags=ovc --priority=1000
+gcloud compute firewall-rules create gadget-ovc-iap-ssh --network=gadget-vpc \
+  --direction=INGRESS --action=ALLOW --rules=tcp:22 \
+  --source-ranges=35.235.240.0/20 --target-tags=ovc --priority=900
+```
+
+The VPC has no Cloud NAT, so give the VM a temporary external address for the build and remove
+it afterwards:
+
+```bash
+gcloud compute instances add-access-config gadget-ovc --zone=$ZONE \
+  --access-config-name=external-nat
+```
+
+Install Docker from Docker's repository and add swap; the CPU model needs more headroom than the
+VM's 4 GB while it builds and loads:
+
+```bash
+sudo apt-get update && sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu jammy stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && \
+  sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Copy the service, its compose file and the model directory, then build and start:
+
+```bash
+gcloud compute scp --recurse --tunnel-through-iap ovc-service gadget-ovc:/tmp/ --zone=$ZONE
+gcloud compute scp --tunnel-through-iap docker-compose.ovc.yml gadget-ovc:/tmp/ --zone=$ZONE
+gcloud compute scp --recurse --tunnel-through-iap <ovc-models-dir> gadget-ovc:/tmp/ --zone=$ZONE
+# on the host
+sudo mkdir -p /srv/ovc
+sudo mv /tmp/ovc-service /srv/ovc/
+sudo mv /tmp/docker-compose.ovc.yml /srv/ovc/
+sudo mv /tmp/<ovc-models-dir> /srv/ovc-models
+cd /srv/ovc
+sudo env OVC_TAG=cpu docker compose -f docker-compose.ovc.yml build
+sudo env OVC_MODELS_DIR=/srv/ovc-models OVC_BIND_ADDR=0.0.0.0 OVC_PUBLISHED_PORT=8085 \
+  OVC_TAG=cpu docker compose -f docker-compose.ovc.yml up -d
+```
+
+Remove the temporary address, then install the activation unit. The service keeps its active
+model in memory only, so this is what makes a restart or a stopped VM come back converting:
+
+```bash
+gcloud compute instances delete-access-config gadget-ovc --zone=$ZONE \
+  --access-config-name=external-nat
+```
+
+```bash
+#!/bin/bash
+# /usr/local/bin/gadget-ovc-activate.sh
+set -uo pipefail
+for i in $(seq 1 120); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 3 \
+    http://127.0.0.1:8085/api/models/active 2>/dev/null || true)
+  [ "$code" = "200" ] && break
+  sleep 2
+done
+curl -sf -m 240 -X POST http://127.0.0.1:8085/api/models/vctk-p225.pth/activate >/dev/null
+curl -s -m 5 http://127.0.0.1:8085/api/models/active | grep -q '"active":true'
+```
+
+```ini
+# /etc/systemd/system/gadget-ovc-activate.service
+[Unit]
+Description=Activate the OVC voice-conversion model
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/gadget-ovc-activate.sh
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo chmod 755 /usr/local/bin/gadget-ovc-activate.sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now gadget-ovc-activate.service
+```
+
+The model names under `/srv/ovc-models` are the operator's; `vctk-p225.pth` is the pilot's. Point
+the runtime at the host in `/etc/gadget/api.env` and restart `gadget-api`:
+
+```ini
+OVC_URL=http://gadget-ovc:8085
+OVC_MODEL=vctk-p225.pth
+OVC_TIMEOUT_MS=60000
+OVC_REQUIRED=false
+VOICE_AGENT_OVC_PITCH_SHIFT=12
+VOICE_AGENT_OVC_FORMANT_SHIFT=10
+VOICE_AGENT_OVC_F0_METHOD=rmvpe
+```
+
+Add the host to `ops.local.json` so a session starts, stops and reports it:
+
+```json
+"ovc": {
+  "instance": "gadget-ovc",
+  "zone": "asia-southeast1-a",
+  "healthUrl": "http://gadget-ovc:8085/api/models/active"
+}
+```
+
 ## 9. Enable and seed
 
 The deploy in §8 already started each unit. Enable them across reboots, and reload Caddy once its

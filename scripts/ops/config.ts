@@ -22,6 +22,12 @@ export interface OpsConfig {
    * `healthUrl` is reached from the app host, because the gateway is private.
    */
   audio?: { instance: string; zone?: string; healthUrl: string };
+  /**
+   * The host running the voice-conversion service, when it is not the app host.
+   * `healthUrl` is the model-status endpoint, reached from the app host; a host
+   * that answers but has no active model is not ready for a session.
+   */
+  ovc?: { instance: string; zone?: string; healthUrl: string };
   repositories?: { console?: string; bridge?: string; runtime?: string };
   /** A turn younger than this refuses a stop. */
   guardMinutes?: number;
@@ -120,6 +126,41 @@ export function parseOpsConfig(raw: unknown): OpsConfig {
     };
   }
 
+  const ovcRaw = body.ovc;
+  let ovc: OpsConfig["ovc"];
+  if (ovcRaw !== undefined) {
+    if (typeof ovcRaw !== "object" || ovcRaw === null || Array.isArray(ovcRaw)) {
+      throw new Error("ovc must be an object");
+    }
+    const candidate = ovcRaw as Record<string, unknown>;
+    if (typeof candidate.instance !== "string" || candidate.instance.trim() === "") {
+      throw new Error("ovc.instance is required when ovc is configured");
+    }
+    if (
+      candidate.zone !== undefined &&
+      (typeof candidate.zone !== "string" || candidate.zone.trim() === "")
+    ) {
+      throw new Error("ovc.zone must be a non-empty string");
+    }
+    if (typeof candidate.healthUrl !== "string") {
+      throw new Error("ovc.healthUrl is required when ovc is configured");
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(candidate.healthUrl);
+    } catch {
+      throw new Error("ovc.healthUrl must be an http or https URL");
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("ovc.healthUrl must be an http or https URL");
+    }
+    ovc = {
+      instance: candidate.instance,
+      ...(typeof candidate.zone === "string" ? { zone: candidate.zone } : {}),
+      healthUrl: candidate.healthUrl,
+    };
+  }
+
   return {
     project: body.project as string,
     region: body.region as string,
@@ -130,6 +171,7 @@ export function parseOpsConfig(raw: unknown): OpsConfig {
     deployUser: body.deployUser as string,
     speech: { sttUrl: sttUrl as string, ttsUrl: ttsUrl as string },
     ...(audio === undefined ? {} : { audio }),
+    ...(ovc === undefined ? {} : { ovc }),
     ...(typeof body.repositories === "object" && body.repositories !== null
       ? { repositories: body.repositories as OpsConfig["repositories"] }
       : {}),

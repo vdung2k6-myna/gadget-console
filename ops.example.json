@@ -15,6 +15,11 @@
     "zone": "asia-southeast1-a",
     "healthUrl": "http://gadget-audio:8082/health"
   },
+  "ovc": {
+    "instance": "gadget-ovc",
+    "zone": "asia-southeast1-a",
+    "healthUrl": "http://gadget-ovc:8085/api/models/active"
+  },
   "repositories": {
     "bridge": "../gadget-bridge",
     "runtime": "../adaptive-interview-api"

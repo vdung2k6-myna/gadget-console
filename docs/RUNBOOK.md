@@ -10,11 +10,14 @@ commands and the three files verbatim.
 | --- | --- |
 | Host | `gadget-app`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04 |
 | Audio host | `gadget-audio`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04 |
+| OVC host | `gadget-ovc`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04, 100 GB, no external IP |
 | Console tree | `/srv/gadget-console/current` (Next.js) |
 | Runtime tree | `/srv/adaptive-interview-api/current` (Express) |
 | Bridge tree | `/srv/gadget-bridge/current` |
 | Audio tree | `/srv/audio-tier` (compose project); models `/srv/audio-models` |
 | Audio gateway | `gadget-audio:8082` (the instance's internal DNS name), reached only from the app host |
+| OVC tree | `/srv/ovc` (compose project); models `/srv/ovc-models`; unit `gadget-ovc-activate` |
+| OVC service | `gadget-ovc:8085` (internal DNS name), reached only from the app host |
 | Environment files | `/etc/gadget/console.env`, `api.env`, `bridge.env` (0600, rewritten at boot) |
 | Secrets fetched at boot | `/usr/local/bin/gadget-secrets.sh`, run by `gadget-secrets.service` |
 | Caddy | `/etc/caddy/Caddyfile`, unit `caddy` |
@@ -131,6 +134,12 @@ sudo journalctl -u gadget-console -n 100 --no-pager
 # the audio host's gateway and engines
 gcloud compute ssh gadget-audio --zone=asia-southeast1-a --tunnel-through-iap \
   --command='sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml logs -f gateway'
+
+# the OVC host's conversion service, and the model it reports active
+gcloud compute ssh gadget-ovc --zone=asia-southeast1-a --tunnel-through-iap \
+  --command='sudo docker logs --tail 50 -f interview-ovc-ovc-1'
+gcloud compute ssh gadget-app --zone=asia-southeast1-a --tunnel-through-iap \
+  --command='curl -s http://gadget-ovc:8085/api/models/active'
 ```
 
 A healthy bridge session prints `device connected`, the client and server hellos, and then either
@@ -165,16 +174,30 @@ npm run ops -- status
 
 `start` brings Cloud SQL to `RUNNABLE`, then starts the app host and waits for every unit and health
 endpoint; when the operator configuration names an audio host, it starts that instance next and
-waits for its gateway. `stop` refuses while a gadget is connected to the bridge or a turn was
-recorded within the guard window (`guardMinutes`, 15 by default), then stops the app host, the
-audio host and the database, in that order; `--force` stops anyway. It waits for the database to
-reach `STOPPED` before it reports, so a start that follows can set `ALWAYS` without colliding with
-the stop's own operation. `status` reports every state, every unit, every deployed revision, the
-audio gateway and any drift, without changing anything.
+waits for its gateway; when it names an OVC host, it starts that instance last and waits for
+`/api/models/active` to report the model active. `stop` refuses while a gadget is connected to the
+bridge or a turn was recorded within the guard window (`guardMinutes`, 15 by default), then stops
+the app host, the audio host, the OVC host and the database, in that order; `--force` stops anyway.
+It waits for the database to reach `STOPPED` before it reports, so a start that follows can set
+`ALWAYS` without colliding with the stop's own operation. `status` reports every state, every unit,
+every deployed revision, the audio gateway, the OVC model and any drift, without changing anything.
 
 Stopping bills no compute and no database instance; disks, database storage and the reserved address
-remain (about $20–25 a month). The services come back on their own. The budget alert is 1,500,000 ₫
-(about $60) at 50, 90 and 100 percent.
+remain (about $30–35 a month now that the OVC disk is part of the deployment). The services come back
+on their own. The budget alert is 1,500,000 ₫ (about $60) at 50, 90 and 100 percent.
+
+## Voice conversion
+
+The optional OVC host runs the conversion service; the runtime carries `OVC_URL`, `OVC_MODEL` and
+the deployment shaping in `/etc/gadget/api.env`. Agents choose inherit, no voice changer, or their
+own shaping in the console; the runtime's `/health` reports the service and its active model.
+
+The active model lives in the service's memory only. `gadget-ovc-activate.service` activates it
+after the container answers and verifies `"active":true`; if `/api/models/active` reports
+`{"active":false}`, restart that unit on `gadget-ovc` (or restart `gadget-api`, whose boot check
+also activates it). CPU conversion takes roughly 20 seconds for a short segment, and
+`OVC_REQUIRED=false` on this pilot delivers the unconverted audio and reports a failure instead of
+failing the turn.
 
 ## Changing the public surface
 

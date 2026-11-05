@@ -20,6 +20,7 @@ deployment names no speech or model provider — an account configures its own `
 | audio gateway (`interview-audio/gateway`) | `gadget-audio` | `gadget-audio:8082` | the app host, over the private subnet |
 | TTS engines (`kokoro`, `piper`, `supertonic`) | `gadget-audio` | inside the compose network | the gateway, over the compose network |
 | STT proxy and `audiocpp` | the developer's machine | behind `stt.<domain>` (Cloudflare tunnel) | the runtime, over HTTPS |
+| voice conversion (`interview-ovc`) | `gadget-ovc` | `gadget-ovc:8085` | the app host, over the private subnet |
 | Cloud SQL Postgres | managed | `<db-private-ip>:5432` | the host's subnet |
 
 Only 80 and 443 are opened to the internet. Caddy terminates TLS for both hostnames and proxies
@@ -28,6 +29,16 @@ Only 80 and 443 are opened to the internet. Caddy terminates TLS for both hostna
 firewall rule at all, and the runtime's socket is bound to loopback as well. The audio host is
 reached only from the app host's tag; its gateway has no authentication of its own, so the private
 subnet is the boundary.
+
+The OVC host is optional and **CPU-only** on this pilot: `gadget-ovc` runs the conversion service
+with its model on a local disk, and is reached only from the app host's tag. The runtime carries
+`OVC_URL=http://gadget-ovc:8085` and `OVC_MODEL=vctk-p225.pth`; a systemd unit,
+`gadget-ovc-activate`, activates the model after the container answers and verifies
+`"active":true`, so a restart does not leave the service silently delivering unconverted audio.
+Agents choose inherit, no voice changer, or their own shaping; the runtime's `/health` names the
+service's reachability and active model. Conversion on two vCPUs costs roughly 20 seconds for a
+short segment, so `OVC_REQUIRED=false` is set on this pilot: a failed conversion delivers the
+unconverted audio and reports it.
 
 ## Host
 
@@ -147,9 +158,12 @@ List price in `asia-southeast1`, checked on 2026-10-30:
 
 - about **$50–60 a month** with the app host and database running continuously;
 - about **$25–30 a month** more with the audio host running continuously;
-- about **$20–25 a month** idle: the disks, the database's storage, and the reserved address while
-  it is unattached, plus about $3 for the audio host's disk;
-- about **$0.20 for a two-hour session** of both hosts and the database.
+- about **$34 a month** more with the CPU OVC host running continuously (`e2-medium` + 100 GB);
+- about **$30–35 a month** idle now that the OVC disk is part of the deployment: the disks, the
+  database's storage, and the reserved address while it is unattached;
+- about **$0.20 for a two-hour session** of the app, audio and database, plus roughly **$0.07**
+  for the OVC host's hours;
+- the four Compute Engine hosts total **6 of the trial's 8 vCPUs** (app 2 + audio 2 + OVC 2).
 
 The billing account is denominated in VND and carries a 1,500,000 ₫ budget (about $60) with alerts
 at 50, 90 and 100 percent, so a month that runs continuously is visible before it doubles.
