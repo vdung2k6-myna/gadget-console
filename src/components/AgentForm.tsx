@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Notice } from "@/components/Notice";
@@ -65,6 +65,18 @@ export interface ProfileOption {
   kind: "llm" | "stt" | "tts";
   name: string;
   builtin: boolean;
+}
+
+/** What the runtime reports about the deployment's conversion, for the table. */
+interface RuntimeConversionConfig {
+  configured: boolean;
+  reachable: boolean;
+  activeModel: string | null;
+  model: string;
+  required: boolean;
+  timeoutMs: number;
+  f0Methods: string[];
+  voiceAgent: { pitchShift: number; formantShift: number; f0Method: string };
 }
 
 export interface AgentValue {
@@ -140,6 +152,53 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
   const [ovcEffects, setOvcEffects] = useState<Record<string, Record<string, unknown>>>(
     () => initialConversion?.effects ?? {}
   );
+  const [runtimeConversion, setRuntimeConversion] = useState<{
+    runtimeId: string;
+    config: RuntimeConversionConfig | null;
+    error: string;
+  }>({ runtimeId: "", config: null, error: "" });
+
+  // The deployment's settings live on the runtime, not here; read them for the
+  // effective table. The answer carries the runtime it belongs to, so a runtime
+  // change never shows the previous runtime's values while the new read is in
+  // flight. A failure leaves the rehearsal usable and says why.
+  useEffect(() => {
+    let cancelled = false;
+    if (runtimeId === "") return;
+
+    void fetch(`/api/agents/voice-conversion?runtimeId=${encodeURIComponent(runtimeId)}`, {
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const body = (await response.json()) as
+          | { ok: true; config: RuntimeConversionConfig }
+          | { ok: false; error?: string };
+        if (cancelled) return;
+        setRuntimeConversion({
+          runtimeId,
+          config: body.ok ? body.config : null,
+          error: body.ok ? "" : (body.error ?? strings.agentForm.ovcSettingsUnavailable),
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setRuntimeConversion({
+          runtimeId,
+          config: null,
+          error:
+            error instanceof Error ? error.message : strings.agentForm.ovcSettingsUnavailable,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [runtimeId, strings.agentForm.ovcSettingsUnavailable]);
+
+  const loadedConversion =
+    runtimeConversion.runtimeId === runtimeId ? runtimeConversion : null;
+  const runtimeConfig = loadedConversion?.config ?? null;
+  const runtimeConfigError = loadedConversion?.error ?? "";
 
   const runtime = runtimes.find((entry) => entry.id === runtimeId);
   const languageMissing = runtime !== undefined && !runtime.languages.includes(language);
@@ -216,6 +275,109 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
     previewConversion === null
       ? strings.agentForm.ovcPreviewOmitted
       : `ovc=${JSON.stringify(previewConversion)}`;
+
+  const deployment = runtimeConfig?.voiceAgent;
+  const deploymentPitch = deployment?.pitchShift ?? 0;
+  const deploymentFormant = deployment?.formantShift ?? 0;
+  const deploymentF0 = deployment?.f0Method || strings.agentForm.ovcServiceDefault;
+  const inherit = ovcMode === "inherit";
+  const off = ovcMode === "off";
+  const effectNames = Object.keys(ovcEffects);
+  const agentEffects =
+    effectNames.length === 0 ? strings.agentForm.ovcNone : effectNames.join(", ");
+  const agentLabel = (value: string): string =>
+    off
+      ? strings.agentForm.ovcAgentOff
+      : inherit
+        ? strings.agentForm.ovcAgentInherit
+        : value;
+  const effectiveLabel = (agentValue: string, deploymentValue: string): string =>
+    off
+      ? strings.agentForm.ovcNoConversion
+      : inherit
+        ? deploymentValue
+        : agentValue;
+  const conversionRows =
+    runtimeConfig === null || !runtimeConfig.configured
+      ? []
+      : [
+          {
+            label: strings.agentForm.ovcPitch,
+            deployment: formatSemitones(deploymentPitch),
+            agent: agentLabel(formatSemitones(ovcPitch)),
+            effective: effectiveLabel(
+              formatSemitones(ovcPitch),
+              formatSemitones(deploymentPitch)
+            ),
+          },
+          {
+            label: strings.agentForm.ovcFormant,
+            deployment: formatSemitones(deploymentFormant),
+            agent: agentLabel(formatSemitones(ovcFormant)),
+            effective: effectiveLabel(
+              formatSemitones(ovcFormant),
+              formatSemitones(deploymentFormant)
+            ),
+          },
+          {
+            label: strings.agentForm.ovcF0,
+            deployment: deploymentF0,
+            agent: agentLabel(ovcF0),
+            effective: effectiveLabel(ovcF0, deploymentF0),
+          },
+          {
+            label: strings.agentForm.ovcIndexRate,
+            deployment: strings.agentForm.ovcServiceDefault,
+            agent: agentLabel(ovcIndexRate.toFixed(2)),
+            effective: effectiveLabel(
+              ovcIndexRate.toFixed(2),
+              strings.agentForm.ovcServiceDefault
+            ),
+          },
+          {
+            label: strings.agentForm.ovcProtect,
+            deployment: strings.agentForm.ovcServiceDefault,
+            agent: agentLabel(ovcProtect.toFixed(2)),
+            effective: effectiveLabel(
+              ovcProtect.toFixed(2),
+              strings.agentForm.ovcServiceDefault
+            ),
+          },
+          {
+            label: strings.agentForm.ovcRmsMix,
+            deployment: strings.agentForm.ovcServiceDefault,
+            agent: agentLabel(ovcRmsMix.toFixed(2)),
+            effective: effectiveLabel(ovcRmsMix.toFixed(2), strings.agentForm.ovcServiceDefault),
+          },
+          {
+            label: strings.agentForm.ovcFilterRadius,
+            deployment: strings.agentForm.ovcServiceDefault,
+            agent: agentLabel(String(ovcFilterRadius)),
+            effective: effectiveLabel(String(ovcFilterRadius), strings.agentForm.ovcServiceDefault),
+          },
+          {
+            label: strings.agentForm.ovcCrepeHop,
+            deployment: strings.agentForm.ovcServiceDefault,
+            agent: agentLabel(String(ovcCrepeHop)),
+            effective: effectiveLabel(String(ovcCrepeHop), strings.agentForm.ovcServiceDefault),
+          },
+          {
+            label: strings.agentForm.ovcEffects,
+            deployment: strings.agentForm.ovcNone,
+            agent: agentLabel(agentEffects),
+            effective: effectiveLabel(agentEffects, strings.agentForm.ovcNone),
+          },
+        ];
+  const modelLabel =
+    runtimeConfig === null
+      ? ""
+      : !runtimeConfig.configured
+        ? strings.agentForm.ovcNoService
+        : runtimeConfig.reachable
+          ? runtimeConfig.activeModel !== null
+            ? `${runtimeConfig.activeModel} · ${strings.agentForm.ovcModelActive}`
+            : `${runtimeConfig.model} · ${strings.agentForm.ovcModelInactive}`
+          : `${runtimeConfig.model} · ${strings.agentForm.ovcModelUnreachable}`;
 
   /** Ask the account's TTS provider whether it holds this voice. */
   async function checkVoice(value: string): Promise<void> {
@@ -646,6 +808,41 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
               </pre>
             </div>
           </div>
+          {runtimeConfigError !== "" && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+              {strings.agentForm.ovcSettingsUnavailable}: {runtimeConfigError}
+            </p>
+          )}
+          {runtimeConfig !== null && runtimeConfig.configured && (
+            <div className="mt-3">
+              <p className="text-xs font-medium">{strings.agentForm.ovcEffectiveTitle}</p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {strings.agentForm.ovcModel}: {modelLabel}
+              </p>
+              <div className="mt-1 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-zinc-500 dark:text-zinc-400">
+                      <th className="py-1 pr-2 font-medium">{strings.agentForm.ovcSetting}</th>
+                      <th className="py-1 pr-2 font-medium">{strings.agentForm.ovcDeployment}</th>
+                      <th className="py-1 pr-2 font-medium">{strings.agentForm.ovcAgent}</th>
+                      <th className="py-1 font-medium">{strings.agentForm.ovcEffective}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {conversionRows.map((row) => (
+                      <tr key={row.label} className="border-t border-zinc-200 dark:border-zinc-700">
+                        <td className="py-1 pr-2 text-zinc-500 dark:text-zinc-400">{row.label}</td>
+                        <td className="py-1 pr-2">{row.deployment}</td>
+                        <td className="py-1 pr-2">{row.agent}</td>
+                        <td className="py-1 font-medium">{row.effective}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             {strings.agentForm.ovcRehearsalHint}
           </p>
