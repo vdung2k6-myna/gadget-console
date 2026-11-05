@@ -60,6 +60,7 @@ export default async function EditAgentPage({ params }: Params) {
           sttProfileId: agent.sttProfileId,
           ttsProfileId: agent.ttsProfileId,
           voice: agent.voice,
+          ovcConfig: agent.ovcConfig,
           answerMode: agent.answerMode,
           topics: agent.topics,
         }}

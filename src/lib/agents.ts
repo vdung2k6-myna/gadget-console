@@ -3,6 +3,10 @@ import { getDb } from "@/lib/db/client";
 import { agents, devices } from "@/lib/db/schema";
 import { findProviderProfile, type ProviderKind } from "./provider-profiles";
 import { findRuntime, type Runtime } from "./runtimes";
+import {
+  validateAgentVoiceConversion,
+  type AgentVoiceConversion,
+} from "./agent-voice-conversion";
 
 /**
  * An agent is everything a turn needs: the prompt, the language and engine it is
@@ -30,6 +34,8 @@ export interface AgentDraft {
   ttsProfileId: string | null;
   /** A voice this agent speaks in, or null to use its `tts` profile's. */
   voice: string | null;
+  /** Its voice conversion, or null to inherit the deployment's. */
+  ovcConfig: AgentVoiceConversion | null;
   systemPrompt: string;
   language: string;
   answerMode: string;
@@ -109,6 +115,11 @@ export async function validateAgentDraft(
   // refusal naming it.
   const voice = text(body.voice);
 
+  // The agent's conversion, or null to inherit. Every named value is checked
+  // against the conversion service's bounds here; the runtime checks again.
+  const voiceConversion = validateAgentVoiceConversion(body.ovcConfig);
+  if (!voiceConversion.ok) errors.push(...voiceConversion.errors);
+
   const answerMode = text(body.answerMode) === "" ? "generate" : text(body.answerMode);
   if (!(ANSWER_MODES as readonly string[]).includes(answerMode)) {
     errors.push(`answer mode ${JSON.stringify(answerMode)} is not one the console names`);
@@ -128,6 +139,7 @@ export async function validateAgentDraft(
       sttProfileId,
       ttsProfileId,
       voice: voice === "" ? null : voice,
+      ovcConfig: voiceConversion.ok ? voiceConversion.value : null,
       systemPrompt,
       language,
       answerMode,

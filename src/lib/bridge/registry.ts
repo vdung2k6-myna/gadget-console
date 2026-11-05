@@ -135,6 +135,7 @@ function agentWithRuntime(agentId: string, userId: string) {
       sttProfileId: agents.sttProfileId,
       ttsProfileId: agents.ttsProfileId,
       voice: agents.voice,
+      ovcConfig: agents.ovcConfig,
     })
     .from(agents)
     .where(eq(agents.id, agentId))

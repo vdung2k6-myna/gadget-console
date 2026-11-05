@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { sendJson } from "@/lib/ui/client";
+import {
+  OFFLINE_F0_METHODS,
+  OVC_EFFECT_KEYS,
+  type AgentVoiceConversion,
+} from "@/lib/agent-voice-conversion";
 import { useStrings } from "./LocaleProvider";
 
 const field =
@@ -13,6 +18,41 @@ const button =
   "mt-3 rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
 const danger =
   "mt-3 rounded border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950";
+
+/**
+ * The shaping presets, as values rather than labels. Labels live in the
+ * dictionaries; a preset fills the form and the operator may then edit it.
+ */
+const OVC_PRESETS: Record<
+  string,
+  {
+    pitchShift: number;
+    formantShift: number;
+    f0Method: string;
+    effects: Record<string, Record<string, unknown>>;
+  }
+> = {
+  clean: { pitchShift: 0, formantShift: 0, f0Method: "pm", effects: {} },
+  baby: { pitchShift: 12, formantShift: 10, f0Method: "rmvpe", effects: {} },
+  "baby-soft": { pitchShift: 9, formantShift: 8, f0Method: "rmvpe", effects: {} },
+  chipmunk: { pitchShift: 7, formantShift: 4, f0Method: "pm", effects: {} },
+  helium: { pitchShift: 3, formantShift: 7, f0Method: "pm", effects: {} },
+  deep: {
+    pitchShift: -6,
+    formantShift: -4,
+    f0Method: "pm",
+    effects: { eq: { enabled: true, low: 4, high: -2 } },
+  },
+  monster: {
+    pitchShift: -9,
+    formantShift: -5,
+    f0Method: "pm",
+    effects: {
+      distortion: { enabled: true, drive: 0.45 },
+      reverb: { enabled: true, size: 0.35, mix: 0.25 },
+    },
+  },
+};
 
 export interface RuntimeOption {
   id: string;
@@ -35,6 +75,8 @@ export interface AgentValue {
   ttsProfileId: string | null;
   /** A voice this agent speaks in, or null to use its `tts` profile's. */
   voice: string | null;
+  /** Its voice conversion, or null to inherit the deployment's. */
+  ovcConfig: AgentVoiceConversion | null;
   systemPrompt: string;
   language: string;
   runtimeId: string;
@@ -78,6 +120,26 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
   const [topics, setTopics] = useState((agent?.topics ?? []).join("\n"));
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
+  const initialConversion = agent?.ovcConfig ?? null;
+  const [ovcMode, setOvcMode] = useState<"inherit" | "off" | "custom">(
+    initialConversion === null
+      ? "inherit"
+      : initialConversion.enabled === false
+        ? "off"
+        : "custom"
+  );
+  const [ovcPreset, setOvcPreset] = useState("custom");
+  const [ovcPitch, setOvcPitch] = useState(initialConversion?.pitchShift ?? 0);
+  const [ovcFormant, setOvcFormant] = useState(initialConversion?.formantShift ?? 0);
+  const [ovcF0, setOvcF0] = useState(initialConversion?.f0Method ?? "pm");
+  const [ovcIndexRate, setOvcIndexRate] = useState(initialConversion?.indexRate ?? 0.75);
+  const [ovcProtect, setOvcProtect] = useState(initialConversion?.protect ?? 0.33);
+  const [ovcRmsMix, setOvcRmsMix] = useState(initialConversion?.rmsMixRate ?? 0.25);
+  const [ovcFilterRadius, setOvcFilterRadius] = useState(initialConversion?.filterRadius ?? 3);
+  const [ovcCrepeHop, setOvcCrepeHop] = useState(initialConversion?.crepeHopLength ?? 160);
+  const [ovcEffects, setOvcEffects] = useState<Record<string, Record<string, unknown>>>(
+    () => initialConversion?.effects ?? {}
+  );
 
   const runtime = runtimes.find((entry) => entry.id === runtimeId);
   const languageMissing = runtime !== undefined && !runtime.languages.includes(language);
@@ -88,6 +150,44 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
 
   function optionLabel(profile: ProfileOption): string {
     return profile.builtin ? `${profile.name} (${strings.agentForm.builtin})` : profile.name;
+  }
+
+  const presetLabels: Record<string, string> = {
+    clean: strings.agentForm.ovcPresetClean,
+    baby: strings.agentForm.ovcPresetBaby,
+    "baby-soft": strings.agentForm.ovcPresetBabySoft,
+    chipmunk: strings.agentForm.ovcPresetChipmunk,
+    helium: strings.agentForm.ovcPresetHelium,
+    deep: strings.agentForm.ovcPresetDeep,
+    monster: strings.agentForm.ovcPresetMonster,
+  };
+
+  const effectLabels: Record<string, string> = {
+    gate: strings.agentForm.ovcEffectGate,
+    robot: strings.agentForm.ovcEffectRobot,
+    whisper: strings.agentForm.ovcEffectWhisper,
+    distortion: strings.agentForm.ovcEffectDistortion,
+    bitcrush: strings.agentForm.ovcEffectBitcrush,
+    telephone: strings.agentForm.ovcEffectTelephone,
+    chorus: strings.agentForm.ovcEffectChorus,
+    echo: strings.agentForm.ovcEffectEcho,
+    reverb: strings.agentForm.ovcEffectReverb,
+    eq: strings.agentForm.ovcEffectEq,
+    compressor: strings.agentForm.ovcEffectCompressor,
+    gain: strings.agentForm.ovcEffectGain,
+  };
+
+  /** Fill the form from a preset; later edits mark the choice as custom. */
+  function applyOvcPreset(name: string): void {
+    setOvcPreset(name);
+    const preset = OVC_PRESETS[name];
+    if (preset === undefined) return;
+    setOvcPitch(preset.pitchShift);
+    setOvcFormant(preset.formantShift);
+    setOvcF0(preset.f0Method);
+    setOvcEffects(
+      JSON.parse(JSON.stringify(preset.effects)) as Record<string, Record<string, unknown>>
+    );
   }
 
   /** Ask the account's TTS provider whether it holds this voice. */
@@ -130,6 +230,22 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
       sttProfileId: sttProfileId === "" ? null : sttProfileId,
       ttsProfileId: ttsProfileId === "" ? null : ttsProfileId,
       voice: voice.trim() === "" ? null : voice.trim(),
+      ovcConfig:
+        ovcMode === "inherit"
+          ? null
+          : ovcMode === "off"
+            ? { enabled: false }
+            : {
+                pitchShift: ovcPitch,
+                formantShift: ovcFormant,
+                f0Method: ovcF0,
+                indexRate: ovcIndexRate,
+                protect: ovcProtect,
+                rmsMixRate: ovcRmsMix,
+                filterRadius: ovcFilterRadius,
+                crepeHopLength: ovcCrepeHop,
+                effects: ovcEffects,
+              },
       topics: topics
         .split("\n")
         .map((topic) => topic.trim())
@@ -271,6 +387,212 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
           </span>
         )}
       </label>
+
+      <fieldset className="mt-4 rounded border border-zinc-200 p-3 dark:border-zinc-800">
+        <legend className="px-1 text-sm font-medium">{strings.agentForm.voiceConversion}</legend>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {strings.agentForm.voiceConversionHint}
+        </p>
+
+        <label className="mt-3 block text-sm">
+          {strings.agentForm.ovcMode}
+          <select
+            className={field}
+            value={ovcMode}
+            onChange={(event) =>
+              setOvcMode(event.target.value as "inherit" | "off" | "custom")
+            }
+          >
+            <option value="inherit">{strings.agentForm.ovcInherit}</option>
+            <option value="off">{strings.agentForm.ovcOff}</option>
+            <option value="custom">{strings.agentForm.ovcCustom}</option>
+          </select>
+        </label>
+
+        {ovcMode === "off" && (
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            {strings.agentForm.ovcOffHint}
+          </p>
+        )}
+
+        {ovcMode === "custom" && (
+          <>
+            <label className="mt-3 block text-sm">
+              {strings.agentForm.ovcPreset}
+              <select
+                className={field}
+                value={ovcPreset}
+                onChange={(event) => applyOvcPreset(event.target.value)}
+              >
+                <option value="custom">{strings.agentForm.ovcPresetCustom}</option>
+                {Object.keys(OVC_PRESETS).map((name) => (
+                  <option key={name} value={name}>
+                    {presetLabels[name]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                {strings.agentForm.ovcPitch}
+                <input
+                  className={field}
+                  type="number"
+                  min={-24}
+                  max={24}
+                  step={0.5}
+                  value={ovcPitch}
+                  onChange={(event) => {
+                    setOvcPreset("custom");
+                    setOvcPitch(Number(event.target.value));
+                  }}
+                />
+              </label>
+              <label className="block text-sm">
+                {strings.agentForm.ovcFormant}
+                <input
+                  className={field}
+                  type="number"
+                  min={-24}
+                  max={24}
+                  step={0.5}
+                  value={ovcFormant}
+                  onChange={(event) => {
+                    setOvcPreset("custom");
+                    setOvcFormant(Number(event.target.value));
+                  }}
+                />
+              </label>
+            </div>
+
+            <label className="mt-3 block text-sm">
+              {strings.agentForm.ovcF0}
+              <select
+                className={field}
+                value={ovcF0}
+                onChange={(event) => {
+                  setOvcPreset("custom");
+                  setOvcF0(event.target.value);
+                }}
+              >
+                {OFFLINE_F0_METHODS.map((method) => (
+                  <option key={method} value={method}>
+                    {method}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <details className="mt-3 text-sm">
+              <summary className="cursor-pointer font-medium">
+                {strings.agentForm.ovcAdvanced}
+              </summary>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label className="block text-sm">
+                  {strings.agentForm.ovcIndexRate}
+                  <input
+                    className={field}
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={ovcIndexRate}
+                    onChange={(event) => {
+                      setOvcPreset("custom");
+                      setOvcIndexRate(Number(event.target.value));
+                    }}
+                  />
+                </label>
+                <label className="block text-sm">
+                  {strings.agentForm.ovcProtect}
+                  <input
+                    className={field}
+                    type="number"
+                    min={0}
+                    max={0.5}
+                    step={0.01}
+                    value={ovcProtect}
+                    onChange={(event) => {
+                      setOvcPreset("custom");
+                      setOvcProtect(Number(event.target.value));
+                    }}
+                  />
+                </label>
+                <label className="block text-sm">
+                  {strings.agentForm.ovcRmsMix}
+                  <input
+                    className={field}
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={ovcRmsMix}
+                    onChange={(event) => {
+                      setOvcPreset("custom");
+                      setOvcRmsMix(Number(event.target.value));
+                    }}
+                  />
+                </label>
+                <label className="block text-sm">
+                  {strings.agentForm.ovcFilterRadius}
+                  <input
+                    className={field}
+                    type="number"
+                    min={0}
+                    max={20}
+                    step={1}
+                    value={ovcFilterRadius}
+                    onChange={(event) => {
+                      setOvcPreset("custom");
+                      setOvcFilterRadius(Number(event.target.value));
+                    }}
+                  />
+                </label>
+                <label className="block text-sm">
+                  {strings.agentForm.ovcCrepeHop}
+                  <input
+                    className={field}
+                    type="number"
+                    min={64}
+                    max={512}
+                    step={32}
+                    value={ovcCrepeHop}
+                    onChange={(event) => {
+                      setOvcPreset("custom");
+                      setOvcCrepeHop(Number(event.target.value));
+                    }}
+                  />
+                </label>
+              </div>
+            </details>
+
+            <fieldset className="mt-3">
+              <legend className="text-sm font-medium">{strings.agentForm.ovcEffects}</legend>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {OVC_EFFECT_KEYS.map((key) => (
+                  <label key={key} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={ovcEffects[key] !== undefined}
+                      onChange={(event) => {
+                        setOvcPreset("custom");
+                        setOvcEffects((current) => {
+                          const next = { ...current };
+                          if (event.target.checked) next[key] = { enabled: true };
+                          else delete next[key];
+                          return next;
+                        });
+                      }}
+                    />
+                    {effectLabels[key]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </>
+        )}
+      </fieldset>
 
       <label className="mt-3 block text-sm">
         {strings.agentForm.llmProfile}

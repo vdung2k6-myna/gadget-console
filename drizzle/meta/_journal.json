@@ -92,6 +92,13 @@
       "when": 1793785427799,
       "tag": "0012_acoustic_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793884233052,
+      "tag": "0013_smart_sugar_man",
+      "breakpoints": true
     }
   ]
 }

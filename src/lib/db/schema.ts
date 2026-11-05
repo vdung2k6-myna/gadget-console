@@ -13,6 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { DeviceHardware } from "@/lib/device-hardware";
+import type { AgentVoiceConversion } from "@/lib/agent-voice-conversion";
 
 /**
  * The console's data model.
@@ -167,6 +168,12 @@ export const agents = pgTable(
     engine: text("engine"),
     answerMode: text("answer_mode").notNull().default("generate"),
     topics: text("topics").array().notNull().default([]),
+    /**
+     * The agent's voice-conversion config. Null inherits the deployment's
+     * voice-agent shaping; `{ enabled: false }` opts out of conversion; an object
+     * shapes the deployment's active model. Carried to the runtime unchanged.
+     */
+    ovcConfig: jsonb("ovc_config").$type<AgentVoiceConversion | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("agents_user_idx").on(table.userId)]

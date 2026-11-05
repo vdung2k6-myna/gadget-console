@@ -159,6 +159,21 @@ forms start empty and any OpenAI-compatible endpoint can be typed. Deleting ever
 audio service the deployment runs therefore removes no user's ability to configure
 their own transcriber and voice — nothing on the console calls those services.
 
+## Voice conversion per agent
+
+An agent may inherit the deployment's voice conversion, opt out of it entirely,
+or carry its own shaping. The config lives on `agents.ovc_config`: `null`
+inherits, `{"enabled":false}` makes no conversion request at all, and an object
+(pitch, formant, F0 method, advanced model knobs, effects) shapes the
+deployment's active model. The conversion voice itself is the deployment's, not
+an agent choice.
+
+Deploy order: the runtime first, because it must understand `{"enabled":false}`
+before the console offers it; then this console's migration and form; then the
+bridge's forwarding. Rolling back the bridge's `ovc` field returns every agent to
+inherit — the stored configs stay and are inert. See the runtime's
+`docs/API.md` for the field's validation.
+
 ## Languages
 
 The interface is Vietnamese by default and English when chosen. The choice is a

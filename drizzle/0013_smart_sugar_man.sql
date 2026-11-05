@@ -1,0 +1,1 @@
+ALTER TABLE "agents" ADD COLUMN "ovc_config" jsonb;
