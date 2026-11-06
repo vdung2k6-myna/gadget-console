@@ -99,6 +99,13 @@
       "when": 1793884233052,
       "tag": "0013_smart_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793968229056,
+      "tag": "0014_thin_catseye",
+      "breakpoints": true
     }
   ]
 }

@@ -10,7 +10,7 @@ import { publicDevice, type PublicDevice } from "@/lib/devices";
  *
  * They live apart from the scoped functions rather than accepting a flag, so the
  * owner rule and the admin rule are read separately — a review of one cannot
- * quietly relax the other. Nothing here touches `llm_profiles`: an account's
+ * quietly relax the other. Nothing here touches `provider_profiles`: an account's
  * provider key is not a gadget, and no admin route returns one.
  */
 

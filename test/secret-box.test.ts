@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { decryptSecret, encryptSecret, SecretBoxError } from "../src/lib/crypto/secret-box";
-import { publicProfile } from "../src/lib/crypto/profiles";
+import { publicProviderProfile } from "../src/lib/provider-profiles";
 
 const KEY = randomBytes(32);
 
@@ -48,18 +48,22 @@ describe("an encrypted secret", () => {
   });
 });
 
-describe("a profile as anything but the bridge sees it", () => {
+describe("a provider profile as anything but the bridge sees it", () => {
   it("carries no key material, not even the ciphertext", () => {
     const stored = encryptSecret("sk-live-abc123", KEY);
     const shown = JSON.stringify(
-      publicProfile({
+      publicProviderProfile({
         id: "id-1",
         userId: "user-1",
+        kind: "llm",
         name: "OpenAI",
         baseUrl: "https://api.openai.com/v1",
         model: "gpt-4o-mini",
         encryptedKey: stored,
+        voice: null,
         temperature: 0.4,
+        builtin: false,
+        isDefault: false,
         createdAt: new Date(),
       })
     );

@@ -6,7 +6,6 @@ import { adminDevice, adminTurns, listAllDevices } from "../src/lib/admin";
 import { adminBindAgent, adminPair, adminRelease } from "../src/lib/admin-actions";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { createAgent, validateAgentDraft } from "../src/lib/agents";
-import { createProfile, validateProfileDraft } from "../src/lib/llm-profiles";
 import { createProviderProfile } from "../src/lib/provider-profiles";
 import { changeRoleAsAdmin, listAccounts, setRole } from "../src/lib/users";
 import { createRuntime } from "../src/lib/runtimes";
@@ -193,15 +192,18 @@ describe("what an admin reads", () => {
     assert.equal((await adminTurns(one.id, 10)).length, 1);
   });
 
-  it("shows nothing of an account's LLM profile", async () => {
+  it("shows nothing of an account's model provider", async () => {
     const ann = await account("ann@example.com");
     await device(ann.id, "aa0000000001");
-    const validation = validateProfileDraft(
-      { name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "m", apiKey: "sk-secret", temperature: null },
-      { requireKey: true }
-    );
-    if (!validation.ok) throw new Error("draft should be valid");
-    await createProfile(ann.id, validation.draft);
+    await createProviderProfile(ann.id, {
+      kind: "llm",
+      name: "OpenAI",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+      voice: null,
+      temperature: null,
+      apiKey: "sk-secret",
+    });
 
     const shown = JSON.stringify(await listAllDevices());
     assert.equal(shown.includes("sk-secret"), false);

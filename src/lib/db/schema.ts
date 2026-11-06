@@ -65,29 +65,6 @@ export const runtimes = pgTable("runtimes", {
 });
 
 /**
- * An account's own OpenAI-compatible endpoint. The key is stored encrypted
- * (`src/lib/crypto/secret-box.ts`) and is never returned to a browser: the read
- * shape says whether one is set, and the bridge is the only caller that receives
- * the decrypted value.
- */
-export const llmProfiles = pgTable(
-  "llm_profiles",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    baseUrl: text("base_url").notNull(),
-    model: text("model").notNull(),
-    encryptedKey: text("encrypted_key").notNull(),
-    temperature: doublePrecision("temperature"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  (table) => [index("llm_profiles_user_idx").on(table.userId)]
-);
-
-/**
  * The endpoints that hear, speak and answer for a gadget's agent.
  *
  * One table with a `kind` rather than three: the encryption, ownership and

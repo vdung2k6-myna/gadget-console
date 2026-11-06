@@ -176,30 +176,6 @@ export const en: Strings = {
     none: "none",
   },
 
-  llmProfiles: {
-    heading: "Your LLM",
-    empty: "No LLM connection yet. Add an OpenAI-compatible endpoint to have gadgets answered by your own model.",
-    create: "Add a connection",
-    name: "Name",
-    baseUrl: "Base URL",
-    model: "Model",
-    temperature: "Temperature (0–2, leave empty for the provider's default)",
-    apiKey: "API key",
-    apiKeyKeep: "Leave empty to keep the stored key",
-    save: "Save",
-    created: "The connection was added.",
-    saved: "Saved.",
-    delete: "Delete this connection",
-    deleteConfirm:
-      "Delete this connection? Agents using it will fall back to the runtime's default model.",
-    deleteConfirmShort: "Confirm delete (agents fall back to the default)",
-    deleted: "The connection was deleted.",
-    usedBy: "Used by",
-    usedByNone: "no agents",
-    refused: "The connection could not be saved.",
-    note: "This model answers chat. Knowledge search keeps the runtime's own embedding model.",
-  },
-
   providerProfiles: {
     heading: "Providers",
     empty:

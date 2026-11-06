@@ -68,7 +68,6 @@ owns 3000 on a development machine. It is set by the npm scripts, because
 | `runtimes` | A base URL, a credential, and the engines and languages it names. |
 | `provider_profiles` | Built-in or account-owned `llm`, `stt` and `tts` endpoints: base URL, model, a TTS voice, an encrypted key, and the deployment-default flag. Built-ins are seeded and read-only. |
 | `agents` | Prompt, topics, answer mode, language, engine, runtime, the voice it may name, and its voice conversion. A device names one agent; the console presents agents as personalities. |
-| `llm_profiles` | An account's OpenAI-compatible endpoint: base URL, model, encrypted key, temperature. |
 | `devices` | A gadget: its identifier, its own secret, its owner, its agent, its partner, the tool catalogue its firmware reported, and what it reported about its own board. |
 | `firmware_releases` | A firmware image per board type and version, which one is its board type's target, and whether that target is forced. |
 | `claims` | A short code, its expiry, the account that entered it, and when an admin approved or refused it. |
@@ -212,7 +211,6 @@ not-found answer.
 | `POST /api/agents/voice-conversion/audition` | browser | Speak a short sample through the built-in (owner) or named (admin) TTS profile and the runtime's conversion; returns WAV. |
 | `GET/POST /api/provider-profiles`, `PATCH/DELETE /api/provider-profiles/:id` | admin | The deployment's built-ins (read-only) and the account's own provider profiles. |
 | `GET/PUT /api/provider-settings`, `POST /api/provider-settings/test` | admin | The account's speech settings and a test against the endpoint typed in the form. |
-| `GET/POST /api/llm-profiles`, `PATCH/DELETE /api/llm-profiles/:id` | admin | An account's own models. The key is write-only. |
 | `POST /api/claims` | browser | Enter the code the gadget shows; `202` while the request waits for an admin. |
 | `GET /api/claims` | browser | The account's requests still waiting. |
 | `PATCH/DELETE /api/admin/devices/:id` | admin | Act on any account's gadget. |

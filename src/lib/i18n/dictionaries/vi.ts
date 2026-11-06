@@ -177,30 +177,6 @@ export const vi = {
     none: "không có",
   },
 
-  llmProfiles: {
-    heading: "LLM của bạn",
-    empty: "Chưa có kết nối LLM nào. Thêm một endpoint OpenAI-compatible để gadget trả lời bằng model của bạn.",
-    create: "Thêm kết nối",
-    name: "Tên",
-    baseUrl: "Base URL",
-    model: "Model",
-    temperature: "Temperature (0–2, để trống dùng mặc định)",
-    apiKey: "API key",
-    apiKeyKeep: "Để trống để giữ key hiện tại",
-    save: "Lưu",
-    created: "Đã thêm kết nối.",
-    saved: "Đã lưu.",
-    delete: "Xoá kết nối",
-    deleteConfirm:
-      "Xoá kết nối này? Các agent đang dùng nó sẽ quay về model mặc định của runtime.",
-    deleteConfirmShort: "Xác nhận xoá (agent dùng nó sẽ về mặc định)",
-    deleted: "Đã xoá kết nối.",
-    usedBy: "Đang dùng bởi",
-    usedByNone: "không agent nào",
-    refused: "Không lưu được kết nối.",
-    note: "Model này trả lời chat. Tìm kiếm tài liệu vẫn dùng model embedding của runtime.",
-  },
-
   providerProfiles: {
     heading: "Nhà cung cấp",
     empty:
