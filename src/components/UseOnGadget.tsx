@@ -60,9 +60,16 @@ export function UseOnGadget({
         {strings.personality.switchTo}
       </button>
       {message !== "" && (
-        <p className={`mt-1 text-xs ${failed ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>
-          {message}
-        </p>
+        <>
+          <p className={`mt-1 text-xs ${failed ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+            {message}
+          </p>
+          {!failed && (
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {strings.personality.appliesOnReconnect}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

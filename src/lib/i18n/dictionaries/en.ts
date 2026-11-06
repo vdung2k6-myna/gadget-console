@@ -156,6 +156,7 @@ export const en: Strings = {
     answersNone: "no gadget yet",
     change: "Change personality",
     switchTo: "Use this personality",
+    appliesOnReconnect: "The gadget uses this from its next connection — wake it to apply now.",
     none: "none",
   },
 

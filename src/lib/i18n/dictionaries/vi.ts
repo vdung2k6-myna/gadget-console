@@ -157,6 +157,7 @@ export const vi = {
     answersNone: "chưa có thiết bị",
     change: "Đổi tính cách",
     switchTo: "Dùng tính cách này",
+    appliesOnReconnect: "Thiết bị sẽ dùng cấu hình này từ lần kết nối tiếp theo — đánh thức nó để áp dụng ngay.",
     none: "không có",
   },
 

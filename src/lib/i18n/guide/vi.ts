@@ -118,6 +118,7 @@ export const viGuide: Guide = {
             "Nhập giọng khác nếu hệ thống có.",
             "Bấm “Nghe thử” để nghe giọng trước khi lưu.",
             "Lưu lại, rồi chọn nó trên thẻ của thiết bị, hoặc bấm “Dùng tính cách này” trên thẻ.",
+            "Gadget sẽ dùng tính cách mới từ lần kết nối tiếp theo — đánh thức nó để áp dụng ngay.",
             "“Cài đặt nâng cao” mở tên, lời nhắc, runtime, cách trả lời, chủ đề và chuyển giọng — và vẫn không có ô nhà cung cấp.",
           ],
         },

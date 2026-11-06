@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import type { AgentVoiceConversion } from "@/lib/agent-voice-conversion";
 import { rehearsalTextFor } from "@/lib/voice-defaults";
 import { useStrings } from "./LocaleProvider";
 
@@ -14,11 +15,13 @@ export function PersonalityPreview({
   ttsProfileId,
   voice,
   language,
+  ovcConfig,
 }: {
   runtimeId: string;
   ttsProfileId: string | null;
   voice: string | null;
   language: string;
+  ovcConfig?: AgentVoiceConversion | null;
 }) {
   const strings = useStrings();
   const [url, setUrl] = useState("");
@@ -42,6 +45,7 @@ export function PersonalityPreview({
           runtimeId,
           ...(ttsProfileId === null ? {} : { ttsProfileId }),
           ...(voice === null || voice.trim() === "" ? {} : { voice }),
+          ...(ovcConfig === undefined || ovcConfig === null ? {} : { ovc: ovcConfig }),
           text: rehearsalTextFor(language),
         }),
       });

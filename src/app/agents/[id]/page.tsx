@@ -29,7 +29,8 @@ export default async function EditAgentPage({ params }: Params) {
 
   const runtimes = await listRuntimes();
   const profiles = (await listProviderProfiles(user.id)).map(publicProviderProfile);
-  const devices = (await listOwnedDevices(user.id)).filter((device) => device.agentId === agent.id);
+  const ownedDevices = await listOwnedDevices(user.id);
+  const devices = ownedDevices.filter((device) => device.agentId === agent.id);
   const isAdmin = user.role === "admin";
   const fallback = (kind: "llm" | "stt" | "tts") =>
     isAdmin ? (profiles.find((profile) => profile.kind === kind)?.id ?? null) : null;
@@ -65,6 +66,7 @@ export default async function EditAgentPage({ params }: Params) {
           builtin: profile.builtin,
         }))}
         defaults={defaults}
+        devices={ownedDevices.map((device) => ({ id: device.id, label: deviceLabel(device) }))}
         isAdmin={isAdmin}
         agent={{
           id: agent.id,

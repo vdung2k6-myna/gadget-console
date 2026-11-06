@@ -217,7 +217,7 @@ not-found answer.
 | `PATCH/DELETE /api/admin/devices/:id` | admin | Act on any account's gadget. |
 | `PATCH /api/admin/users/:id/role` | admin | Grant or take away the admin role. |
 | `POST /api/admin/claims/:id` | admin | Approve or refuse a claim request. |
-| `POST /api/bridge/resolve` | bridge | Ownership, agent, secret, partner, the agent's LLM profile, and recorded turns — or a claim code. |
+| `POST /api/bridge/resolve` | bridge | Ownership, the agent (language, voice, providers and conversion), secret, partner, and recorded turns — or a claim code. |
 | `POST /api/bridge/activate` | bridge | `200` when claimed, `202` while pending, `404` if unknown. |
 | `POST /api/bridge/turns` | bridge | Record one served turn. |
 | `POST /api/bridge/tools` | bridge | Record the tool catalogue a gadget declared. |

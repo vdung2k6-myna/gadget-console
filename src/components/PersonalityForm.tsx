@@ -12,6 +12,7 @@ import {
   rehearsalTextFor,
 } from "@/lib/voice-defaults";
 import type { AgentValue, RuntimeOption } from "./AgentForm";
+import { UseOnGadget } from "./UseOnGadget";
 import { useStrings } from "./LocaleProvider";
 
 const field =
@@ -30,6 +31,7 @@ export interface PersonalityDefaults {
 interface Props {
   runtimes: RuntimeOption[];
   defaults: PersonalityDefaults;
+  devices: { id: string; label: string }[];
   agent?: AgentValue;
   isAdmin: boolean;
   onAdvanced?: () => void;
@@ -44,7 +46,7 @@ interface Props {
  * provider, a model or a key. The prompt and the rest of the definition are
  * behind Advanced.
  */
-export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced }: Props) {
+export function PersonalityForm({ runtimes, defaults, devices, agent, isAdmin, onAdvanced }: Props) {
   const strings = useStrings();
   const router = useRouter();
   const editing = agent !== undefined;
@@ -52,6 +54,7 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
   const [language, setLanguage] = useState(agent?.language ?? "english");
   const [voice, setVoice] = useState(agent?.voice ?? defaultVoiceFor(agent?.language ?? "english"));
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [savedAgentId, setSavedAgentId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewError, setPreviewError] = useState("");
@@ -96,6 +99,9 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
           runtimeId: runtime?.id ?? "",
           ttsProfileId: isAdmin ? (agent?.ttsProfileId ?? defaults.tts) : defaults.tts,
           voice: previewVoice,
+          ...(agent?.ovcConfig === undefined || agent?.ovcConfig === null
+            ? {}
+            : { ovc: agent.ovcConfig }),
           text: rehearsalTextFor(language),
         }),
       });
@@ -144,21 +150,26 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
       topics: agent?.topics ?? [],
     };
 
-    const answer = editing
-      ? await sendJson(`/api/agents/${agent.id}`, body, "PATCH")
-      : await sendJson("/api/agents", body);
+    // A second save after a create edits the personality it just made rather
+    // than creating a duplicate.
+    const targetId = agent?.id ?? savedAgentId ?? null;
+    const answer =
+      targetId === null
+        ? await sendJson("/api/agents", body)
+        : await sendJson(`/api/agents/${targetId}`, body, "PATCH");
     setPending(false);
 
     if (!answer.ok) {
       setMessage({ tone: "error", text: `${strings.personality.refused} ${answer.message}`.trim() });
       return;
     }
-    if (editing) {
-      setMessage({ tone: "ok", text: strings.personality.saved });
-      router.refresh();
-      return;
+    if (targetId === null) {
+      const created = (answer.data as { agent?: { id?: string } } | undefined)?.agent?.id;
+      if (created !== undefined) setSavedAgentId(created);
+    } else {
+      setSavedAgentId(targetId);
     }
-    router.push("/agents");
+    setMessage({ tone: "ok", text: strings.personality.saved });
     router.refresh();
   }
 
@@ -232,16 +243,16 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
       {previewError !== "" && (
         <p className="mt-2 text-xs text-red-700 dark:text-red-300">{previewError}</p>
       )}
-      {message !== null && (
-        <p
-          className={`mt-3 text-sm ${
-            message.tone === "ok"
-              ? "text-emerald-700 dark:text-emerald-300"
-              : "text-red-700 dark:text-red-300"
-          }`}
-        >
-          {message.text}
-        </p>
+      {message !== null && message.tone === "error" && (
+        <p className="mt-3 text-sm text-red-700 dark:text-red-300">{message.text}</p>
+      )}
+      {savedAgentId !== null && message?.tone === "ok" && (
+        <section className="mt-4 rounded border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950">
+          <p className="text-sm text-emerald-900 dark:text-emerald-100">
+            {strings.personality.saved}
+          </p>
+          <UseOnGadget agentId={savedAgentId} devices={devices} />
+        </section>
       )}
     </form>
   );

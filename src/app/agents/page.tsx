@@ -81,6 +81,7 @@ export default async function AgentsPage() {
                   ttsProfileId={agent.ttsProfileId}
                   voice={agent.voice}
                   language={agent.language}
+                  ovcConfig={agent.ovcConfig}
                 />
                 <UseOnGadget agentId={agent.id} devices={devices.map((device) => ({ id: device.id, label: deviceLabel(device) }))} />
               </li>

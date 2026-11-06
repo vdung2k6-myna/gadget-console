@@ -251,6 +251,8 @@ describe("the resolution the bridge receives", () => {
         llmProfileId: profile.id,
         sttProfileId: null,
         ttsProfileId: null,
+        voice: "bryce",
+        ovcConfig: { enabled: false },
         systemPrompt: "be helpful",
         language: "vietnamese",
         answerMode: "generate",
@@ -291,6 +293,17 @@ describe("the resolution the bridge receives", () => {
     assert.equal(providers.stt, null);
     assert.equal(providers.tts, null);
     assert.notEqual(providers.llm, null, "the answering model is required, so it is always named");
+  });
+
+  it("carries the agent's language, voice and conversion to the bridge", async () => {
+    await claimedAgent();
+    const resolution = await resolveDevice(MAC);
+    if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
+
+    const agent = resolution.body.agent as Record<string, unknown>;
+    assert.equal(agent.language, "vietnamese");
+    assert.equal(agent.voice, "bryce");
+    assert.deepEqual(agent.ovcConfig, { enabled: false });
   });
 });
 

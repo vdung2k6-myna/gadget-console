@@ -6,7 +6,9 @@ import {
   listProviderProfiles,
   publicProviderProfile,
 } from "@/lib/provider-profiles";
+import { listOwnedDevices } from "@/lib/devices";
 import { listRuntimes } from "@/lib/runtimes";
+import { deviceLabel } from "@/lib/ui/format";
 import { getStrings } from "@/lib/i18n/locale";
 
 // Every screen reads the session and the database per request; there is nothing
@@ -18,6 +20,7 @@ export default async function NewAgentPage() {
   const user = await requireUser();
   const runtimes = await listRuntimes();
   const profiles = (await listProviderProfiles(user.id)).map(publicProviderProfile);
+  const devices = await listOwnedDevices(user.id);
   const isAdmin = user.role === "admin";
 
   // The simple form answers on the deployment's built-in defaults. An
@@ -50,6 +53,7 @@ export default async function NewAgentPage() {
           builtin: profile.builtin,
         }))}
         defaults={defaults}
+        devices={devices.map((device) => ({ id: device.id, label: deviceLabel(device) }))}
         isAdmin={isAdmin}
       />
     </main>

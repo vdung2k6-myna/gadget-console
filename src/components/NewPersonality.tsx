@@ -10,6 +10,7 @@ interface Props {
   runtimes: RuntimeOption[];
   profiles: ProfileOption[];
   defaults: PersonalityDefaults;
+  devices: { id: string; label: string }[];
   agent?: AgentValue;
   isAdmin: boolean;
 }
@@ -22,7 +23,7 @@ interface Props {
  * agent route does that, so hiding the advanced button would not be the
  * boundary.
  */
-export function NewPersonality({ runtimes, profiles, defaults, agent, isAdmin }: Props) {
+export function NewPersonality({ runtimes, profiles, defaults, devices, agent, isAdmin }: Props) {
   const strings = useStrings();
   const [advanced, setAdvanced] = useState(false);
 
@@ -41,6 +42,7 @@ export function NewPersonality({ runtimes, profiles, defaults, agent, isAdmin }:
     <PersonalityForm
       runtimes={runtimes}
       defaults={defaults}
+      devices={devices}
       agent={agent}
       isAdmin={isAdmin}
       onAdvanced={() => setAdvanced(true)}

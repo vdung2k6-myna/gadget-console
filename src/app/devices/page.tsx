@@ -80,7 +80,10 @@ export default async function DevicesPage() {
                     {strings.personality.active}:{" "}
                     <Link href={`/agents/${agent.id}`} className="underline">
                       {agent.name}
-                    </Link>
+                    </Link>{" "}
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {agent.language} · {agent.voice ?? strings.personality.none}
+                    </span>
                   </p>
                 )}
                 <DevicePersonality

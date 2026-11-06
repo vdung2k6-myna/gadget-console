@@ -431,7 +431,7 @@ export function AgentForm({ runtimes, profiles, agent, isAdmin }: Props) {
       setAuditionError(
         error instanceof Error && error.message !== ""
           ? error.message
-          : strings.agentForm.ovcAuditionFailed
+          : strings.personality.previewFailed
       );
     } finally {
       setAuditionPending(false);
@@ -913,18 +913,18 @@ export function AgentForm({ runtimes, profiles, agent, isAdmin }: Props) {
               type="button"
               onClick={() => void auditionVoice()}
               disabled={auditionPending || runtimeId === ""}
-              className="rounded border border-zinc-900 px-3 py-1.5 text-sm font-medium text-zinc-900 disabled:opacity-50 dark:border-zinc-100 dark:text-zinc-100"
+              className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
             >
-              {auditionPending
-                ? strings.agentForm.ovcAuditionPending
-                : `🔊 ${strings.agentForm.ovcAudition}`}
+              {auditionPending ? strings.personality.previewing : strings.personality.preview}
             </button>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
               {strings.agentForm.ovcAuditionHint}
             </span>
           </div>
           {auditionUrl !== "" && (
-            <audio key={auditionUrl} controls autoPlay src={auditionUrl} className="mt-2 w-full" />
+            <audio key={auditionUrl} controls autoPlay src={auditionUrl} className="mt-2 w-full">
+              <track kind="captions" />
+            </audio>
           )}
           {auditionError !== "" && (
             <p className="mt-2 text-xs text-red-700 dark:text-red-300">{auditionError}</p>

@@ -90,6 +90,11 @@ export async function resolveDevice(rawDeviceId: string): Promise<Resolution> {
               engine: agent.engine,
               answerMode: agent.answerMode,
               topics: agent.topics,
+              // What the personality was set to speak: the voice override and
+              // its conversion. Omitting these is how a bound personality's
+              // config silently failed to reach the bridge.
+              voice: agent.voice,
+              ovcConfig: agent.ovcConfig,
               runtime: agent.runtime,
               // The three providers, keys decrypted here and nowhere else, or
               // null for the runtime's default.

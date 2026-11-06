@@ -112,6 +112,7 @@ export const enGuide: Guide = {
             "Type another voice if the deployment holds one.",
             "Press “Hear it” to hear the voice before saving.",
             "Save it, then choose it on a gadget's card, or press “Use this personality” on the card.",
+            "The gadget applies it on its next connection — wake it to apply now.",
             "“Advanced settings” opens the name, prompt, runtime, answer mode, topics and voice conversion — and still no provider field.",
           ],
         },
