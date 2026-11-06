@@ -21,7 +21,7 @@ export const viGuide: Guide = {
           items: [
             "Một tài khoản trên console này. Đăng ký bằng email và mật khẩu ở trang đầu.",
             "Gadget đã được nạp firmware trỏ về bridge của bạn, và đã vào được Wi-Fi.",
-            "Biết bạn muốn gadget nói tiếng Việt hay tiếng Anh — điều này chọn ở agent, không phải trên gadget.",
+            "Biết bạn muốn gadget nói tiếng Việt hay tiếng Anh — điều này chọn ở tính cách, không phải trên gadget.",
           ],
         },
         {
@@ -62,15 +62,15 @@ export const viGuide: Guide = {
         },
         {
           kind: "p",
-          text: "User chỉ thấy những gì của mình: thiết bị, agent (prompt, chủ đề và model), kết nối model riêng, và lịch sử hội thoại của mình.",
+          text: "User chỉ thấy những gì của mình: thiết bị, các tính cách (lời nhắc, ngôn ngữ, giọng nói và cách trả lời của từng tính cách) và lịch sử hội thoại. User không cấu hình nhà cung cấp: hệ thống cung cấp giọng nói và model trả lời.",
         },
         {
           kind: "p",
-          text: "Admin thấy thiết bị của mọi tài khoản — ai sở hữu, agent nào đang trả lời, và hội thoại — và có thể đổi tên, gán agent, ghép cặp hoặc giải phóng bất kỳ thiết bị nào. Admin cũng thấy mọi tài khoản kèm số thiết bị và số agent, và duyệt các yêu cầu claim đang chờ.",
+          text: "Admin thấy thiết bị của mọi tài khoản — ai sở hữu, tính cách nào đang trả lời, và hội thoại — và có thể đổi tên, gán, ghép cặp hoặc giải phóng bất kỳ thiết bị nào. Admin cũng thấy mọi tài khoản kèm số thiết bị và số tính cách, duyệt các yêu cầu claim đang chờ, và quản lý nhà cung cấp tích hợp của hệ thống bằng lệnh seed.",
         },
         {
           kind: "note",
-          text: "Admin không thấy kết nối model hay key của bạn. Admin thấy được agent nào đang trả lời một thiết bị và có thể gán agent của bạn cho nó, nhưng không mở hay sửa được prompt, chủ đề hay model của agent.",
+          text: "Console không bao giờ hiển thị key của nhà cung cấp trên trình duyệt. Các nhà cung cấp tích hợp là dùng chung: trang nhà cung cấp chỉ liệt kê để xem, và thay đổi chúng là một lệnh seed, không phải thao tác trên console.",
         },
         {
           kind: "note",
@@ -91,9 +91,9 @@ export const viGuide: Guide = {
           items: [
             "Bật gadget và để nó kết nối Wi-Fi.",
             "Đọc mã 6 số trên màn hình (hoặc nghe nó đọc).",
-            "Vào mục Thiết bị, nhập mã vào ô “Mã 6 số trên màn hình gadget”, bấm Thêm.",
-            "Yêu cầu của bạn được ghi lại và hiện dưới “Đang chờ duyệt”. Quản trị viên duyệt thì gadget mới thuộc về bạn.",
-            "Sau khi được duyệt, đánh thức gadget một lần nữa để nó kết nối.",
+            "Mở trang chủ, nhập mã vào thẻ thêm thiết bị, bấm Thêm.",
+            "Yêu cầu được ghi lại và trang chủ báo đang chờ quản trị viên duyệt. Quản trị viên duyệt thì gadget mới thuộc về bạn.",
+            "Sau khi được duyệt, đánh thức gadget một lần nữa để nó kết nối, rồi chọn tính cách cho nó.",
           ],
         },
         {
@@ -104,29 +104,31 @@ export const viGuide: Guide = {
     },
     {
       id: "agents",
-      title: "Agent: gadget nói bằng gì",
+      title: "Tính cách: gadget nói bằng gì",
       blocks: [
         {
           kind: "p",
-          text: "Mỗi gadget được trả lời bởi một agent. Agent giữ lời dặn cho model, ngôn ngữ nó được nghe, model trả lời, giọng đọc riêng nếu bạn đặt, và cách trả lời. Bộ chuyển giọng thành văn bản là cấu hình của account ở mục Nhà cung cấp; agent chọn model trả lời từ các model của account, và có thể đặt giọng đọc riêng thay cho giọng của account.",
+          text: "Mỗi thiết bị có một tính cách đang dùng tại một thời điểm. Tính cách giữ cách nó nói — một mẫu hoặc mô tả của bạn — ngôn ngữ và giọng nói, và trong Cài đặt nâng cao là lời nhắc, runtime, cách trả lời và chủ đề. Nó trả lời bằng bộ chuyển giọng, giọng nói và model tích hợp của hệ thống; bạn không cấu hình nhà cung cấp.",
         },
         {
           kind: "steps",
           items: [
-            "Vào mục Agent, bấm “Tạo agent”.",
-            "Đặt tên, và viết prompt: đây là lời dặn mà model nhận được trước mọi câu hỏi.",
-            "Chọn runtime — nơi xử lý và trả lời lượt nói. Danh sách ngôn ngữ bên dưới là của runtime đó.",
-            "Chọn ngôn ngữ. Bộ chuyển giọng thành văn bản được cấu hình một lần cho account ở mục Nhà cung cấp.",
-            "Chọn “Model trả lời”: một trong các model của account. Không có mặc định, nên đây là bước bắt buộc.",
-            "Điền “Giọng đọc riêng” nếu agent này cần giọng khác giọng của account. Để trống thì dùng giọng của nhà cung cấp; rời khỏi ô để kiểm tra tên giọng với provider.",
-            "Chọn cách trả lời: “Sinh câu trả lời” cho hội thoại thường, “Đọc từ tài liệu” khi agent cần trả lời dựa trên tài liệu đã nạp.",
-            "Điền “Topics” nếu agent cần tra cứu tri thức: mỗi dòng một chủ đề. Để trống nghĩa là không tra cứu gì, chứ không phải tra cứu tất cả.",
-            "Mở thiết bị của bạn, chọn agent vừa tạo, bấm Gán agent.",
+            "Vào mục Tính cách, bấm “Tạo tính cách”.",
+            "Chọn điểm bắt đầu: một mẫu, hoặc “Tự nhập” và một câu mô tả cách nó nên nói.",
+            "Đặt tên và chọn ngôn ngữ.",
+            "Chọn một giọng mà dịch vụ giọng nói của hệ thống có.",
+            "Bấm “Nghe thử” để nghe giọng trước khi lưu.",
+            "Lưu lại, rồi chọn nó trên thẻ của thiết bị, hoặc bấm “Dùng tính cách này” trên thẻ.",
+            "“Cài đặt nâng cao” mở lời nhắc, runtime, cách trả lời, chủ đề và chuyển giọng — và vẫn không có ô nhà cung cấp.",
           ],
         },
         {
           kind: "note",
-          text: "Một agent có thể phục vụ nhiều thiết bị. Thiết bị chưa có agent sẽ không nói gì cả — nó không dùng một agent mặc định nào.",
+          text: "Lời nhắc, ngôn ngữ và giọng của mẫu được sao vào tính cách của bạn; sửa mẫu sau đó không đổi những gì đã lưu. Một tính cách có thể dùng cho nhiều thiết bị, nhưng mỗi thiết bị chỉ có một tính cách đang dùng.",
+        },
+        {
+          kind: "note",
+          text: "Thiết bị chưa có tính cách sẽ không nói gì cả — nó không dùng một tính cách mặc định nào. Thẻ của nó mời bạn chọn.",
         },
         {
           kind: "note",
@@ -136,65 +138,47 @@ export const viGuide: Guide = {
     },
     {
       id: "speech",
-      title: "Bộ chuyển giọng thành văn bản và giọng đọc",
+      title: "Nghe và nói: do hệ thống cung cấp",
       blocks: [
         {
           kind: "p",
-          text: "Gadget nghe qua một bộ chuyển giọng thành văn bản và nói qua một giọng đọc, cả hai do account tự cấu hình ở mục Nhà cung cấp — trừ khi agent đặt giọng riêng cho nó. Không có mặc định nào: chưa cấu hình thì gadget không nghe và không nói được.",
+          text: "Gadget nghe và nói qua dịch vụ giọng nói của hệ thống. Bạn không nhập endpoint, model hay key; tính cách chỉ chọn một giọng.",
         },
         {
-          kind: "steps",
-          items: [
-            "Mở Nhà cung cấp và điền phần nhận giọng nói: endpoint, model, và key chỉ khi dịch vụ cần.",
-            "Điền phần giọng đọc: endpoint, model và tên giọng.",
-            "Bấm “Nghe thử” để kiểm tra giọng trước khi gadget dùng.",
-            "Cả hai form đều bắt buộc. Không có mặc định của deployment để quay về; form trống nghĩa là lượt nói thất bại ở bước nghe hoặc bước nói.",
-          ],
+          kind: "p",
+          text: "Hệ thống công bố một bộ chuyển giọng và một giọng mặc định. Nếu chưa có, form tính cách báo hệ thống chưa có model hoặc giọng, và quản trị viên cần seed.",
         },
         {
           kind: "note",
-          text: "Model và giọng là chuỗi tự do: `tts-1` và `alloy` là tên của OpenAI, mỗi provider công bố tên riêng. Endpoint quyết định nghĩa của chúng, và nút nghe thử là cách kiểm tra. Không có mặc định nào để dựa vào: mỗi account phải có bộ chuyển giọng và giọng đọc của chính nó, và một loại chưa cấu hình là lượt nói thất bại.",
-        },
-        {
-          kind: "note",
-          text: "Xoá toàn bộ audio service của deployment không lấy đi khả năng của bạn: form vẫn lưu endpoint của bạn và lượt nói vẫn đi tới đó. Không có đoạn code nào của console gọi audio service của deployment.",
+          text: "“Nghe thử” dùng đúng đường tổng hợp và chuyển giọng của một lượt nói, nên nghe thử thế nào là gadget sẽ nói thế ấy.",
         },
         {
           kind: "error",
           symptom: "“Nghe thử” báo lỗi, hoặc gadget không nói gì.",
           cause:
-            "Endpoint, model hoặc voice không trả lời — sai địa chỉ, model dịch vụ không có, hoặc tên giọng không tồn tại.",
-          fix: "Kiểm endpoint (với provider hosted thường kết thúc bằng /v1), model và voice. Nút nghe thử hiện đúng lời từ chối của provider.",
+            "Dịch vụ giọng nói của hệ thống không tới được, hoặc không có giọng bạn chọn.",
+          fix: "Chọn giọng khác trong danh sách; nếu mọi giọng đều lỗi, nhờ quản trị viên kiểm tra dịch vụ giọng nói.",
         },
       ],
     },
     {
       id: "model",
-      title: "Model trả lời: của bạn, không có mặc định",
+      title: "Model trả lời: do hệ thống cung cấp",
       blocks: [
         {
           kind: "p",
-          text: "Trong form agent có ô “Model trả lời”, và nó bắt buộc: không có mặc định nào để dựa vào, nên agent không chọn model là agent không trả lời được. Model có thể do bạn tự thêm, hoặc một cái có sẵn mà nhà vận hành đã đặt.",
-        },
-        {
-          kind: "steps",
-          items: [
-            "Muốn dùng model của riêng bạn: mở Nhà cung cấp, ở mục “Model trả lời”, bấm “Thêm model”.",
-            "Nhập base URL của endpoint OpenAI-compatible (ví dụ https://api.openai.com/v1), model, và API key.",
-            "Nhiệt độ (temperature) có thể để trống để dùng mặc định của nhà cung cấp.",
-            "Quay lại agent, chọn kết nối vừa tạo ở ô “Model trả lời”.",
-          ],
+          text: "Hệ thống cung cấp model trả lời. Tính cách không hỏi bạn endpoint hay key; nó dùng model tích hợp của hệ thống.",
         },
         {
           kind: "note",
-          text: "Key được lưu mã hoá và không bao giờ hiện lại trên trình duyệt. Xoá một kết nối thì các agent đang dùng nó không còn model trả lời cho tới khi bạn gán cái khác.",
+          text: "Quản trị viên quản lý nhà cung cấp tích hợp bằng lệnh seed của hệ thống; trang nhà cung cấp chỉ liệt kê để xem. User không vào được trang đó.",
         },
         {
           kind: "error",
           symptom: "Gadget báo không kết nối được tới model, lượt nói không có câu trả lời.",
           cause:
-            "Endpoint của model không trả lời được — sai địa chỉ, mạng không tới, hoặc key/model không đúng.",
-          fix: "Kiểm base URL (thường phải kết thúc bằng /v1), tên model, và key. Lượt nói đã cố ý không được trả lời bằng model khác.",
+            "Endpoint hoặc key của model trong hệ thống sai hay không tới được, hoặc chưa có model trả lời nào được công bố.",
+          fix: "Nhờ quản trị viên kiểm tra model tích hợp và seed lại. Lượt nói đã cố ý không được trả lời bằng model khác.",
         },
       ],
     },
@@ -348,14 +332,14 @@ export const viGuide: Guide = {
         {
           kind: "error",
           symptom: "Đã thêm thiết bị nhưng nói vào thì gadget không trả lời.",
-          cause: "Thiết bị chưa được gán agent, nên nó không có gì để nói.",
-          fix: "Tạo hoặc chọn một agent rồi gán cho thiết bị trong trang của nó.",
+          cause: "Thiết bị chưa được gán tính cách, nên nó không có gì để nói.",
+          fix: "Tạo hoặc chọn một tính cách rồi chọn nó trên thẻ của thiết bị.",
         },
         {
           kind: "error",
           symptom: "Đang dùng thì bị đưa về trang đăng nhập.",
           cause: "Phiên đăng nhập đã hết hạn.",
-          fix: "Đăng nhập lại. Thiết bị và agent không bị ảnh hưởng.",
+          fix: "Đăng nhập lại. Thiết bị và tính cách không bị ảnh hưởng.",
         },
       ],
     },

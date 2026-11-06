@@ -9,15 +9,15 @@ commands and the three files verbatim.
 | What | Where |
 | --- | --- |
 | Host | `gadget-app`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04 |
-| Audio host | `gadget-audio`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04 |
-| OVC host | `gadget-ovc`, zone `asia-southeast1-a`, `e2-medium`, Ubuntu 22.04, 100 GB, no external IP |
+| Speech host | `gadget-gpu`, zone `asia-southeast1-b`, `g2-standard-4` (one NVIDIA L4), Ubuntu 22.04, 100 GB, no external IP |
 | Console tree | `/srv/gadget-console/current` (Next.js) |
 | Runtime tree | `/srv/adaptive-interview-api/current` (Express) |
 | Bridge tree | `/srv/gadget-bridge/current` |
-| Audio tree | `/srv/audio-tier` (compose project); models `/srv/audio-models` |
-| Audio gateway | `gadget-audio:8082` (the instance's internal DNS name), reached only from the app host |
+| Speech tree | `/srv/audio-tier` (compose project); models `/srv/audio-models` |
+| STT proxy | `gadget-gpu:8080` (the instance's internal DNS name), reached only from the app host |
+| Audio gateway | `gadget-gpu:8082`, reached only from the app host |
 | OVC tree | `/srv/ovc` (compose project); models `/srv/ovc-models`; unit `gadget-ovc-activate` |
-| OVC service | `gadget-ovc:8085` (internal DNS name), reached only from the app host |
+| OVC service | `gadget-gpu:8085`, reached only from the app host |
 | Environment files | `/etc/gadget/console.env`, `api.env`, `bridge.env` (0600, rewritten at boot) |
 | Secrets fetched at boot | `/usr/local/bin/gadget-secrets.sh`, run by `gadget-secrets.service` |
 | Caddy | `/etc/caddy/Caddyfile`, unit `caddy` |
@@ -33,6 +33,7 @@ internet --443--> Caddy --+--> console 127.0.0.1:3001
                                    /xiaozhi/v1*  -> 127.0.0.1:8001
 bridge --> console 127.0.0.1:3001, runtime 127.0.0.1:4000
 console --> Cloud SQL <db-private-ip>:5432
+runtime --> gadget-gpu:8080 (STT), :8082 (TTS), :8085 (conversion)
 ```
 
 ## Deploying an update
@@ -131,15 +132,13 @@ gcloud sql instances delete gadget-db-restore
 sudo journalctl -u gadget-bridge -f
 sudo journalctl -u gadget-console -n 100 --no-pager
 
-# the audio host's gateway and engines
-gcloud compute ssh gadget-audio --zone=asia-southeast1-a --tunnel-through-iap \
+# the speech host's gateway, transcriber and conversion service
+gcloud compute ssh gadget-gpu --zone=asia-southeast1-b --tunnel-through-iap \
   --command='sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml logs -f gateway'
-
-# the OVC host's conversion service, and the model it reports active
-gcloud compute ssh gadget-ovc --zone=asia-southeast1-a --tunnel-through-iap \
+gcloud compute ssh gadget-gpu --zone=asia-southeast1-b --tunnel-through-iap \
   --command='sudo docker logs --tail 50 -f interview-ovc-ovc-1'
 gcloud compute ssh gadget-app --zone=asia-southeast1-a --tunnel-through-iap \
-  --command='curl -s http://gadget-ovc:8085/api/models/active'
+  --command='curl -s http://gadget-gpu:8085/api/models/active'
 ```
 
 A healthy bridge session prints `device connected`, the client and server hellos, and then either
@@ -173,31 +172,44 @@ npm run ops -- status
 ```
 
 `start` brings Cloud SQL to `RUNNABLE`, then starts the app host and waits for every unit and health
-endpoint; when the operator configuration names an audio host, it starts that instance next and
-waits for its gateway; when it names an OVC host, it starts that instance last and waits for
-`/api/models/active` to report the model active. `stop` refuses while a gadget is connected to the
-bridge or a turn was recorded within the guard window (`guardMinutes`, 15 by default), then stops
-the app host, the audio host, the OVC host and the database, in that order; `--force` stops anyway.
-It waits for the database to reach `STOPPED` before it reports, so a start that follows can set
-`ALWAYS` without colliding with the stop's own operation. `status` reports every state, every unit,
-every deployed revision, the audio gateway, the OVC model and any drift, without changing anything.
+endpoint; when the operator configuration names the speech host, it starts that instance next and
+waits for its gateway, then for `/api/models/active` to report the model active. Both the `audio`
+and `ovc` entries in `ops.local.json` name `gadget-gpu`, and the tool tolerates the second start or
+stop of the same instance. `stop` refuses while a gadget is connected to the bridge or a turn was
+recorded within the guard window (`guardMinutes`, 15 by default), then stops the app host, the
+speech host and the database, in that order; `--force` stops anyway. It waits for the database to
+reach `STOPPED` before it reports. `status` reports every state, every unit, every deployed
+revision, the speech endpoints, the OVC model and any drift, without changing anything.
 
 Stopping bills no compute and no database instance; disks, database storage and the reserved address
-remain (about $30–35 a month now that the OVC disk is part of the deployment). The services come back
-on their own. The budget alert is 1,500,000 ₫ (about $60) at 50, 90 and 100 percent.
+remain (about $30–40 a month: the app, speech and firmware disks, the database's storage and the
+reserved address). The services come back on their own; the OVC model is restored by its activation
+unit. The budget alert is 1,500,000 ₫ (about $60) at 50, 90 and 100 percent.
+
+`speech.sttUrl` and `speech.ttsUrl` in `ops.local.json` are probed from the operator's machine, not
+from the app host. On this deployment the speech tier is private: the TTS probe is skipped when an
+audio host is configured, and the STT probe may report unreachable even when the tier is healthy.
+The authoritative readiness check is the SSH wait on `gadget-gpu` that precedes it.
 
 ## Voice conversion
 
-The optional OVC host runs the conversion service; the runtime carries `OVC_URL`, `OVC_MODEL` and
-the deployment shaping in `/etc/gadget/api.env`. Agents choose inherit, no voice changer, or their
-own shaping in the console; the runtime's `/health` reports the service and its active model.
+The speech host runs the conversion service; the runtime carries `OVC_URL`, `OVC_MODEL` and the
+deployment shaping in `/etc/gadget/api.env`. Agents choose inherit, no voice changer, or their own
+shaping in the console; the runtime's `/health` reports the service and its active model.
 
 The active model lives in the service's memory only. `gadget-ovc-activate.service` activates it
 after the container answers and verifies `"active":true`; if `/api/models/active` reports
-`{"active":false}`, restart that unit on `gadget-ovc` (or restart `gadget-api`, whose boot check
-also activates it). CPU conversion takes roughly 20 seconds for a short segment, and
-`OVC_REQUIRED=false` on this pilot delivers the unconverted audio and reports a failure instead of
-failing the turn.
+`{"active":false}`, restart that unit on `gadget-gpu` (or restart `gadget-api`, whose boot check
+also activates it). On the L4, conversion takes about 0.4 s for a 4 s segment; STT holds about 3 GB
+and conversion under 1 GB of the 24 GB card, so the two run together. `OVC_REQUIRED=false` on this
+pilot delivers the unconverted audio and reports a failure instead of failing the turn.
+
+The service is the second compose project on the speech host, started with the GPU override:
+
+```bash
+cd /srv/ovc && sudo env OVC_MODELS_DIR=/srv/ovc-models OVC_BIND_ADDR=0.0.0.0 OVC_PUBLISHED_PORT=8085 \
+  OVC_TAG=cpu docker compose -f docker-compose.ovc.yml -f docker-compose.ovc.gpu.yml up -d
+```
 
 ## Changing the public surface
 
@@ -216,87 +228,86 @@ reachable from the internet.
 
 ## Speech providers
 
-The console's `stt` and `tts` profiles point at two different places:
+The deployment publishes three built-in profiles in the console's database. An owner's turns use
+them, and the owner never configures a provider.
 
-| Kind | URL | Runs on | Reaches |
+| Kind | Endpoint | Runs on | Reaches |
 | --- | --- | --- | --- |
-| `stt` | `https://stt.<domain>` | the developer's machine, Docker (`stt-proxy` → `audiocpp`) | `127.0.0.1:8080` |
-| `tts` | `http://gadget-audio:8082` | the audio host `gadget-audio` (`gateway` → three engines) | its internal DNS name |
+| `stt` | `http://gadget-gpu:8080` | `gadget-gpu` (`stt-proxy` → `audiocpp`, CUDA) | the instance's internal name |
+| `tts` | `http://gadget-gpu:8082` | `gadget-gpu` (`gateway` → three engines) | the instance's internal name |
+| `llm` | an OpenAI-compatible endpoint | the provider | the internet |
 
-The `stt` hostname is a **named Cloudflare tunnel** (`gadget-audio`), not a quick tunnel: the URL
-is stable across restarts, and the tunnel runs on the developer's machine as the systemd unit
-`cloudflared-gadget-audio`, so it starts at boot and the service manager restarts it if it exits.
-Its config and credentials live in `/etc/cloudflared/` (root-only: `config.yml` plus the tunnel's
-JSON credentials). The DNS record is proxied, which is correct for HTTP — unlike `gw`, which must
-stay grey.
-
-The same tunnel carries every hostname the machine publishes; each is one ingress entry, and a
-hostname without one falls through to the `http_status:404` rule:
-
-```yaml
-ingress:
-  - hostname: stt.<domain>
-    service: http://127.0.0.1:8080
-  - hostname: tts.<domain>
-    service: http://127.0.0.1:8082
-  # a local client served on :3000, if this machine hosts one
-  - hostname: demo.<domain>
-    service: http://localhost:3000
-  - service: http_status:404
-```
-
-A hostname answered with **HTTP 530 / error 1033** is not an ingress problem: the DNS record still
-points at a different tunnel. There is no `cert.pem` on this host, so `cloudflared tunnel route dns`
-cannot run; the record is edited in the Cloudflare dashboard as a proxied `CNAME` to
-`<tunnel-id>.cfargotunnel.com`. A hostname that answers 404 while others on the same tunnel work is
-the missing ingress entry. After an edit: `sudo systemctl restart cloudflared-gadget-audio`.
-
-The TTS tier is this repository's `docker-compose.audio.yml`, run on `gadget-audio` as the
-`gateway`, the `tts-proxy` and three engines; the STT proxy and `audiocpp` stay on the developer's
-machine. The tree has no `.env`, so the provisioning environment must be passed on every `up` —
-without it the gateway is republished on loopback and the app host loses it:
+The built-ins are seeded, not edited in a browser. From `/srv/gadget-console` with the console's
+environment:
 
 ```bash
-cd /srv/audio-tier && sudo env AUDIO_BIND_ADDR=<audio-private-ip> \
-  AUDIO_MODELS_DIR=/srv/audio-models \
-  docker compose -f docker-compose.audio.yml up -d gateway tts-proxy kokoro piper supertonic
+PROVIDER_SEED='[
+  {"kind":"llm","name":"<model name>","baseUrl":"<openai-compatible url>","model":"<model>","apiKey":"<key>","default":true},
+  {"kind":"stt","name":"Speech to text","baseUrl":"http://gadget-gpu:8080","model":"stt","default":true},
+  {"kind":"tts","name":"Voice","baseUrl":"http://gadget-gpu:8082","model":"piper","voice":"<voice>","default":true}
+]' npm run seed:providers
 ```
 
-`tts-proxy` fronts the engines. Add a replica with `--scale <engine>=N` and restart `tts-proxy`
-so Caddy resolves the new address. When a turn fails at a speech call:
+The seed is idempotent by `(builtin, kind, name)`, never deletes a row, and an `llm` entry that
+names no `apiKey` keeps the stored key. The provider page lists the built-ins read-only; a browser
+create, edit or delete of one answers not-found. To change a voice or an endpoint, edit the seed
+list and run it again. An administrator may also configure the admin account's own speech settings
+on the provider page; an owner cannot.
 
-1. On the audio host,
-   `sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml ps` — the four containers are
-   up and healthy, and `curl -s http://127.0.0.1:8082/health` answers;
-2. From the app host, `curl -s http://gadget-audio:8082/health` — the internal name and the gateway;
-3. For STT, `curl -s https://stt.<domain>/health` and `systemctl status cloudflared-gadget-audio`.
+The audio tier is this repository's `docker-compose.audio.yml`, run on `gadget-gpu` with the
+gateway, the STT proxy, `audiocpp` and the three engines. The tree has no `.env`, so the
+provisioning environment must be passed on every `up` — without it the services republish on
+loopback and the app host loses them:
 
-The audio host is part of the session: `npm run ops -- session start|stop` starts and stops it.
-The developer's machine is not — a machine that is off or asleep is an STT tier that is down, and
-every turn fails at its first speech call.
+```bash
+cd /srv/audio-tier && sudo env AUDIO_BIND_ADDR=<gpu-private-ip> \
+  AUDIO_MODELS_DIR=/srv/audio-models \
+  docker compose -f docker-compose.audio.yml up -d audiocpp stt-proxy gateway tts-proxy kokoro piper supertonic
+```
+
+`audiocpp` runs with `--backend cuda` and holds about 3 GB of the L4. `tts-proxy` fronts the
+engines; add a replica with `--scale <engine>=N` and restart `tts-proxy` so Caddy resolves it.
+
+When a turn fails at a speech call:
+
+1. On the speech host, `sudo docker compose -f /srv/audio-tier/docker-compose.audio.yml ps` — the
+   seven containers are up and healthy, and `curl -s http://<gpu-private-ip>:8080/health` and
+   `:8082/health` answer;
+2. From the app host, `curl -s http://gadget-gpu:8080/health` and `:8082/health` — the internal
+   name and the firewall rule;
+3. For conversion, `curl -s http://gadget-gpu:8085/api/models/active` and
+   `systemctl status gadget-ovc-activate` on the speech host.
+
+The speech host is part of the session: `npm run ops -- session start|stop` starts and stops it
+(both the `audio` and `ovc` entries in `ops.local.json` name `gadget-gpu`). The developer's machine
+is no longer part of this deployment, and no Cloudflare tunnel carries speech.
 
 ## Troubleshooting
 
 | Symptom | First check |
 | --- | --- |
 | Bridge logs `the console did not take … (401)` | `BRIDGE_TOKEN` vs `BRIDGE_CONSOLE_TOKEN` |
-| Turn rejected `no transcription provider is configured` | the agent's `stt` profile is unset or unreachable |
-| Turn rejected `fetch failed` | the agent's `llm` profile is unbound, deleted or unreachable; deleting a profile unbinds the agent (`ON DELETE SET NULL`), and the runtime then tries its own `localhost:11434`. A binding saved in the console reaches the next session, not the open one — wake the device or restart the bridge |
-| Turn rejected `STT failed (404)` | the profile's base URL already ends in `/v1`; the runtime appends `/v1/audio/…` itself |
+| Turn rejected `no transcription provider is configured` | no `stt` built-in is published, or the agent names one the account cannot use; check the built-ins and `http://gadget-gpu:8080/health` |
+| Turn rejected `fetch failed` | no `llm` built-in is published or reachable; re-seed the built-in (or, for an admin's agent, check the account's profile) |
+| Turn rejected `STT failed (404)` | the provider's base URL already ends in `/v1`; the runtime appends `/v1/audio/…` itself |
+| Turn converts to nothing / unchanged voice | `curl -s http://gadget-gpu:8085/api/models/active`; restart `gadget-ovc-activate` on `gadget-gpu` if `"active":false` |
 | Device page lists no tools | the bridge's warning carries the console's reason; see `TOOL_LIMITS` in `src/lib/device-tools.ts` |
 | `wss` handshake fails from outside | the `gw` block in the Caddyfile, then `journalctl -u caddy` |
 | Certificate warning on `console` | `journalctl -u caddy`; Caddy renews automatically |
 | Device connects, no turn ever | the endpointer line: `floor` and `peak` say whether the gate was ever crossed |
 
-The profiles live in the console, not on the host: a change there is made at
-`https://console.<domain>/provider-profiles`, not in an environment file.
+The built-ins live in the console's database, seeded by `seed:providers`; an owner cannot change
+them and neither can a browser route. An administrator's own speech settings are edited at
+`https://console.<domain>/provider-profiles`.
 
 ## What not to do
 
 - Do not edit files under `/srv/…` on the host: the next release replaces `current`, and pruning
   removes old releases.
 - Do not edit `/etc/gadget/*.env`: they are rewritten at boot.
+- Do not edit a built-in provider row in the database by hand: edit `PROVIDER_SEED` and re-run
+  `seed:providers`, so a later seed does not silently reverse the change.
 - Do not open 8001 or 8003 in a firewall rule; the front exists so they stay closed.
 - Do not commit a secret, a real device identifier or an environment file.
-- Do not point a profile at a quick tunnel for anything longer than a test: the URL changes when the
-  tunnel restarts. The pilot's providers use the named tunnel above for that reason.
+- Do not point a speech provider at a quick tunnel. The deployment's speech tier is on
+  `gadget-gpu`; a tunnel is only ever a temporary test, because its URL changes when it restarts.

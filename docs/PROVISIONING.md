@@ -1,8 +1,8 @@
 # Provisioning
 
-Building the pilot from nothing: the network, the database, the host, the four secrets, the three
-systemd units and the two Caddy sites. `DEPLOYMENT.md` says what the result is and `RUNBOOK.md` how
-to operate it; this file is the one that assumes none of it exists.
+Building the pilot from nothing: the network, the database, the app host, the speech host, the four
+secrets, the systemd units and the two Caddy sites. `DEPLOYMENT.md` says what the result is and
+`RUNBOOK.md` how to operate it; this file is the one that assumes none of it exists.
 
 Run it in a bash shell with `gcloud` authenticated (Cloud Shell is enough). Nothing here is
 idempotent by design — a second run against existing resources fails loudly, which is the right
@@ -308,7 +308,7 @@ EOF
 
 Both certificates are issued automatically over HTTP-01; port 80 must stay open.
 
-## 8. The three trees
+## 8. The service trees
 
 There is no repository and no GitHub credential on the host. The first deploy uses the same
 operator tool as every later one (`RUNBOOK.md`): it packages a committed revision on your machine,
@@ -340,132 +340,125 @@ never as root: a root-owned tree breaks the next build. The build's exit status 
 failed build leaves the previous release answering `/health` while serving old content, and the
 tool refuses to call that success.
 
-### The audio host (TTS only)
+### The speech host (STT, TTS and conversion)
 
-`gadget-audio` is a CPU VM in the same VPC and subnet, tag `audio`, `e2-medium`, Ubuntu 22.04, a
-30 GB boot disk and no service account. It runs the gateway and the three TTS engines; `audiocpp`
-and the STT proxy stay on the developer's machine.
+`gadget-gpu` is one GPU VM in the same VPC and subnet, tag `gpu`, `g2-standard-4` (4 vCPU, 16 GB,
+one NVIDIA L4 with 24 GB), Ubuntu 22.04, a 100 GB boot disk and no service account. It runs the
+STT proxy with `audiocpp` on CUDA, the TTS gateway and engines, and the conversion service. The
+L4 is the reason: the two models together use about 4 GB, so one card carries the whole speech
+tier.
+
+The GPU machine type is not available in every zone at every moment; the pilot uses
+`asia-southeast1-b` because `-a` had no capacity. Create it there:
 
 ```bash
-gcloud compute instances create gadget-audio --zone=$ZONE --machine-type=e2-medium \
-  --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud \
-  --boot-disk-size=30GB --boot-disk-type=pd-balanced \
-  --network=gadget-vpc --subnet=gadget-subnet --tags=audio \
+export GPU_ZONE=asia-southeast1-b
+
+gcloud compute instances create gadget-gpu --zone=$GPU_ZONE --machine-type=g2-standard-4 \
+  --maintenance-policy=TERMINATE --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud \
+  --boot-disk-size=100GB --boot-disk-type=pd-balanced \
+  --network=gadget-vpc --subnet=gadget-subnet --tags=gpu \
   --no-service-account --no-scopes
 
-# the gateway, only from the app host
-gcloud compute firewall-rules create gadget-audio-api --network=gadget-vpc \
-  --direction=INGRESS --action=ALLOW --rules=tcp:8082 \
-  --source-tags=app --target-tags=audio --priority=1000
+# the speech endpoints, only from the app host
+gcloud compute firewall-rules create gadget-gpu-api --network=gadget-vpc \
+  --direction=INGRESS --action=ALLOW --rules=tcp:8080,tcp:8082,tcp:8085 \
+  --source-tags=app --target-tags=gpu --priority=900
 # SSH through IAP only: deny the world, allow the IAP range above it
-gcloud compute firewall-rules create gadget-audio-deny-ssh --network=gadget-vpc \
+gcloud compute firewall-rules create gadget-gpu-deny-ssh --network=gadget-vpc \
   --direction=INGRESS --action=DENY --rules=tcp:22 \
-  --source-ranges=0.0.0.0/0 --target-tags=audio --priority=1000
-gcloud compute firewall-rules create gadget-audio-iap-ssh --network=gadget-vpc \
+  --source-ranges=0.0.0.0/0 --target-tags=gpu --priority=1000
+gcloud compute firewall-rules create gadget-gpu-iap-ssh --network=gadget-vpc \
   --direction=INGRESS --action=ALLOW --rules=tcp:22 \
-  --source-ranges=35.235.240.0/20 --target-tags=audio --priority=900
+  --source-ranges=35.235.240.0/20 --target-tags=gpu --priority=900
 ```
 
-Install Docker from Docker's own repository (the `docker compose` plugin is needed), then put the
-compose project at `/srv/audio-tier` and the model sets at `/srv/audio-models`:
+The VPC has no Cloud NAT, so give the VM a temporary external address for the install and the
+build, and remove it afterwards:
 
 ```bash
-git -C <repo> archive --format=tar.gz -o "$TEMP/audio-tier.tar.gz" HEAD
-gcloud compute scp "$TEMP/audio-tier.tar.gz" gadget-audio:/tmp/ --zone=$ZONE --tunnel-through-iap
-tar -C <repo>/audio-models -czf "$TEMP/audio-models.tar.gz" kokoro piper supertonic
-gcloud compute scp "$TEMP/audio-models.tar.gz" gadget-audio:/tmp/ --zone=$ZONE --tunnel-through-iap
-```
-
-On the audio host, extract them and start only the TTS services — `audiocpp` reserves a GPU and is
-not part of this host:
-
-```bash
-sudo mkdir -p /srv/audio-tier /srv/audio-models
-sudo tar xzf /tmp/audio-tier.tar.gz -C /srv/audio-tier
-sudo tar xzf /tmp/audio-models.tar.gz -C /srv/audio-models
-cd /srv/audio-tier
-sudo env AUDIO_BIND_ADDR=<audio-private-ip> AUDIO_MODELS_DIR=/srv/audio-models \
-  docker compose -f docker-compose.audio.yml up -d --build gateway kokoro piper supertonic
-```
-
-The gateway answers at `http://<audio-host>:8082/health`; the app host resolves the instance's
-internal DNS name, and only its tag may reach the port.
-Point each account's `tts` profile at that address — TTS uses no public tunnel.
-
-### The OVC host (conversion, optional)
-
-`gadget-ovc` is a CPU VM in the same VPC and subnet, tag `ovc`, `e2-medium`, 100 GB boot disk, no
-external IP and no service account. It runs the voice-conversion service with its model on the
-disk. The CPU image is large (~17 GB) and slow to build (~an hour on two vCPUs); the disk is sized
-for it.
-
-```bash
-gcloud compute instances create gadget-ovc --zone=$ZONE --machine-type=e2-medium \
-  --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud \
-  --boot-disk-size=100GB --boot-disk-type=pd-balanced \
-  --network=gadget-vpc --subnet=gadget-subnet --tags=ovc \
-  --no-address --no-service-account --no-scopes
-
-gcloud compute firewall-rules create gadget-ovc-api --network=gadget-vpc \
-  --direction=INGRESS --action=ALLOW --rules=tcp:8085 \
-  --source-tags=app --target-tags=ovc --priority=900
-gcloud compute firewall-rules create gadget-ovc-deny-ssh --network=gadget-vpc \
-  --direction=INGRESS --action=DENY --rules=tcp:22 \
-  --source-ranges=0.0.0.0/0 --target-tags=ovc --priority=1000
-gcloud compute firewall-rules create gadget-ovc-iap-ssh --network=gadget-vpc \
-  --direction=INGRESS --action=ALLOW --rules=tcp:22 \
-  --source-ranges=35.235.240.0/20 --target-tags=ovc --priority=900
-```
-
-The VPC has no Cloud NAT, so give the VM a temporary external address for the build and remove
-it afterwards:
-
-```bash
-gcloud compute instances add-access-config gadget-ovc --zone=$ZONE \
+gcloud compute instances add-access-config gadget-gpu --zone=$GPU_ZONE \
   --access-config-name=external-nat
 ```
 
-Install Docker from Docker's repository and add swap; the CPU model needs more headroom than the
-VM's 4 GB while it builds and loads:
+Install the NVIDIA driver (CUDA 13 needs 580 or newer) and the container toolkit. The kernel is
+built with gcc-12; DKMS fails without it, and the failure is only visible in
+`/var/lib/dkms/nvidia/*/build/make.log`:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu jammy stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
-  docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable --now docker
-sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && \
-  sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+sudo apt-get update && sudo apt-get install -y build-essential gcc-12 \
+  linux-headers-$(uname -r) ca-certificates wget
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
+sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-12 100
+cd /tmp && wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt-get update && sudo apt-get install -y cuda-drivers-580
+sudo reboot
 ```
 
-Copy the service, its compose file and the model directory, then build and start:
+After the reboot, install Docker from Docker's repository as in §7, then the container toolkit,
+and prove the card reaches a container:
 
 ```bash
-gcloud compute scp --recurse --tunnel-through-iap ovc-service gadget-ovc:/tmp/ --zone=$ZONE
-gcloud compute scp --tunnel-through-iap docker-compose.ovc.yml gadget-ovc:/tmp/ --zone=$ZONE
-gcloud compute scp --recurse --tunnel-through-iap <ovc-models-dir> gadget-ovc:/tmp/ --zone=$ZONE
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+sudo docker run --rm --gpus all nvidia/cuda:12.9.0-base-ubuntu22.04 \
+  nvidia-smi --query-gpu=name --format=csv,noheader
+```
+
+Ship the audio tree and the models, then start the whole tier — including `audiocpp`:
+
+```bash
+git -C <repo> archive --format=tar.gz -o "$TEMP/audio-tier.tar.gz" HEAD
+gcloud compute scp "$TEMP/audio-tier.tar.gz" gadget-gpu:/tmp/ --zone=$GPU_ZONE --tunnel-through-iap
+tar -C <repo>/audio-models -czf "$TEMP/audio-models.tar.gz" kokoro piper supertonic
+gcloud compute scp "$TEMP/audio-models.tar.gz" gadget-gpu:/tmp/ --zone=$GPU_ZONE --tunnel-through-iap
+
+# on the host
+sudo mkdir -p /srv/audio-tier /srv/audio-models
+sudo tar xzf /tmp/audio-tier.tar.gz -C /srv/audio-tier
+sudo tar xzf /tmp/audio-models.tar.gz -C /srv/audio-models
+# the ASR model, pinned and checksummed by the service's own script
+cd /srv/audio-tier && sudo python3 audiocpp-service/download_models.py --dest /srv/audio-models/audiocpp
+cd /srv/audio-tier
+sudo env AUDIO_BIND_ADDR=<gpu-private-ip> AUDIO_MODELS_DIR=/srv/audio-models \
+  docker compose -f docker-compose.audio.yml up -d --build \
+  audiocpp stt-proxy gateway tts-proxy kokoro piper supertonic
+```
+
+The gateway answers at `http://gadget-gpu:8082/health` and the STT proxy at `:8080`; the app host
+resolves the instance's internal DNS name, and only its tag may reach the ports.
+
+The conversion service is the second project on the same host. Ship its service, both compose
+files and the model directory, then build and start with the GPU override:
+
+```bash
+gcloud compute scp --recurse --tunnel-through-iap ovc-service gadget-gpu:/tmp/ --zone=$GPU_ZONE
+gcloud compute scp --tunnel-through-iap docker-compose.ovc.yml docker-compose.ovc.gpu.yml \
+  gadget-gpu:/tmp/ --zone=$GPU_ZONE
+gcloud compute scp --recurse --tunnel-through-iap <ovc-models-dir> gadget-gpu:/tmp/ --zone=$GPU_ZONE
 # on the host
 sudo mkdir -p /srv/ovc
 sudo mv /tmp/ovc-service /srv/ovc/
-sudo mv /tmp/docker-compose.ovc.yml /srv/ovc/
+sudo mv /tmp/docker-compose.ovc.yml /tmp/docker-compose.ovc.gpu.yml /srv/ovc/
 sudo mv /tmp/<ovc-models-dir> /srv/ovc-models
 cd /srv/ovc
 sudo env OVC_TAG=cpu docker compose -f docker-compose.ovc.yml build
 sudo env OVC_MODELS_DIR=/srv/ovc-models OVC_BIND_ADDR=0.0.0.0 OVC_PUBLISHED_PORT=8085 \
-  OVC_TAG=cpu docker compose -f docker-compose.ovc.yml up -d
+  OVC_TAG=cpu docker compose -f docker-compose.ovc.yml -f docker-compose.ovc.gpu.yml up -d
 ```
 
 Remove the temporary address, then install the activation unit. The service keeps its active
 model in memory only, so this is what makes a restart or a stopped VM come back converting:
 
 ```bash
-gcloud compute instances delete-access-config gadget-ovc --zone=$ZONE \
+gcloud compute instances delete-access-config gadget-gpu --zone=$GPU_ZONE \
   --access-config-name=external-nat
 ```
 
@@ -510,7 +503,7 @@ The model names under `/srv/ovc-models` are the operator's; `vctk-p225.pth` is t
 the runtime at the host in `/etc/gadget/api.env` and restart `gadget-api`:
 
 ```ini
-OVC_URL=http://gadget-ovc:8085
+OVC_URL=http://gadget-gpu:8085
 OVC_MODEL=vctk-p225.pth
 OVC_TIMEOUT_MS=60000
 OVC_REQUIRED=false
@@ -526,13 +519,19 @@ silently dropped when the host is stopped and started again — the deployment t
 voice. After changing the script, append the lines to the running file (or re-run the script)
 and restart `gadget-api`.
 
-Add the host to `ops.local.json` so a session starts, stops and reports it:
+Add the host to `ops.local.json` so a session starts, stops and reports it. Both entries name the
+same instance; the tool tolerates the second start or stop:
 
 ```json
+"audio": {
+  "instance": "gadget-gpu",
+  "zone": "asia-southeast1-b",
+  "healthUrl": "http://gadget-gpu:8082/health"
+},
 "ovc": {
-  "instance": "gadget-ovc",
-  "zone": "asia-southeast1-a",
-  "healthUrl": "http://gadget-ovc:8085/api/models/active"
+  "instance": "gadget-gpu",
+  "zone": "asia-southeast1-b",
+  "healthUrl": "http://gadget-gpu:8085/api/models/active"
 }
 ```
 
@@ -554,6 +553,28 @@ sudo bash -c 'set -a; . /etc/gadget/console.env; . /etc/gadget/api.env; set +a; 
   cd /srv/gadget-console/current && RUNTIME_URL=http://127.0.0.1:4000 \
   RUNTIME_TOKEN="$API_AUTH_TOKEN" npm run seed:runtime'
 ```
+
+The deployment also publishes its built-in STT, TTS and LLM providers. They are the only providers
+an owner uses; seed them once with the deployment's own endpoints and key. The list carries a
+secret, so write it to a root-only file, seed from it, and remove it — the key is encrypted before
+it is stored and the seed prints no key:
+
+```bash
+sudo install -m 600 /dev/null /root/provider-seed.json
+sudo tee /root/provider-seed.json >/dev/null <<'JSON'
+[
+  {"kind":"llm","name":"<model name>","baseUrl":"<openai-compatible url>","model":"<model>","apiKey":"<key>","default":true},
+  {"kind":"stt","name":"Speech to text","baseUrl":"http://gadget-gpu:8080","model":"stt","default":true},
+  {"kind":"tts","name":"Voice","baseUrl":"http://gadget-gpu:8082","model":"piper","voice":"<voice>","default":true}
+]
+JSON
+sudo bash -c 'set -a; . /etc/gadget/console.env; set +a; cd /srv/gadget-console/current; \
+  PROVIDER_SEED="$(cat /root/provider-seed.json)" npm run seed:providers'
+sudo rm -f /root/provider-seed.json
+```
+
+Re-running the seed with the same list adds nothing; an `llm` entry with no `apiKey` keeps the
+stored key; a provider the list no longer names is left in place rather than deleted.
 
 ## 10. Budget
 
@@ -591,13 +612,16 @@ The device page of a claimed gadget then lists its tools; a page that lists none
 refusing the report, and the bridge's log says why.
 
 The remaining steps are product, not infrastructure: create the first account, grant it admin
-(`npm run role -- <email> admin`), let a gadget receive its activation code, claim it, create the
-`stt`/`tts`/`llm` profiles, and bind an agent with empty topics.
+(`npm run role -- <email> admin`), seed the runtime and the built-in providers (§9), let a gadget
+receive its activation code and claim it, then as the owner choose a personality — a template or a
+custom description — hear its voice and save. An admin approves the claim at `/admin/claims`.
 
 ## What this document still does not cover
 
 - The firmware: its OTA address must be `https://<bridge-host>/xiaozhi/ota/`, which is a build-time
   value in the XiaoZhi configuration.
-- Where the speech providers run. The pilot points the `stt` and `tts` profiles at a named Cloudflare
-  tunnel to the developer's machine; `RUNBOOK.md` describes it. A deployment independent of that
-  machine needs its own audio host.
+- The GPU driver and the container toolkit are prerequisites on the speech host, and one L4 host
+  carries the whole speech tier. The provisioning above installs them; a host without the driver
+  falls back to CPU conversion, which is slow enough to notice.
+- Admin-authored personality templates are not part of this deployment: the catalog ships in code
+  and a change to it is a release.

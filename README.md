@@ -1,8 +1,8 @@
 # gadget-console
 
 The console for people who own XiaoZhi voice gadgets: accounts, devices, the
-agents that answer them, claims, the record of what was said, and a guide for the
-person holding the gadget.
+personalities that answer them, claims, the record of what was said, and a guide for
+the person holding the gadget.
 
 It owns the only database in the product. The bridge (`gadget-bridge`) holds no
 database and asks this service, over HTTP, for everything a session needs.
@@ -34,6 +34,7 @@ owns 3000 on a development machine. It is set by the npm scripts, because
 | `npm run db:generate` | A migration from the schema. |
 | `npm run db:migrate` | Apply migrations. |
 | `npm run seed:runtime` | Seed the runtime an agent points at (idempotent by name). |
+| `npm run seed:providers` | Publish the deployment's built-in `stt`, `tts` and `llm` providers from `PROVIDER_SEED` (idempotent; never deletes). |
 | `npm run prune` | Delete what is past its time now: unowned devices, dead claims, old turns. |
 | `npm run role -- <email> <user\|admin>` | Grant or take away the admin role. |
 | `npm run ops -- …` | The operator tool: `status`, `deploy <service>`, `session start\|stop`. It needs `ops.local.json` (gitignored); see `docs/RUNBOOK.md`. |
@@ -44,7 +45,7 @@ owns 3000 on a development machine. It is set by the npm scripts, because
 | --- | --- | --- |
 | `DATABASE_URL` | yes | The database this service owns. |
 | `BRIDGE_TOKEN` | yes | The credential the bridge presents on `/api/bridge/*`. |
-| `LLM_KEY_SECRET` | yes | Encrypts every account's LLM key, 32 bytes base64. Losing it makes every saved profile undecryptable. |
+| `LLM_KEY_SECRET` | yes | Encrypts every saved provider key — an account's or a built-in's — 32 bytes base64. Losing it makes every saved profile undecryptable. |
 | `SESSION_TTL_MS` | no | How long a browser session lives (30 days). |
 | `CLAIM_TTL_MS` | no | How long a claim code is good for (10 minutes). |
 | `CLAIM_APPROVAL_TTL_MS` | no | How long an entered request waits for an admin before it is abandoned (24 hours). |
@@ -54,6 +55,7 @@ owns 3000 on a development machine. It is set by the npm scripts, because
 | `PRUNE_BATCH` | no | Rows one cleanup removes per kind (1 000), so a backlog drains over several passes. |
 | `TEST_DATABASE_URL` | for tests | A separate database; the tests truncate it. |
 | `RUNTIME_TOKEN` | for seeding | The credential `seed:runtime` stores, with `RUNTIME_NAME` (default `interview`), `RUNTIME_URL`, `RUNTIME_ENGINES`, `RUNTIME_LANGUAGES`. |
+| `PROVIDER_SEED` | for seeding | A JSON array of built-ins: `kind` (`stt`, `tts` or `llm`), `name`, `baseUrl`, `model`, `voice` for `tts`, an optional `apiKey` and `temperature` for `llm`, and `default`. |
 | `FIRMWARE_DIR` | for releases | Where firmware images are kept. Unset means an upload is refused rather than written somewhere nobody backs up. |
 | `CONSOLE_PUBLIC_URL` | for releases | The address a gadget reaches this console at, used to build a download URL. Unset means releases can be stored but none is delivered. |
 | `FIRMWARE_MAX_BYTES` | no | The largest image the console will store (8 MiB). |
@@ -64,7 +66,8 @@ owns 3000 on a development machine. It is set by the npm scripts, because
 | --- | --- |
 | `users`, `sessions` | Accounts (with their role), and the hash of each live session token. |
 | `runtimes` | A base URL, a credential, and the engines and languages it names. |
-| `agents` | Prompt, topics, answer mode, language, engine, runtime, and the LLM profile that answers it. |
+| `provider_profiles` | Built-in or account-owned `llm`, `stt` and `tts` endpoints: base URL, model, a TTS voice, an encrypted key, and the deployment-default flag. Built-ins are seeded and read-only. |
+| `agents` | Prompt, topics, answer mode, language, engine, runtime, the voice it may name, and its voice conversion. A device names one agent; the console presents agents as personalities. |
 | `llm_profiles` | An account's OpenAI-compatible endpoint: base URL, model, encrypted key, temperature. |
 | `devices` | A gadget: its identifier, its own secret, its owner, its agent, its partner, the tool catalogue its firmware reported, and what it reported about its own board. |
 | `firmware_releases` | A firmware image per board type and version, which one is its board type's target, and whether that target is forced. |
@@ -121,16 +124,22 @@ Every account is a `user` or an `admin`. A new account is a user.
 Admins do **not** see an account's LLM profiles or keys: those are the account's
 own credentials, not a gadget.
 
+An owner does not configure providers. The deployment publishes built-in `stt`,
+`tts` and `llm` profiles; an owner's turns use them, and the personality form
+offers no provider field. An administrator manages the built-ins with
+`npm run seed:providers` — the provider page lists them read-only — and an admin
+account may still configure its own speech settings for its own agents.
+
 ## Screens
 
 | Page | What it shows |
 | --- | --- |
-| `/` | Sign in, or create an account. Signed-in visitors are sent to their devices. |
-| `/devices` | The account's gadgets, the six-digit claim input, and a warning for a gadget with no agent. |
-| `/devices/[id]` | One gadget: identifier, agent, partner, last seen, the board its firmware reported and the release targeted for it, what it can do; rename, bind, pair, release; and its conversation record. |
-| `/agents` | The account's agents, and which devices each answers. |
-| `/agents/new`, `/agents/[id]` | The agent form: prompt, runtime, language, answer mode, topics, answering model. |
-| `/provider-profiles` | The account's speech settings — one transcriber and one voice, with a typed model and voice and a sample to hear — and its answering models (OpenAI-compatible endpoints). |
+| `/` | Sign in, or create an account. Signed-in visitors are sent to their home. |
+| `/devices` | The owner's home: the claim steps when there is nothing yet, then a card per gadget with its active personality, when it was last seen, and the switch to another personality. A claim awaiting an admin shows as a waiting step. |
+| `/devices/[id]` | One gadget: identifier, personality, partner, last seen, the board its firmware reported and the release targeted for it, what it can do; rename, bind, pair, release; and its conversation record. |
+| `/agents` | Personalities: cards with a plain description, language, voice, the gadgets each answers, a preview and a "use on a gadget" action. |
+| `/agents/new`, `/agents/[id]` | The personality form. A simple mode carries a name, a template or custom description, language and voice; Advanced adds the prompt, runtime, answer mode, topics and voice conversion. No provider field is offered to an owner. |
+| `/provider-profiles` | **Administrator only.** The deployment's built-in providers (read-only), the admin account's speech settings, and its answering models. A user gets the not-found page. |
 | `/help` | The guide: every step from unboxing to release, and what each common failure means. |
 | `/admin/devices`, `/admin/users`, `/admin/claims` | The admin area: every device, every account, and the requests waiting for a decision. Visible in the header only to an admin. |
 | `/admin/firmware` | The firmware releases, with an upload form, the target for each board type, and the controls that move or clear it. |
@@ -141,23 +150,22 @@ A walk through it, in order:
 
 1. Open `http://127.0.0.1:3001/` and create an account.
 2. Power a gadget. Its OTA answer carries a code; it shows and speaks the six digits.
-3. Enter the code on `/devices`. The gadget appears, with "chưa gán agent".
-4. On `/provider-profiles`, configure the transcriber and the voice, or leave them
-   on the deployment's default. `model` and `voice` are typed: the endpoint defines
-   what their names mean, and the sample button is how a name is checked.
-5. Create an agent on `/agents/new`: a name, a prompt, and the runtime it should be
-   answered by. The languages offered are that runtime's own; the answering model
-   may stay the runtime's default.
-6. Open the gadget, choose the agent, and save.
-7. Speak to the gadget. The turn appears under "Hội thoại" on its page, and the
-   tools the gadget declared appear under "Thiết bị này làm được".
-8. Releasing the gadget on the same page deletes that record and makes the gadget
+3. Enter the code on the home. That is a **request**: it waits for an admin's approval,
+   and the home says it is being reviewed.
+4. Once approved, the gadget appears. Choose a personality: pick a template or write
+   how it should talk, choose a language and a voice, and use "Hear it" before saving.
+5. The gadget answers with the chosen personality. Its card switches to another
+   personality at any time.
+6. Speak to the gadget. The turn appears under "Hội thoại" on its page, and the tools
+   the gadget declared appear under "Thiết bị này làm được".
+7. Releasing the gadget on the same page deletes that record and makes the gadget
    claimable again through a new code.
 
-A deployment default is a pre-fill and never a requirement: with none, the speech
-forms start empty and any OpenAI-compatible endpoint can be typed. Deleting every
-audio service the deployment runs therefore removes no user's ability to configure
-their own transcriber and voice — nothing on the console calls those services.
+The deployment provides the voices and the answering model. An owner types no
+endpoint, model or key: a template's values are copied onto the owner's own agent,
+and that agent answers on the deployment's built-ins. An administrator seeds those
+built-ins with `npm run seed:providers` and may configure the admin account's own
+speech settings; a user's browser has no route that edits a built-in.
 
 ## Voice conversion per agent
 
@@ -199,8 +207,11 @@ not-found answer.
 | `PATCH /api/devices/:id` | browser | Rename, bind an agent, pair a partner. |
 | `DELETE /api/devices/:id` | browser | Release the gadget. |
 | `GET /api/devices/:id/turns` | browser | Its conversation record, most recent first. |
-| `GET/POST /api/agents`, `PATCH/DELETE /api/agents/:id` | browser | Agents. |
-| `GET/POST /api/llm-profiles`, `PATCH/DELETE /api/llm-profiles/:id` | browser | An account's own models. The key is write-only. |
+| `GET/POST /api/agents`, `PATCH/DELETE /api/agents/:id` | browser | Personalities. An owner's save may name only a built-in profile; with none named, the route fills the deployment's built-ins. |
+| `POST /api/agents/voice-conversion/audition` | browser | Speak a short sample through the built-in (owner) or named (admin) TTS profile and the runtime's conversion; returns WAV. |
+| `GET/POST /api/provider-profiles`, `PATCH/DELETE /api/provider-profiles/:id` | admin | The deployment's built-ins (read-only) and the account's own provider profiles. |
+| `GET/PUT /api/provider-settings`, `POST /api/provider-settings/test` | admin | The account's speech settings and a test against the endpoint typed in the form. |
+| `GET/POST /api/llm-profiles`, `PATCH/DELETE /api/llm-profiles/:id` | admin | An account's own models. The key is write-only. |
 | `POST /api/claims` | browser | Enter the code the gadget shows; `202` while the request waits for an admin. |
 | `GET /api/claims` | browser | The account's requests still waiting. |
 | `PATCH/DELETE /api/admin/devices/:id` | admin | Act on any account's gadget. |
@@ -290,8 +301,8 @@ refused.
 
 `npm test` runs against `TEST_DATABASE_URL`, truncating between cases. The suite
 covers registration and sign-in, ownership scoping, agent validation, claiming
-(including two accounts racing for one code, approval, refusal and expiry), LLM
-profiles and their encryption,
+(including two accounts racing for one code, approval, refusal and expiry), provider
+profiles and their encryption, the provider seed,
 the bridge contract (resolution, activation, turns, tool catalogues), the admin
 area and its role rules, the guide's two languages, and retention.
 
@@ -301,8 +312,9 @@ area and its role rules, the guide's two languages, and retention.
 - No browser response carries a device secret, a runtime credential, or an LLM
   key. A profile's key is encrypted at rest (`LLM_KEY_SECRET`), read back only by
   the bridge's resolve route, and a browser is told only that one is set.
-- The voice is not configured here: a runtime resolves it from `(engine,
-  language)`, so an agent chooses those two and nothing else.
+- The voice is the profile's unless the agent names one; an owner picks from the
+  deployment's voices, and the agent's Advanced form and the profile settings are
+  administrator surfaces.
 - The admin area's own strings are kept out of the shared dictionary, so an
   ordinary account's page never carries them.
 

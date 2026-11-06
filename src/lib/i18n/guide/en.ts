@@ -15,7 +15,7 @@ export const enGuide: Guide = {
           items: [
             "An account on this console. Sign up with an email address and a password on the first screen.",
             "A gadget whose firmware points at your bridge, already joined to Wi-Fi.",
-            "A decision about the language it should speak — Vietnamese or English. That is chosen on the agent, not on the gadget.",
+            "A decision about the language it should speak — Vietnamese or English. That is chosen on the personality, not on the gadget.",
           ],
         },
         {
@@ -56,15 +56,15 @@ export const enGuide: Guide = {
         },
         {
           kind: "p",
-          text: "A user sees only their own things: their devices, their agents (prompt, topics and model), their own model connection, and their conversation record.",
+          text: "A user sees only their own things: their gadgets, their personalities — the prompt, language, voice and answer mode behind each — and their conversation record. A user does not configure providers: the deployment supplies the voices and the answering model.",
         },
         {
           kind: "p",
-          text: "An admin sees every account's devices — who owns each one, which agent answers it, and its conversation — and can rename, bind, pair or release any of them. An admin also sees every account with a count of its devices and agents, and decides the claim requests that are waiting.",
+          text: "An admin sees every account's devices — who owns each one, which personality answers it, and its conversation — and can rename, bind, pair or release any of them. An admin also sees every account with a count of its devices and personalities, decides the claim requests that are waiting, and manages the deployment's built-in providers with the deployment's seed command.",
         },
         {
           kind: "note",
-          text: "An admin does not see your model connection or its key. They can see which agent answers a device and bind one of yours to it, but they cannot open or change an agent's prompt, topics or model.",
+          text: "The console never shows a provider key in a browser. The deployment's built-ins are shared: the provider page lists them read-only, and changing one is a seed command, not a console action.",
         },
         {
           kind: "note",
@@ -85,9 +85,9 @@ export const enGuide: Guide = {
           items: [
             "Power the gadget on and let it join Wi-Fi.",
             "Read the six digits on its screen, or listen to them.",
-            "Open Devices, type the code into “The six digits on the gadget's screen”, and press Add.",
-            "Your request is recorded and shown under “Waiting for approval”. The gadget belongs to you once an admin approves it.",
-            "After it is approved, wake the gadget once more so it connects.",
+            "Open the home and type the code into the claim card, then press Add.",
+            "Your request is recorded and the home says it is waiting for an admin's approval. The gadget belongs to you once it is approved.",
+            "After it is approved, wake the gadget once more so it connects, then choose a personality for it.",
           ],
         },
         {
@@ -98,29 +98,31 @@ export const enGuide: Guide = {
     },
     {
       id: "agents",
-      title: "Agents: what a gadget says",
+      title: "Personalities: what a gadget says",
       blocks: [
         {
           kind: "p",
-          text: "Each gadget is answered by an agent. The agent holds the instructions the model is given, the language it is heard in, the answering model it uses, a voice of its own if you set one, and how it answers. The transcriber is the account's speech setting under Providers; an agent picks its answering model from the account's models, and may name a voice of its own instead of the account's.",
+          text: "Each gadget has one active personality at a time. A personality holds how it talks — a template or your own description — the language and the voice, and, under Advanced, the prompt, runtime, answer mode and topics. It answers on the deployment's built-in transcriber, voice and model; you do not configure a provider.",
         },
         {
           kind: "steps",
           items: [
-            "Open Agents and press “Create an agent”.",
-            "Give it a name, and write its prompt: the instructions the model receives before everything else.",
-            "Choose a runtime — where the turn is processed and answered. The languages offered below are that runtime's own.",
-            "Choose the language. The transcriber is configured once for the account under Providers.",
-            "Choose the “Answering model”: one of the account's models. There is no default, so this step is required.",
-            "Fill in “A voice of its own” if this agent should speak in a different voice from the account's. Left empty it uses the provider's voice; leaving the field checks the name against the provider.",
-            "Choose how it answers: “Generate a reply” for ordinary conversation, “Read from the material” when the agent should answer from loaded documents.",
-            "Fill in “Topics” if the agent should look things up: one topic per line. Left empty it looks nothing up — that is not the same as searching everything.",
-            "Open your device, choose the agent you just made, and press “Bind an agent”.",
+            "Open Personalities and press “Create a personality”.",
+            "Pick a starting point: a template, or “Something else” and a sentence describing how it should talk.",
+            "Give it a name and choose the language.",
+            "Choose a voice the deployment's speech service holds.",
+            "Press “Hear it” to hear the voice before saving.",
+            "Save it, then choose it on a gadget's card, or press “Use this personality” on the card.",
+            "“Advanced settings” opens the prompt, runtime, answer mode, topics and voice conversion — and still no provider field.",
           ],
         },
         {
           kind: "note",
-          text: "One agent can serve several devices. A device with no agent says nothing at all — it does not fall back to any default agent.",
+          text: "A template's prompt, language and voice are copied into your own personality; later changes to the template do not change the ones you already saved. One personality can serve several gadgets, but each gadget has exactly one active.",
+        },
+        {
+          kind: "note",
+          text: "A gadget with no personality says nothing at all — it does not fall back to any default. Its card offers the picker.",
         },
         {
           kind: "note",
@@ -130,65 +132,47 @@ export const enGuide: Guide = {
     },
     {
       id: "speech",
-      title: "The transcriber and the voice",
+      title: "Hearing and speaking: provided by the deployment",
       blocks: [
         {
           kind: "p",
-          text: "Your gadgets hear through one transcriber and speak through one voice, both configured by the account under Providers — unless an agent names a voice of its own. There is no default: unconfigured means the gadget can neither hear nor speak.",
+          text: "Your gadgets hear and speak through the deployment's speech service. You do not enter an endpoint, a model or a key; a personality only picks a voice.",
         },
         {
-          kind: "steps",
-          items: [
-            "Open Providers and fill the transcriber: the endpoint and the model, and a key only if the service needs one.",
-            "Fill the voice: the endpoint, the model and the voice name.",
-            "Press “Hear a sample” to check the voice before a gadget uses it.",
-            "Both forms are required. There is no deployment default to fall back to; an empty form means the turn fails at hearing or at speaking.",
-          ],
+          kind: "p",
+          text: "The deployment publishes a default transcriber and voice. If it publishes none, the personality form says the deployment has no model or voice, and an administrator must seed it.",
         },
         {
           kind: "note",
-          text: "The model and the voice are free text: `tts-1` and `alloy` are OpenAI's names, and every provider publishes its own. The endpoint defines what they mean, and the sample is how a name is checked. There is no default to lean on: every account brings its own transcriber and voice, and a kind left unconfigured makes the turn fail.",
-        },
-        {
-          kind: "note",
-          text: "Deleting every audio service a deployment runs takes nothing away from you: the forms still save an endpoint of your own, and a turn goes there. Nothing on this console calls a deployment audio service.",
+          text: "“Hear it” uses the same synthesis and voice conversion a turn uses, so what you hear is what the gadget will say.",
         },
         {
           kind: "error",
-          symptom: "“Hear a sample” fails, or the gadget says nothing.",
+          symptom: "“Hear it” fails, or the gadget says nothing.",
           cause:
-            "The endpoint, model or voice does not answer — a wrong address, a model the service does not hold, or a voice name it does not have.",
-          fix: "Check the endpoint (for a hosted provider it usually ends in /v1), the model and the voice. The sample reports the provider's own refusal.",
+            "The deployment's speech service is unreachable, or it does not hold the voice you picked.",
+          fix: "Pick another voice from the list; if every voice fails, ask an administrator to check the deployment's speech service.",
         },
       ],
     },
     {
       id: "model",
-      title: "The answering model: yours, with no default",
+      title: "The answering model: provided by the deployment",
       blocks: [
         {
           kind: "p",
-          text: "The agent form has an “Answering model” field, and it is required: there is no default to lean on, so an agent with no model is one that cannot answer. The model may be one you add, or a built-in the operator has provided.",
-        },
-        {
-          kind: "steps",
-          items: [
-            "To use your own model, open Providers and, under “Answering models”, press “Add a model”.",
-            "Enter the base URL of an OpenAI-compatible endpoint (for example https://api.openai.com/v1), the model, and an API key.",
-            "Temperature may be left empty, to use the provider's own default.",
-            "Return to the agent and choose the connection you just added in “Answering model”.",
-          ],
+          text: "The deployment supplies the model that answers. A personality does not ask you for an endpoint or a key; it uses the deployment's built-in answering model.",
         },
         {
           kind: "note",
-          text: "The key is stored encrypted and is never shown back in a browser. Deleting a connection leaves the agents using it with no answering model until you bind another.",
+          text: "An administrator manages the built-in providers with the deployment's seed command; the provider page lists them read-only. A user cannot reach that page.",
         },
         {
           kind: "error",
           symptom: "The gadget says it could not reach the model, and the turn has no answer.",
           cause:
-            "The model's endpoint did not answer — a wrong address, a network that cannot reach it, or a wrong key or model.",
-          fix: "Check the base URL (it usually ends in /v1), the model name, and the key. The turn is deliberately not answered by a different model.",
+            "The deployment's answering endpoint or key is wrong or unreachable, or no answering model is published.",
+          fix: "Ask an administrator to check the built-in model and re-seed it. The turn is deliberately not answered by a different model.",
         },
       ],
     },
@@ -342,14 +326,14 @@ export const enGuide: Guide = {
         {
           kind: "error",
           symptom: "The device was added, but it does not answer when spoken to.",
-          cause: "The device has no agent, so it has nothing to say.",
-          fix: "Create or choose an agent and bind it on the device's page.",
+          cause: "The device has no personality, so it has nothing to say.",
+          fix: "Create or choose a personality and select it on the device's card.",
         },
         {
           kind: "error",
           symptom: "You were sent back to the sign-in page while using it.",
           cause: "The session expired.",
-          fix: "Sign in again. Devices and agents are unaffected.",
+          fix: "Sign in again. Devices and personalities are unaffected.",
         },
       ],
     },
