@@ -134,6 +134,7 @@ export const vi = {
     heading: "Tính cách",
     empty: "Chưa có tính cách nào. Tạo một tính cách để cho thiết bị của bạn một giọng nói.",
     voiceIntro: "Chọn thiết bị, rồi ngôn ngữ và giọng nói. Hệ thống cung cấp engine và giọng mặc định cho từng ngôn ngữ.",
+    voiceIntroEdit: "Chọn ngôn ngữ và giọng nói. Hệ thống cung cấp engine và giọng mặc định cho từng ngôn ngữ.",
     setupTitle: "Thiết lập giọng nói",
     engine: "Engine giọng nói",
     create: "Tạo tính cách",

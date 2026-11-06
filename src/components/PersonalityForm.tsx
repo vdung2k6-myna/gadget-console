@@ -40,6 +40,8 @@ interface Props {
   defaults: PersonalityDefaults;
   gadgets: GadgetOption[];
   initialGadgetId?: string;
+  /** The setup form picks a gadget; the personality edit form does not. */
+  showGadgets?: boolean;
   agent?: AgentValue;
   isAdmin: boolean;
   onAdvanced?: () => void;
@@ -59,6 +61,7 @@ export function PersonalityForm({
   defaults,
   gadgets,
   initialGadgetId,
+  showGadgets = true,
   agent,
   isAdmin,
   onAdvanced,
@@ -87,7 +90,7 @@ export function PersonalityForm({
   const [previewError, setPreviewError] = useState("");
   const [previewPending, setPreviewPending] = useState(false);
 
-  const gadget = gadgets.find((entry) => entry.id === gadgetId);
+  const gadget = showGadgets ? gadgets.find((entry) => entry.id === gadgetId) : undefined;
   // The personality this form speaks for: the one being edited, or the chosen
   // gadget's active personality.
   const baseAgent = agent ?? gadget?.agent ?? undefined;
@@ -237,26 +240,30 @@ export function PersonalityForm({
 
   return (
     <form onSubmit={save} className="mt-3 max-w-xl">
-      <label className="mt-2 block text-sm">
-        {strings.personality.useOnGadget}
-        <select
-          className={field}
-          value={gadgetId}
-          onChange={(event) => chooseGadget(event.target.value)}
-        >
-          {gadgets.length === 0 ? (
-            <option value="">{strings.personality.answersNone}</option>
-          ) : (
-            gadgets.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))
-          )}
-        </select>
-      </label>
+      {showGadgets && (
+        <label className="mt-2 block text-sm">
+          {strings.personality.useOnGadget}
+          <select
+            className={field}
+            value={gadgetId}
+            onChange={(event) => chooseGadget(event.target.value)}
+          >
+            {gadgets.length === 0 ? (
+              <option value="">{strings.personality.answersNone}</option>
+            ) : (
+              gadgets.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
+      )}
 
-      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{strings.personality.voiceIntro}</p>
+      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+        {showGadgets ? strings.personality.voiceIntro : strings.personality.voiceIntroEdit}
+      </p>
 
       <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
         {strings.personality.engine}: <span className="font-mono">{DEFAULT_TTS_ENGINE}</span>

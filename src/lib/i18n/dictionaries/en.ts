@@ -133,6 +133,7 @@ export const en: Strings = {
     heading: "Personalities",
     empty: "No personalities yet. Create one to give your gadget a voice.",
     voiceIntro: "Choose the gadget, then a language and a voice. The deployment provides the engine and the default voice for each language.",
+    voiceIntroEdit: "Choose a language and a voice. The deployment provides the engine and the default voice for each language.",
     setupTitle: "Set up a voice",
     engine: "Voice engine",
     create: "Create a personality",

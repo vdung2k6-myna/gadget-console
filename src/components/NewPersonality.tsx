@@ -16,6 +16,7 @@ interface Props {
   defaults: PersonalityDefaults;
   gadgets: GadgetOption[];
   initialGadgetId?: string;
+  showGadgets?: boolean;
   agent?: AgentValue;
   isAdmin: boolean;
 }
@@ -34,6 +35,7 @@ export function NewPersonality({
   defaults,
   gadgets,
   initialGadgetId,
+  showGadgets,
   agent,
   isAdmin,
 }: Props) {
@@ -57,6 +59,7 @@ export function NewPersonality({
       defaults={defaults}
       gadgets={gadgets}
       initialGadgetId={initialGadgetId}
+      showGadgets={showGadgets}
       agent={agent}
       isAdmin={isAdmin}
       onAdvanced={() => setAdvanced(true)}
