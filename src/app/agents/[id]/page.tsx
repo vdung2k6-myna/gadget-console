@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { NewPersonality } from "@/components/NewPersonality";
 import { requireUser } from "@/lib/auth/require-user";
 import { ownAgent } from "@/lib/auth/ownership";
+import { listAgents } from "@/lib/agents";
 import { listOwnedDevices } from "@/lib/devices";
 import {
   defaultProviderProfile,
@@ -31,6 +32,33 @@ export default async function EditAgentPage({ params }: Params) {
   const profiles = (await listProviderProfiles(user.id)).map(publicProviderProfile);
   const ownedDevices = await listOwnedDevices(user.id);
   const devices = ownedDevices.filter((device) => device.agentId === agent.id);
+  const agents = await listAgents(user.id);
+  const agentById = new Map(agents.map((entry) => [entry.id, entry]));
+  const gadgets = ownedDevices.map((device) => {
+    const active = device.agentId === null ? undefined : agentById.get(device.agentId);
+    return {
+      id: device.id,
+      label: deviceLabel(device),
+      agentId: device.agentId,
+      agent:
+        active === undefined
+          ? null
+          : {
+              id: active.id,
+              name: active.name,
+              llmProfileId: active.llmProfileId,
+              sttProfileId: active.sttProfileId,
+              ttsProfileId: active.ttsProfileId,
+              voice: active.voice,
+              ovcConfig: active.ovcConfig,
+              systemPrompt: active.systemPrompt,
+              language: active.language,
+              runtimeId: active.runtimeId,
+              answerMode: active.answerMode,
+              topics: active.topics,
+            },
+    };
+  });
   const isAdmin = user.role === "admin";
   const fallback = (kind: "llm" | "stt" | "tts") =>
     isAdmin ? (profiles.find((profile) => profile.kind === kind)?.id ?? null) : null;
@@ -66,7 +94,7 @@ export default async function EditAgentPage({ params }: Params) {
           builtin: profile.builtin,
         }))}
         defaults={defaults}
-        devices={ownedDevices.map((device) => ({ id: device.id, label: deviceLabel(device) }))}
+        gadgets={gadgets}
         isAdmin={isAdmin}
         agent={{
           id: agent.id,

@@ -38,7 +38,7 @@ export const viGuide: Guide = {
           kind: "steps",
           items: [
             "Bật gadget và nhập sáu chữ số trên màn hình vào ô mã ở trang chủ. Quản trị viên sẽ duyệt yêu cầu; trong lúc chờ, trang chủ cho biết yêu cầu đang được xem xét.",
-            "Chọn ngôn ngữ và giọng nói. Giọng tự điền theo mặc định của ngôn ngữ; bấm “Nghe thử” trước khi lưu.",
+            "Chọn thiết bị, rồi ngôn ngữ và giọng nói. Giọng tự điền theo cấu hình thiết bị đang dùng; bấm “Nghe thử” trước khi lưu.",
             "Nghe thử bằng “Nghe thử”, rồi lưu. Mỗi gadget chỉ có một tính cách đang dùng, và có thể đổi ngay trên thẻ của nó.",
           ],
         },
@@ -108,16 +108,16 @@ export const viGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Mỗi thiết bị có một tính cách đang dùng tại một thời điểm. Nó trả lời bằng một ngôn ngữ và một giọng nói; hệ thống cung cấp engine và giọng mặc định cho từng ngôn ngữ — piper, với bryce cho tiếng Anh và vi_VN-vais1000-medium cho tiếng Việt. Bạn có thể nhập giọng khác và nghe thử trước khi lưu. Trong Cài đặt nâng cao là lời nhắc, tên, runtime, cách trả lời, chủ đề và chuyển giọng — không bao giờ là nhà cung cấp.",
+          text: "Mỗi thiết bị có một tính cách đang dùng tại một thời điểm. Form bắt đầu bằng thiết bị: chọn thiết bị sẽ nạp giọng nó đang dùng. Nó trả lời bằng một ngôn ngữ và một giọng nói; hệ thống cung cấp engine và giọng mặc định cho từng ngôn ngữ — piper, với bryce cho tiếng Anh và vi_VN-vais1000-medium cho tiếng Việt. Bạn có thể nhập giọng khác và nghe thử trước khi lưu. Trong Cài đặt nâng cao là lời nhắc, tên, runtime, cách trả lời, chủ đề và chuyển giọng — không bao giờ là nhà cung cấp.",
         },
         {
           kind: "steps",
           items: [
-            "Vào mục Tính cách, bấm “Tạo tính cách”.",
-            "Chọn ngôn ngữ. Giọng tự điền theo mặc định của ngôn ngữ đó.",
+            "Vào mục Tính cách, bấm “Thiết lập giọng nói”.",
+            "Chọn thiết bị; ngôn ngữ và giọng của nó được nạp.",
             "Nhập giọng khác nếu hệ thống có.",
             "Bấm “Nghe thử” để nghe giọng trước khi lưu.",
-            "Lưu lại, rồi chọn nó trên thẻ của thiết bị, hoặc bấm “Dùng tính cách này” trên thẻ.",
+            "Lưu lại. Tính cách được gán cho thiết bị đó.",
             "Gadget sẽ dùng tính cách mới từ lần kết nối tiếp theo — đánh thức nó để áp dụng ngay.",
             "“Cài đặt nâng cao” mở tên, lời nhắc, runtime, cách trả lời, chủ đề và chuyển giọng — và vẫn không có ô nhà cung cấp.",
           ],

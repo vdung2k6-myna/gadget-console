@@ -133,7 +133,8 @@ export const vi = {
   personality: {
     heading: "Tính cách",
     empty: "Chưa có tính cách nào. Tạo một tính cách để cho thiết bị của bạn một giọng nói.",
-    voiceIntro: "Chọn ngôn ngữ và giọng nói. Hệ thống cung cấp cả hai — hãy nghe thử trước khi lưu.",
+    voiceIntro: "Chọn thiết bị, rồi ngôn ngữ và giọng nói. Hệ thống cung cấp engine và giọng mặc định cho từng ngôn ngữ.",
+    setupTitle: "Thiết lập giọng nói",
     engine: "Engine giọng nói",
     create: "Tạo tính cách",
     name: "Tên",
@@ -158,6 +159,7 @@ export const vi = {
     change: "Đổi tính cách",
     switchTo: "Dùng tính cách này",
     appliesOnReconnect: "Thiết bị sẽ dùng cấu hình này từ lần kết nối tiếp theo — đánh thức nó để áp dụng ngay.",
+    assignFailed: "Đã lưu tính cách nhưng chưa gán được cho thiết bị:",
     none: "không có",
   },
 

@@ -6,6 +6,7 @@ import {
   listProviderProfiles,
   publicProviderProfile,
 } from "@/lib/provider-profiles";
+import { listAgents } from "@/lib/agents";
 import { listOwnedDevices } from "@/lib/devices";
 import { listRuntimes } from "@/lib/runtimes";
 import { deviceLabel } from "@/lib/ui/format";
@@ -21,6 +22,33 @@ export default async function NewAgentPage() {
   const runtimes = await listRuntimes();
   const profiles = (await listProviderProfiles(user.id)).map(publicProviderProfile);
   const devices = await listOwnedDevices(user.id);
+  const agents = await listAgents(user.id);
+  const agentById = new Map(agents.map((entry) => [entry.id, entry]));
+  const gadgets = devices.map((device) => {
+    const active = device.agentId === null ? undefined : agentById.get(device.agentId);
+    return {
+      id: device.id,
+      label: deviceLabel(device),
+      agentId: device.agentId,
+      agent:
+        active === undefined
+          ? null
+          : {
+              id: active.id,
+              name: active.name,
+              llmProfileId: active.llmProfileId,
+              sttProfileId: active.sttProfileId,
+              ttsProfileId: active.ttsProfileId,
+              voice: active.voice,
+              ovcConfig: active.ovcConfig,
+              systemPrompt: active.systemPrompt,
+              language: active.language,
+              runtimeId: active.runtimeId,
+              answerMode: active.answerMode,
+              topics: active.topics,
+            },
+    };
+  });
   const isAdmin = user.role === "admin";
 
   // The simple form answers on the deployment's built-in defaults. An
@@ -39,7 +67,7 @@ export default async function NewAgentPage() {
       <Link href="/agents" className="text-sm text-zinc-600 hover:underline dark:text-zinc-400">
         ← {strings.common.back}
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold">{strings.personality.create}</h1>
+      <h1 className="mt-2 text-2xl font-semibold">{strings.personality.setupTitle}</h1>
       <NewPersonality
         runtimes={runtimes.map((runtime) => ({
           id: runtime.id,
@@ -53,7 +81,7 @@ export default async function NewAgentPage() {
           builtin: profile.builtin,
         }))}
         defaults={defaults}
-        devices={devices.map((device) => ({ id: device.id, label: deviceLabel(device) }))}
+        gadgets={gadgets}
         isAdmin={isAdmin}
       />
     </main>

@@ -132,7 +132,8 @@ export const en: Strings = {
   personality: {
     heading: "Personalities",
     empty: "No personalities yet. Create one to give your gadget a voice.",
-    voiceIntro: "Choose a language and a voice. The deployment provides both — hear it before saving.",
+    voiceIntro: "Choose the gadget, then a language and a voice. The deployment provides the engine and the default voice for each language.",
+    setupTitle: "Set up a voice",
     engine: "Voice engine",
     create: "Create a personality",
     name: "Name",
@@ -157,6 +158,7 @@ export const en: Strings = {
     change: "Change personality",
     switchTo: "Use this personality",
     appliesOnReconnect: "The gadget uses this from its next connection — wake it to apply now.",
+    assignFailed: "The personality was saved, but the gadget could not be assigned:",
     none: "none",
   },
 

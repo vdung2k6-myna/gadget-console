@@ -613,9 +613,9 @@ refusing the report, and the bridge's log says why.
 
 The remaining steps are product, not infrastructure: create the first account, grant it admin
 (`npm run role -- <email> admin`), seed the runtime and the built-in providers (§9), let a gadget
-receive its activation code and claim it, then as the owner choose a language and a voice
-(defaults: bryce in English, vi_VN-vais1000-medium in Vietnamese), hear it and save. An admin
-approves the claim at `/admin/claims`.
+receive its activation code and claim it, then as the owner choose the gadget, its language and
+voice (defaults: bryce in English, vi_VN-vais1000-medium in Vietnamese), hear it and save. An
+admin approves the claim at `/admin/claims`.
 
 ## What this document still does not cover
 
