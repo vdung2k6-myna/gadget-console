@@ -132,12 +132,10 @@ export const vi = {
 
   personality: {
     heading: "Tính cách",
-    empty: "Chưa có tính cách nào. Chọn một tính cách để cho thiết bị của bạn một giọng nói.",
+    empty: "Chưa có tính cách nào. Tạo một tính cách để cho thiết bị của bạn một giọng nói.",
+    voiceIntro: "Chọn ngôn ngữ và giọng nói. Hệ thống cung cấp cả hai — hãy nghe thử trước khi lưu.",
+    engine: "Engine giọng nói",
     create: "Tạo tính cách",
-    templateHeading: "Chọn điểm bắt đầu",
-    custom: "Tự nhập",
-    customHeading: "Bạn muốn nó nói như thế nào?",
-    customPlaceholder: "Một gia sư kiên nhẫn, hay đặt câu hỏi và trả lời ngắn gọn.",
     name: "Tên",
     language: "Ngôn ngữ",
     voice: "Giọng nói",

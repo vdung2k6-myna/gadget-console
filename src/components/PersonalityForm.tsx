@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 
 import { sendJson } from "@/lib/ui/client";
 import {
-  PERSONALITY_TEMPLATES,
-  findPersonalityTemplate,
-} from "@/lib/personality-templates";
+  DEFAULT_TTS_ENGINE,
+  defaultNameFor,
+  defaultPromptFor,
+  defaultVoiceFor,
+} from "@/lib/voice-defaults";
 import type { AgentValue, RuntimeOption } from "./AgentForm";
 import { useStrings } from "./LocaleProvider";
 
@@ -33,33 +35,21 @@ interface Props {
 }
 
 /**
- * The owner's form: pick a starting point, name it, choose a language and a
- * voice, listen, save. No provider, no runtime, no slider.
+ * The owner's form: a language, a voice and a preview.
  *
- * The template is copied into an agent — its prompt, language and voice — and
- * the agent is saved on the deployment's built-in providers. The advanced form
- * stays one click away for an administrator, and for the rare owner who wants
- * the prompt or the conversion settings.
+ * The deployment provides the engine and the default voice for each language
+ * (`piper`; `bryce` in English, `vi_VN-vais1000-medium` in Vietnamese). The
+ * owner may type another voice, hears it before saving, and never meets a
+ * provider, a model or a key. The prompt and the rest of the definition are
+ * behind Advanced.
  */
 export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced }: Props) {
   const strings = useStrings();
   const router = useRouter();
   const editing = agent !== undefined;
 
-  const firstTemplate = PERSONALITY_TEMPLATES[0];
-  const [templateId, setTemplateId] = useState<string>(
-    editing ? "custom" : (firstTemplate?.id ?? "custom")
-  );
-  const template = templateId === "custom" ? undefined : findPersonalityTemplate(templateId);
-
-  const initialRuntime =
-    runtimes.find((runtime) => runtime.name === template?.runtimeName) ?? runtimes[0];
-  const [name, setName] = useState(agent?.name ?? firstTemplate?.name ?? "");
-  const [personality, setPersonality] = useState(editing ? agent.systemPrompt : "");
-  const [language, setLanguage] = useState(
-    agent?.language ?? firstTemplate?.language ?? initialRuntime?.languages[0] ?? "english"
-  );
-  const [voice, setVoice] = useState(agent?.voice ?? firstTemplate?.voice ?? "");
+  const [language, setLanguage] = useState(agent?.language ?? "english");
+  const [voice, setVoice] = useState(agent?.voice ?? defaultVoiceFor(agent?.language ?? "english"));
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -67,14 +57,14 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
   const [previewPending, setPreviewPending] = useState(false);
 
   const runtime = useMemo(
-    () => runtimes.find((entry) => entry.name === template?.runtimeName) ?? runtimes[0],
-    [runtimes, template]
+    () => runtimes.find((entry) => entry.id === agent?.runtimeId) ?? runtimes[0],
+    [runtimes, agent?.runtimeId]
   );
   const languages = runtime?.languages ?? [];
-  const voiceChoices = useMemo(() => {
-    const values = new Set(PERSONALITY_TEMPLATES.map((entry) => entry.voice));
-    return [...values];
-  }, []);
+  const voiceChoices = useMemo(
+    () => [defaultVoiceFor("english"), defaultVoiceFor("vietnamese")],
+    []
+  );
 
   useEffect(() => {
     return () => {
@@ -82,21 +72,15 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
     };
   }, [previewUrl]);
 
-  function chooseTemplate(id: string): void {
-    setTemplateId(id);
+  function chooseLanguage(next: string): void {
+    setLanguage(next);
+    // The default follows the language; the owner can still type another voice.
+    setVoice(defaultVoiceFor(next));
     setMessage(null);
-    const next = findPersonalityTemplate(id);
-    if (next === undefined) return;
-    setName(next.name);
-    setLanguage(next.language);
-    setVoice(next.voice);
-    if (runtime !== undefined && !runtime.languages.includes(next.language)) {
-      setLanguage(runtime.languages[0] ?? next.language);
-    }
   }
 
-  async function preview(voiceOverride?: string, ovcOverride?: unknown): Promise<void> {
-    const previewVoice = (voiceOverride ?? voice).trim();
+  async function preview(): Promise<void> {
+    const previewVoice = voice.trim();
     if (previewVoice === "") {
       setPreviewError(strings.personality.previewFailed);
       return;
@@ -111,12 +95,9 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
           runtimeId: runtime?.id ?? "",
           ttsProfileId: isAdmin ? (agent?.ttsProfileId ?? defaults.tts) : defaults.tts,
           voice: previewVoice,
-          ...(ovcOverride === undefined && template?.ovc === undefined
-            ? {}
-            : { ovc: ovcOverride ?? template?.ovc }),
           text:
             language === "vietnamese"
-              ? "Xin chào, đây là giọng nói của bạn."
+              ? "Xin chào, đây là giọng nói của tôi."
               : "Hello, this is how I sound.",
         }),
       });
@@ -138,12 +119,7 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
 
   async function save(event: React.FormEvent): Promise<void> {
     event.preventDefault();
-    const prompt = template?.prompt ?? personality.trim();
-    if (prompt === "" || name.trim() === "") {
-      setMessage({ tone: "error", text: strings.personality.refused });
-      return;
-    }
-    if (runtime === undefined) {
+    if (runtime === undefined || languages.length === 0) {
       setMessage({ tone: "error", text: strings.personality.noRuntime });
       return;
     }
@@ -155,18 +131,18 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
     setPending(true);
     setMessage(null);
     const body = {
-      name: name.trim(),
-      systemPrompt: prompt,
+      // A personality created here has a neutral name and prompt for its
+      // language; both stay editable under Advanced.
+      name: agent?.name ?? defaultNameFor(language),
+      systemPrompt: agent?.systemPrompt ?? defaultPromptFor(language),
       runtimeId: runtime.id,
       language,
       answerMode: agent?.answerMode ?? "generate",
-      // An owner answers on the deployment's built-ins. An administrator keeps
-      // whatever the advanced form chose.
       llmProfileId: isAdmin ? (agent?.llmProfileId ?? defaults.llm) : defaults.llm,
       sttProfileId: isAdmin ? (agent?.sttProfileId ?? defaults.stt) : defaults.stt,
       ttsProfileId: isAdmin ? (agent?.ttsProfileId ?? defaults.tts) : defaults.tts,
       voice: voice.trim() === "" ? null : voice.trim(),
-      ovcConfig: template?.ovc ?? agent?.ovcConfig ?? null,
+      ovcConfig: agent?.ovcConfig ?? null,
       topics: agent?.topics ?? [],
     };
 
@@ -193,87 +169,19 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
   }
 
   return (
-    <form onSubmit={save} className="mt-4 max-w-2xl">
-      {!editing && (
-        <fieldset className="mt-2">
-          <legend className="text-sm font-medium">{strings.personality.templateHeading}</legend>
-          <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            {PERSONALITY_TEMPLATES.map((entry) => {
-              const selected = entry.id === templateId;
-              return (
-                <div
-                  key={entry.id}
-                  className={`rounded border p-3 ${
-                    selected
-                      ? "border-zinc-900 dark:border-zinc-100"
-                      : "border-zinc-200 dark:border-zinc-800"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => chooseTemplate(entry.id)}
-                    className="text-left"
-                  >
-                    <span className="block text-sm font-medium">{entry.name}</span>
-                    <span className="mt-1 block text-xs text-zinc-600 dark:text-zinc-400">
-                      {entry.description}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="mt-2 text-xs underline"
-                    disabled={previewPending}
-                    onClick={() => void preview(entry.voice)}
-                  >
-                    {previewPending ? strings.personality.previewing : strings.personality.preview}
-                  </button>
-                </div>
-              );
-            })}
-            <div
-              className={`rounded border p-3 ${
-                templateId === "custom"
-                  ? "border-zinc-900 dark:border-zinc-100"
-                  : "border-zinc-200 dark:border-zinc-800"
-              }`}
-            >
-              <button type="button" onClick={() => chooseTemplate("custom")} className="text-left">
-                <span className="block text-sm font-medium">{strings.personality.custom}</span>
-              </button>
-            </div>
-          </div>
-        </fieldset>
-      )}
+    <form onSubmit={save} className="mt-3 max-w-xl">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">{strings.personality.voiceIntro}</p>
 
-      <label className="mt-4 block text-sm">
-        {strings.personality.name}
-        <input
-          className={field}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          required
-        />
-      </label>
-
-      {templateId === "custom" && (
-        <label className="mt-3 block text-sm">
-          {strings.personality.customHeading}
-          <textarea
-            className={`${field} min-h-32`}
-            value={personality}
-            onChange={(event) => setPersonality(event.target.value)}
-            placeholder={strings.personality.customPlaceholder}
-            required
-          />
-        </label>
-      )}
+      <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+        {strings.personality.engine}: <span className="font-mono">{DEFAULT_TTS_ENGINE}</span>
+      </p>
 
       <label className="mt-3 block text-sm">
         {strings.personality.language}
         <select
           className={field}
           value={languages.includes(language) ? language : (languages[0] ?? "")}
-          onChange={(event) => setLanguage(event.target.value)}
+          onChange={(event) => chooseLanguage(event.target.value)}
         >
           {languages.map((entry) => (
             <option key={entry} value={entry}>
@@ -286,9 +194,12 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
       <label className="mt-3 block text-sm">
         {strings.personality.voice}
         <input
-          className={field}
+          className={`${field} font-mono`}
           value={voice}
-          onChange={(event) => setVoice(event.target.value)}
+          onChange={(event) => {
+            setVoice(event.target.value);
+            setPreviewError("");
+          }}
           list="personality-voices"
         />
         <datalist id="personality-voices">
@@ -301,7 +212,7 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
         </span>
       </label>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button type="button" className={secondary} disabled={previewPending} onClick={() => void preview()}>
           {previewPending ? strings.personality.previewing : strings.personality.preview}
         </button>

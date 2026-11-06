@@ -131,12 +131,10 @@ export const en: Strings = {
 
   personality: {
     heading: "Personalities",
-    empty: "No personalities yet. Pick one to give your gadget a voice.",
+    empty: "No personalities yet. Create one to give your gadget a voice.",
+    voiceIntro: "Choose a language and a voice. The deployment provides both — hear it before saving.",
+    engine: "Voice engine",
     create: "Create a personality",
-    templateHeading: "Choose a starting point",
-    custom: "Something else",
-    customHeading: "How should it talk?",
-    customPlaceholder: "A patient tutor who asks questions and keeps answers short.",
     name: "Name",
     language: "Language",
     voice: "Voice",

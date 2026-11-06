@@ -613,8 +613,9 @@ refusing the report, and the bridge's log says why.
 
 The remaining steps are product, not infrastructure: create the first account, grant it admin
 (`npm run role -- <email> admin`), seed the runtime and the built-in providers (§9), let a gadget
-receive its activation code and claim it, then as the owner choose a personality — a template or a
-custom description — hear its voice and save. An admin approves the claim at `/admin/claims`.
+receive its activation code and claim it, then as the owner choose a language and a voice
+(defaults: bryce in English, vi_VN-vais1000-medium in Vietnamese), hear it and save. An admin
+approves the claim at `/admin/claims`.
 
 ## What this document still does not cover
 
@@ -623,5 +624,5 @@ custom description — hear its voice and save. An admin approves the claim at `
 - The GPU driver and the container toolkit are prerequisites on the speech host, and one L4 host
   carries the whole speech tier. The provisioning above installs them; a host without the driver
   falls back to CPU conversion, which is slow enough to notice.
-- Admin-authored personality templates are not part of this deployment: the catalog ships in code
-  and a change to it is a release.
+- A personality created from the console has a neutral name and prompt for its language; the
+  owner edits them under Advanced.

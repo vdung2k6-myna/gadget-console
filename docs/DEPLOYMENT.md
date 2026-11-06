@@ -156,8 +156,9 @@ what a replacement host mounts.
 
 3. Claim a gadget through the activation code its OTA answer carries; an admin approves it at
    `/admin/claims`.
-4. As the owner, open the home, choose a personality (a template or a custom description), pick a
-   language and a voice, use "Hear it", and save.
+4. As the owner, open the home, choose a personality: choose the language and the voice
+   (defaults: piper; bryce in English, vi_VN-vais1000-medium in Vietnamese), use "Hear it", and
+   save.
 5. Speak to the gadget. The turn reaches the runtime over loopback, the built-in providers answer,
    and the record names them.
 

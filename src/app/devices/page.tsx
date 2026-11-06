@@ -71,7 +71,7 @@ export default async function DevicesPage() {
                 {agent === undefined ? (
                   <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
                     {strings.home.noPersonality}{" "}
-                    <Link href={`/devices/${device.id}`} className="underline">
+                    <Link href="/agents" className="underline">
                       {strings.home.nextPersonality}
                     </Link>
                   </p>

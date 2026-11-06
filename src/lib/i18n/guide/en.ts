@@ -32,7 +32,7 @@ export const enGuide: Guide = {
           kind: "steps",
           items: [
             "Turn the gadget on and type the six digits it shows into the code box on the home. An admin approves the claim; while it waits, the home says it is being reviewed.",
-            "Choose how it talks: pick a personality from the list, or write a sentence describing how it should talk.",
+            "Choose the language and the voice. The voice fills with the deployment's default for that language; press “Hear it” before saving.",
             "Listen to the voice with “Hear it”, then save. A gadget has one active personality at a time, and its card can switch it whenever you like.",
           ],
         },
@@ -102,23 +102,22 @@ export const enGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Each gadget has one active personality at a time. A personality holds how it talks — a template or your own description — the language and the voice, and, under Advanced, the prompt, runtime, answer mode and topics. It answers on the deployment's built-in transcriber, voice and model; you do not configure a provider.",
+          text: "Each gadget has one active personality at a time. It answers in a language and a voice; the deployment provides the engine and a default voice for each language — piper, with bryce in English and vi_VN-vais1000-medium in Vietnamese. You may type another voice and hear it before saving. Under Advanced are the prompt, name, runtime, answer mode, topics and voice conversion — never a provider.",
         },
         {
           kind: "steps",
           items: [
             "Open Personalities and press “Create a personality”.",
-            "Pick a starting point: a template, or “Something else” and a sentence describing how it should talk.",
-            "Give it a name and choose the language.",
-            "Choose a voice the deployment's speech service holds.",
+            "Choose the language; the voice fills with its default.",
+            "Type another voice if the deployment holds one.",
             "Press “Hear it” to hear the voice before saving.",
             "Save it, then choose it on a gadget's card, or press “Use this personality” on the card.",
-            "“Advanced settings” opens the prompt, runtime, answer mode, topics and voice conversion — and still no provider field.",
+            "“Advanced settings” opens the name, prompt, runtime, answer mode, topics and voice conversion — and still no provider field.",
           ],
         },
         {
           kind: "note",
-          text: "A template's prompt, language and voice are copied into your own personality; later changes to the template do not change the ones you already saved. One personality can serve several gadgets, but each gadget has exactly one active.",
+          text: "A personality created here has a neutral name and prompt for its language; both are editable under Advanced. One personality can serve several gadgets, but each gadget has exactly one active.",
         },
         {
           kind: "note",

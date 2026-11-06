@@ -38,7 +38,7 @@ export const viGuide: Guide = {
           kind: "steps",
           items: [
             "Bật gadget và nhập sáu chữ số trên màn hình vào ô mã ở trang chủ. Quản trị viên sẽ duyệt yêu cầu; trong lúc chờ, trang chủ cho biết yêu cầu đang được xem xét.",
-            "Chọn cách nó nói: chọn một tính cách trong danh sách, hoặc viết một câu mô tả cách nó nên nói.",
+            "Chọn ngôn ngữ và giọng nói. Giọng tự điền theo mặc định của ngôn ngữ; bấm “Nghe thử” trước khi lưu.",
             "Nghe thử bằng “Nghe thử”, rồi lưu. Mỗi gadget chỉ có một tính cách đang dùng, và có thể đổi ngay trên thẻ của nó.",
           ],
         },
@@ -108,23 +108,22 @@ export const viGuide: Guide = {
       blocks: [
         {
           kind: "p",
-          text: "Mỗi thiết bị có một tính cách đang dùng tại một thời điểm. Tính cách giữ cách nó nói — một mẫu hoặc mô tả của bạn — ngôn ngữ và giọng nói, và trong Cài đặt nâng cao là lời nhắc, runtime, cách trả lời và chủ đề. Nó trả lời bằng bộ chuyển giọng, giọng nói và model tích hợp của hệ thống; bạn không cấu hình nhà cung cấp.",
+          text: "Mỗi thiết bị có một tính cách đang dùng tại một thời điểm. Nó trả lời bằng một ngôn ngữ và một giọng nói; hệ thống cung cấp engine và giọng mặc định cho từng ngôn ngữ — piper, với bryce cho tiếng Anh và vi_VN-vais1000-medium cho tiếng Việt. Bạn có thể nhập giọng khác và nghe thử trước khi lưu. Trong Cài đặt nâng cao là lời nhắc, tên, runtime, cách trả lời, chủ đề và chuyển giọng — không bao giờ là nhà cung cấp.",
         },
         {
           kind: "steps",
           items: [
             "Vào mục Tính cách, bấm “Tạo tính cách”.",
-            "Chọn điểm bắt đầu: một mẫu, hoặc “Tự nhập” và một câu mô tả cách nó nên nói.",
-            "Đặt tên và chọn ngôn ngữ.",
-            "Chọn một giọng mà dịch vụ giọng nói của hệ thống có.",
+            "Chọn ngôn ngữ. Giọng tự điền theo mặc định của ngôn ngữ đó.",
+            "Nhập giọng khác nếu hệ thống có.",
             "Bấm “Nghe thử” để nghe giọng trước khi lưu.",
             "Lưu lại, rồi chọn nó trên thẻ của thiết bị, hoặc bấm “Dùng tính cách này” trên thẻ.",
-            "“Cài đặt nâng cao” mở lời nhắc, runtime, cách trả lời, chủ đề và chuyển giọng — và vẫn không có ô nhà cung cấp.",
+            "“Cài đặt nâng cao” mở tên, lời nhắc, runtime, cách trả lời, chủ đề và chuyển giọng — và vẫn không có ô nhà cung cấp.",
           ],
         },
         {
           kind: "note",
-          text: "Lời nhắc, ngôn ngữ và giọng của mẫu được sao vào tính cách của bạn; sửa mẫu sau đó không đổi những gì đã lưu. Một tính cách có thể dùng cho nhiều thiết bị, nhưng mỗi thiết bị chỉ có một tính cách đang dùng.",
+          text: "Một tính cách tạo ở đây có tên và lời nhắc trung tính theo ngôn ngữ; sửa chúng trong Cài đặt nâng cao. Một tính cách có thể dùng cho nhiều thiết bị, nhưng mỗi thiết bị chỉ có một tính cách đang dùng.",
         },
         {
           kind: "note",
