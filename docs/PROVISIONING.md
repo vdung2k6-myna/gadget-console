@@ -519,6 +519,13 @@ VOICE_AGENT_OVC_FORMANT_SHIFT=10
 VOICE_AGENT_OVC_F0_METHOD=rmvpe
 ```
 
+Also add these lines to the `api.env` heredoc inside `/usr/local/bin/gadget-secrets.sh`.
+That script rewrites `/etc/gadget/api.env` at every boot, so a line added only to the file is
+silently dropped when the host is stopped and started again — the deployment then reports
+`configured: false` and every reply, including the console's audition, is the provider's own
+voice. After changing the script, append the lines to the running file (or re-run the script)
+and restart `gadget-api`.
+
 Add the host to `ops.local.json` so a session starts, stops and reports it:
 
 ```json
