@@ -36,19 +36,28 @@ function SignIn() {
     event.preventDefault();
     setPending(true);
     setError("");
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    if (response.ok) {
-      router.push("/devices");
-      router.refresh();
-      return;
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (response.ok) {
+        // Clear the pending state before navigating: the sign-in form is a
+        // client component, and a later return to it (after signing out) can
+        // reuse this instance. Leaving it pending disables the button.
+        setPending(false);
+        router.push("/devices");
+        router.refresh();
+        return;
+      }
+      setError(strings.signIn.failed);
+    } catch {
+      setError(strings.signIn.failed);
+    } finally {
+      setPending(false);
     }
-    setPending(false);
-    setError(strings.signIn.failed);
   }
 
   return (
@@ -100,20 +109,26 @@ function SignUp() {
     event.preventDefault();
     setPending(true);
     setError("");
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    if (response.ok) {
-      router.push("/devices");
-      router.refresh();
-      return;
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (response.ok) {
+        setPending(false);
+        router.push("/devices");
+        router.refresh();
+        return;
+      }
+      const body = (await response.json().catch(() => ({}))) as { error?: unknown };
+      setError(typeof body.error === "string" ? body.error : strings.signUp.failed);
+    } catch {
+      setError(strings.signUp.failed);
+    } finally {
+      setPending(false);
     }
-    setPending(false);
-    const body = (await response.json().catch(() => ({}))) as { error?: unknown };
-    setError(typeof body.error === "string" ? body.error : strings.signUp.failed);
   }
 
   return (
