@@ -50,7 +50,7 @@ export function NewPersonality({
    * Switch between the personality form and the full form as two screens, and
    * start the chosen one at its top. Without this, "Advanced settings" pressed
    * at the bottom of the form leaves you at the bottom of a long form, with the
-   * way back to the personality out of sight.
+   * control that closes it out of sight.
    */
   function show(next: boolean): void {
     setAdvanced(next);

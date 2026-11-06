@@ -148,7 +148,7 @@ export const en: Strings = {
     saving: "Saving…",
     saved: "Saved.",
     advanced: "Advanced settings",
-    simple: "← Back to the personality",
+    simple: "Close advanced settings",
     noModel: "Ask your administrator to enable a model.",
     noRuntime: "An administrator must set up the runtime first.",
     refused: "The personality was refused:",

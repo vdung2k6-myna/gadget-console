@@ -149,7 +149,7 @@ export const vi = {
     saving: "Đang lưu…",
     saved: "Đã lưu.",
     advanced: "Cài đặt nâng cao",
-    simple: "← Quay lại tính cách",
+    simple: "Đóng cài đặt nâng cao",
     noModel: "Hãy nhờ quản trị viên bật một mô hình.",
     noRuntime: "Quản trị viên cần thiết lập runtime trước.",
     refused: "Tính cách bị từ chối:",
