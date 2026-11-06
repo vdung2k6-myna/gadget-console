@@ -76,6 +76,7 @@ export default async function AgentsPage() {
                       : answered.map((entry) => entry.label).join(", ")}
                   </dd>
                 </dl>
+                <UseOnGadget agentId={agent.id} devices={devices.map((device) => ({ id: device.id, label: deviceLabel(device) }))} />
                 <PersonalityPreview
                   runtimeId={agent.runtimeId}
                   ttsProfileId={agent.ttsProfileId}
@@ -83,7 +84,6 @@ export default async function AgentsPage() {
                   language={agent.language}
                   ovcConfig={agent.ovcConfig}
                 />
-                <UseOnGadget agentId={agent.id} devices={devices.map((device) => ({ id: device.id, label: deviceLabel(device) }))} />
               </li>
             );
           })}
