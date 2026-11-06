@@ -10,7 +10,7 @@ import {
   OVC_EFFECT_KEYS,
   type AgentVoiceConversion,
 } from "@/lib/agent-voice-conversion";
-import { rehearsalTextFor } from "@/lib/voice-defaults";
+import { defaultNameFor, defaultPromptFor, rehearsalTextFor } from "@/lib/voice-defaults";
 import { useStrings } from "./LocaleProvider";
 
 const field =
@@ -119,10 +119,13 @@ export function AgentForm({ runtimes, profiles, agent, isAdmin }: Props) {
   const router = useRouter();
   const editing = agent !== undefined;
 
-  const [name, setName] = useState(agent?.name ?? "");
-  const [systemPrompt, setSystemPrompt] = useState(agent?.systemPrompt ?? "");
+  const initialLanguage = agent?.language ?? runtimes[0]?.languages[0] ?? "";
+  const [name, setName] = useState(agent?.name ?? defaultNameFor(initialLanguage));
+  const [systemPrompt, setSystemPrompt] = useState(
+    agent?.systemPrompt ?? defaultPromptFor(initialLanguage)
+  );
   const [runtimeId, setRuntimeId] = useState(agent?.runtimeId ?? runtimes[0]?.id ?? "");
-  const [language, setLanguage] = useState(agent?.language ?? runtimes[0]?.languages[0] ?? "");
+  const [language, setLanguage] = useState(initialLanguage);
   const llmProfiles = profiles.filter((profile) => profile.kind === "llm");
   const builtinLlm = llmProfiles.find((profile) => profile.builtin);
   // No empty option and no default: an agent that names no model has nothing to
@@ -583,7 +586,14 @@ export function AgentForm({ runtimes, profiles, agent, isAdmin }: Props) {
           className={field}
           value={language}
           onChange={(event) => {
-            setLanguage(event.target.value);
+            const next = event.target.value;
+            // The default name and prompt follow the language until the owner
+            // edits them; a typed value is never overwritten.
+            if (!editing && name === defaultNameFor(language)) setName(defaultNameFor(next));
+            if (!editing && systemPrompt === defaultPromptFor(language)) {
+              setSystemPrompt(defaultPromptFor(next));
+            }
+            setLanguage(next);
             // The voice this agent names may not be one the provider holds for
             // the language it now speaks; ask the provider again, as the
             // settings page does, rather than let a turn discover it.
