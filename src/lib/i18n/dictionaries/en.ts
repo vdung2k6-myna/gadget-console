@@ -158,6 +158,7 @@ export const en: Strings = {
     change: "Change personality",
     switchTo: "Use this personality",
     appliesOnReconnect: "The gadget uses this from its next connection — wake it to apply now.",
+    noSavedVoice: "no voice yet — hearing this personality",
     assignFailed: "The personality was saved, but the gadget could not be assigned:",
     none: "none",
   },

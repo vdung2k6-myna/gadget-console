@@ -3,8 +3,7 @@ import { listAgents } from "@/lib/agents";
 import { requireUser } from "@/lib/auth/require-user";
 import { listOwnedDevices } from "@/lib/devices";
 import { listProviderProfiles, publicProviderProfile } from "@/lib/provider-profiles";
-import { PersonalityPreview } from "@/components/PersonalityPreview";
-import { UseOnGadget } from "@/components/UseOnGadget";
+import { PersonalityCardVoice } from "@/components/PersonalityCardVoice";
 import { deviceLabel } from "@/lib/ui/format";
 import { getStrings } from "@/lib/i18n/locale";
 
@@ -23,6 +22,32 @@ export default async function AgentsPage() {
   const user = await requireUser();
   const agents = await listAgents(user.id);
   const devices = await listOwnedDevices(user.id);
+  const agentById = new Map(agents.map((entry) => [entry.id, entry]));
+  const gadgets = devices.map((device) => {
+    const active = device.agentId === null ? undefined : agentById.get(device.agentId);
+    return {
+      id: device.id,
+      label: deviceLabel(device),
+      agentId: device.agentId,
+      agent:
+        active === undefined
+          ? null
+          : {
+              id: active.id,
+              name: active.name,
+              llmProfileId: active.llmProfileId,
+              sttProfileId: active.sttProfileId,
+              ttsProfileId: active.ttsProfileId,
+              voice: active.voice,
+              ovcConfig: active.ovcConfig,
+              systemPrompt: active.systemPrompt,
+              language: active.language,
+              runtimeId: active.runtimeId,
+              answerMode: active.answerMode,
+              topics: active.topics,
+            },
+    };
+  });
   const voiceOf = new Map(
     (await listProviderProfiles(user.id))
       .map(publicProviderProfile)
@@ -76,13 +101,22 @@ export default async function AgentsPage() {
                       : answered.map((entry) => entry.label).join(", ")}
                   </dd>
                 </dl>
-                <UseOnGadget agentId={agent.id} devices={devices.map((device) => ({ id: device.id, label: deviceLabel(device) }))} />
-                <PersonalityPreview
-                  runtimeId={agent.runtimeId}
-                  ttsProfileId={agent.ttsProfileId}
-                  voice={agent.voice}
-                  language={agent.language}
-                  ovcConfig={agent.ovcConfig}
+                <PersonalityCardVoice
+                  gadgets={gadgets}
+                  agent={{
+                    id: agent.id,
+                    name: agent.name,
+                    llmProfileId: agent.llmProfileId,
+                    sttProfileId: agent.sttProfileId,
+                    ttsProfileId: agent.ttsProfileId,
+                    voice: agent.voice,
+                    ovcConfig: agent.ovcConfig,
+                    systemPrompt: agent.systemPrompt,
+                    language: agent.language,
+                    runtimeId: agent.runtimeId,
+                    answerMode: agent.answerMode,
+                    topics: agent.topics,
+                  }}
                 />
               </li>
             );

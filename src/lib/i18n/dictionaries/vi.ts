@@ -159,6 +159,7 @@ export const vi = {
     change: "Đổi tính cách",
     switchTo: "Dùng tính cách này",
     appliesOnReconnect: "Thiết bị sẽ dùng cấu hình này từ lần kết nối tiếp theo — đánh thức nó để áp dụng ngay.",
+    noSavedVoice: "chưa có giọng — đang nghe tính cách này",
     assignFailed: "Đã lưu tính cách nhưng chưa gán được cho thiết bị:",
     none: "không có",
   },
