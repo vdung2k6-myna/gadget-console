@@ -39,6 +39,7 @@ interface Props {
   runtimes: RuntimeOption[];
   defaults: PersonalityDefaults;
   gadgets: GadgetOption[];
+  initialGadgetId?: string;
   agent?: AgentValue;
   isAdmin: boolean;
   onAdvanced?: () => void;
@@ -53,13 +54,24 @@ interface Props {
  * deployment provides the engine and a default voice per language; the owner may
  * type another, hears it, and never meets a provider or a key.
  */
-export function PersonalityForm({ runtimes, defaults, gadgets, agent, isAdmin, onAdvanced }: Props) {
+export function PersonalityForm({
+  runtimes,
+  defaults,
+  gadgets,
+  initialGadgetId,
+  agent,
+  isAdmin,
+  onAdvanced,
+}: Props) {
   const strings = useStrings();
   const router = useRouter();
   const editing = agent !== undefined;
 
   const initialGadget =
     (agent === undefined ? undefined : gadgets.find((entry) => entry.agentId === agent.id)) ??
+    (initialGadgetId === undefined
+      ? undefined
+      : gadgets.find((entry) => entry.id === initialGadgetId)) ??
     gadgets[0];
   const initialAgent = agent ?? initialGadget?.agent ?? undefined;
 

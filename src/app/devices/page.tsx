@@ -86,6 +86,12 @@ export default async function DevicesPage() {
                     </span>
                   </p>
                 )}
+                <Link
+                  href={`/agents/new?gadget=${device.id}`}
+                  className="mt-2 inline-block text-xs underline"
+                >
+                  {strings.personality.setupTitle}
+                </Link>
                 <DevicePersonality
                   deviceId={device.id}
                   agentId={device.agentId}

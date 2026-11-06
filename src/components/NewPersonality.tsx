@@ -15,6 +15,7 @@ interface Props {
   profiles: ProfileOption[];
   defaults: PersonalityDefaults;
   gadgets: GadgetOption[];
+  initialGadgetId?: string;
   agent?: AgentValue;
   isAdmin: boolean;
 }
@@ -27,7 +28,15 @@ interface Props {
  * agent route does that, so hiding the advanced button would not be the
  * boundary.
  */
-export function NewPersonality({ runtimes, profiles, defaults, gadgets, agent, isAdmin }: Props) {
+export function NewPersonality({
+  runtimes,
+  profiles,
+  defaults,
+  gadgets,
+  initialGadgetId,
+  agent,
+  isAdmin,
+}: Props) {
   const strings = useStrings();
   const [advanced, setAdvanced] = useState(false);
 
@@ -47,6 +56,7 @@ export function NewPersonality({ runtimes, profiles, defaults, gadgets, agent, i
       runtimes={runtimes}
       defaults={defaults}
       gadgets={gadgets}
+      initialGadgetId={initialGadgetId}
       agent={agent}
       isAdmin={isAdmin}
       onAdvanced={() => setAdvanced(true)}

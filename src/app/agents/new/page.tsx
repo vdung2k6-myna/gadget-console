@@ -16,7 +16,12 @@ import { getStrings } from "@/lib/i18n/locale";
 // to prerender, and blocking is what an authenticated page does.
 export const instant = false;
 
-export default async function NewAgentPage() {
+export default async function NewAgentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ gadget?: string }>;
+}) {
+  const { gadget } = await searchParams;
   const { strings } = await getStrings();
   const user = await requireUser();
   const runtimes = await listRuntimes();
@@ -82,6 +87,7 @@ export default async function NewAgentPage() {
         }))}
         defaults={defaults}
         gadgets={gadgets}
+        initialGadgetId={typeof gadget === "string" ? gadget : undefined}
         isAdmin={isAdmin}
       />
     </main>
