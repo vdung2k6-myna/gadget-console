@@ -18,6 +18,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const validation = await validateAgentDraft(body, user.id, {
     allowCustomProfiles: user.role === "admin",
+    agentId: id,
   });
   if (!validation.ok) return NextResponse.json({ errors: validation.errors }, { status: 400 });
 

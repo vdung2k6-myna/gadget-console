@@ -170,6 +170,9 @@ export const en: Strings = {
     sharedHint: "This gadget shares its personality with other gadgets. A change to the voice conversion settings creates a copy for this gadget; the others keep theirs.",
     sharedWith: "Shared with other gadgets.",
     assignFailed: "The personality was saved, but the gadget could not be assigned:",
+    delete: "Delete this personality",
+    deleteConfirm:
+      "Delete this personality? Every device it answers will be left with no personality, and will say nothing until another is assigned.",
     none: "none",
   },
 

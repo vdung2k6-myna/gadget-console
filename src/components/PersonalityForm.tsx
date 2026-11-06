@@ -24,6 +24,8 @@ const primary =
   "rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
 const secondary =
   "rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900";
+const danger =
+  "mt-4 rounded border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950";
 
 export interface PersonalityDefaults {
   llm: string | null;
@@ -190,6 +192,21 @@ export function PersonalityForm({
     } finally {
       setPreviewPending(false);
     }
+  }
+
+  async function remove(): Promise<void> {
+    if (agent === undefined) return;
+    if (!window.confirm(strings.personality.deleteConfirm)) return;
+    setPending(true);
+    setMessage(null);
+    const answer = await sendJson(`/api/agents/${agent.id}`, undefined, "DELETE");
+    setPending(false);
+    if (!answer.ok) {
+      setMessage({ tone: "error", text: answer.message || strings.common.unexpected });
+      return;
+    }
+    router.push("/agents");
+    router.refresh();
   }
 
   async function save(event: React.FormEvent): Promise<void> {
@@ -401,6 +418,11 @@ export function PersonalityForm({
       )}
       {message !== null && message.tone === "error" && (
         <p className="mt-3 text-sm text-red-700 dark:text-red-300">{message.text}</p>
+      )}
+      {agent !== undefined && (
+        <button type="button" className={danger} disabled={pending} onClick={() => void remove()}>
+          {strings.personality.delete}
+        </button>
       )}
       {savedAgentId !== null && message?.tone === "ok" && (
         <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">

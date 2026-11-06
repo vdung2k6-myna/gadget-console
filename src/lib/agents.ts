@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { agents, devices } from "@/lib/db/schema";
 import {
@@ -53,7 +53,7 @@ export type AgentValidation =
 export async function validateAgentDraft(
   input: unknown,
   userId: string,
-  options: { allowCustomProfiles?: boolean } = {}
+  options: { allowCustomProfiles?: boolean; agentId?: string } = {}
 ): Promise<AgentValidation> {
   const allowCustomProfiles = options.allowCustomProfiles ?? true;
 
@@ -64,7 +64,25 @@ export async function validateAgentDraft(
   const errors: string[] = [];
 
   const name = text(body.name);
-  if (name === "") errors.push("a name is required");
+  if (name === "") {
+    errors.push("a name is required");
+  } else {
+    // Names are the owner's labels: unique per account, ignoring case, and the
+    // personality being edited does not count as its own duplicate.
+    const conditions = [
+      eq(agents.userId, userId),
+      sql`lower(${agents.name}) = lower(${name})`,
+    ];
+    if (options.agentId !== undefined) conditions.push(ne(agents.id, options.agentId));
+    const duplicate = await getDb()
+      .select({ id: agents.id })
+      .from(agents)
+      .where(and(...conditions))
+      .limit(1);
+    if (duplicate.length > 0) {
+      errors.push(`a personality named ${JSON.stringify(name)} already exists`);
+    }
+  }
 
   const runtimeId = text(body.runtimeId);
   let runtime: Runtime | undefined;

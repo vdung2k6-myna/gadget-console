@@ -171,6 +171,9 @@ export const vi = {
     sharedHint: "Thiết bị này dùng chung tính cách với các thiết bị khác. Thay đổi cài đặt chuyển giọng sẽ tạo bản sao cho thiết bị này; các thiết bị khác giữ nguyên.",
     sharedWith: "Dùng chung với các thiết bị khác.",
     assignFailed: "Đã lưu tính cách nhưng chưa gán được cho thiết bị:",
+    delete: "Xoá tính cách này",
+    deleteConfirm:
+      "Xoá tính cách này? Mọi thiết bị nó đang trả lời sẽ không còn tính cách, và sẽ không nói được cho tới khi bạn chọn tính cách khác.",
     none: "không có",
   },
 

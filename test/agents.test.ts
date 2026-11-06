@@ -270,3 +270,22 @@ describe("pairing", () => {
     assert.equal(rows.find((row) => row.id === two.id)?.partnerDeviceId, null);
   });
 });
+
+describe("personality names", () => {
+  it("are unique per account, ignoring case, and an edit keeps its own name", async () => {
+    const ann = await account("ann@example.com");
+    const rt = await runtime();
+    const first = await validateAgentDraft(draft(rt.id), ann.id);
+    if (!first.ok) throw new Error(`draft should be valid: ${first.errors.join("; ")}`);
+    const agent = await createAgent(ann.id, first.draft);
+
+    const duplicate = await validateAgentDraft(draft(rt.id, { name: "ASSISTANT" }), ann.id);
+    assert.equal(duplicate.ok, false);
+    if (!duplicate.ok) {
+      assert.ok(duplicate.errors.some((error) => error.includes("already exists")));
+    }
+
+    const same = await validateAgentDraft(draft(rt.id), ann.id, { agentId: agent.id });
+    assert.equal(same.ok, true, "an edit that keeps its own name is not a duplicate");
+  });
+});
