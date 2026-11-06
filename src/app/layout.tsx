@@ -57,9 +57,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   <Link href="/provider-profiles" className="hover:underline">
                     {strings.nav.providers}
                   </Link>
-                  <Link href="/llm-profiles" className="hover:underline">
-                    {strings.llmProfiles.heading}
-                  </Link>
                 </>
               )}
               <Link href="/help" className="hover:underline">
