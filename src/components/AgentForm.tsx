@@ -10,6 +10,7 @@ import {
   OVC_EFFECT_KEYS,
   type AgentVoiceConversion,
 } from "@/lib/agent-voice-conversion";
+import { rehearsalTextFor } from "@/lib/voice-defaults";
 import { useStrings } from "./LocaleProvider";
 
 const field =
@@ -418,10 +419,7 @@ export function AgentForm({ runtimes, profiles, agent, isAdmin }: Props) {
           runtimeId,
           ttsProfileId,
           ...(previewConversion === null ? {} : { ovc: previewConversion }),
-          text:
-            language === "vietnamese"
-              ? "Xin chào, đây là giọng nói thử nghiệm."
-              : "Hello, this is how this voice sounds.",
+          text: rehearsalTextFor(language),
         }),
       });
       if (!response.ok) {

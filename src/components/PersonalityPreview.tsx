@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { rehearsalTextFor } from "@/lib/voice-defaults";
 import { useStrings } from "./LocaleProvider";
 
 /**
@@ -41,10 +42,7 @@ export function PersonalityPreview({
           runtimeId,
           ...(ttsProfileId === null ? {} : { ttsProfileId }),
           ...(voice === null || voice.trim() === "" ? {} : { voice }),
-          text:
-            language === "vietnamese"
-              ? "Xin chào, đây là giọng nói của tôi."
-              : "Hello, this is how I sound.",
+          text: rehearsalTextFor(language),
         }),
       });
       if (!response.ok) {

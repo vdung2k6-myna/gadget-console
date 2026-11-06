@@ -6,6 +6,7 @@ import {
   defaultNameFor,
   defaultPromptFor,
   defaultVoiceFor,
+  rehearsalTextFor,
 } from "../src/lib/voice-defaults";
 
 describe("the voice defaults", () => {
@@ -14,6 +15,12 @@ describe("the voice defaults", () => {
     assert.equal(defaultVoiceFor("english"), "bryce");
     assert.equal(defaultVoiceFor("vietnamese"), "vi_VN-vais1000-medium");
     assert.equal(defaultVoiceFor("anything else"), "bryce", "an unknown language falls back to English");
+  });
+
+  it("speaks the rehearsal in the language chosen", () => {
+    assert.match(rehearsalTextFor("english"), /Hello/);
+    assert.match(rehearsalTextFor("vietnamese"), /Xin chào/);
+    assert.notEqual(rehearsalTextFor("english"), rehearsalTextFor("vietnamese"));
   });
 
   it("has a name and a prompt for each language", () => {

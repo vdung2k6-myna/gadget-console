@@ -40,3 +40,10 @@ export function defaultNameFor(language: string): string {
 export function defaultPromptFor(language: string): string {
   return DEFAULT_PROMPT_BY_LANGUAGE[asLanguage(language)];
 }
+
+/** The sample a preview speaks: the language it is in, not the console's. */
+export function rehearsalTextFor(language: string): string {
+  return asLanguage(language) === "vietnamese"
+    ? "Xin chào, đây là giọng nói của tôi."
+    : "Hello, this is how I sound.";
+}

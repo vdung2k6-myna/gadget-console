@@ -9,6 +9,7 @@ import {
   defaultNameFor,
   defaultPromptFor,
   defaultVoiceFor,
+  rehearsalTextFor,
 } from "@/lib/voice-defaults";
 import type { AgentValue, RuntimeOption } from "./AgentForm";
 import { useStrings } from "./LocaleProvider";
@@ -95,10 +96,7 @@ export function PersonalityForm({ runtimes, defaults, agent, isAdmin, onAdvanced
           runtimeId: runtime?.id ?? "",
           ttsProfileId: isAdmin ? (agent?.ttsProfileId ?? defaults.tts) : defaults.tts,
           voice: previewVoice,
-          text:
-            language === "vietnamese"
-              ? "Xin chào, đây là giọng nói của tôi."
-              : "Hello, this is how I sound.",
+          text: rehearsalTextFor(language),
         }),
       });
       if (!response.ok) {
