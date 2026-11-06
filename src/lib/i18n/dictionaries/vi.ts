@@ -223,6 +223,11 @@ export const vi = {
     ovcModelInactive: "chưa hoạt động",
     ovcModelUnreachable: "không kết nối được",
     ovcSettingsUnavailable: "Không đọc được thiết lập của triển khai",
+    ovcAudition: "Nghe thử giọng này",
+    ovcAuditionPending: "Đang chuẩn bị giọng…",
+    ovcAuditionHint:
+      "Phát một câu mẫu ngắn qua hồ sơ TTS của agent với các thiết lập ở trên.",
+    ovcAuditionFailed: "Không phát được giọng",
     ovcCustom: "Tạo hình tuỳ chỉnh",
     ovcPreset: "Mẫu",
     ovcPresetCustom: "Tuỳ chỉnh",

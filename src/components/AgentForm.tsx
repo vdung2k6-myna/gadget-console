@@ -157,6 +157,9 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
     config: RuntimeConversionConfig | null;
     error: string;
   }>({ runtimeId: "", config: null, error: "" });
+  const [auditionPending, setAuditionPending] = useState(false);
+  const [auditionError, setAuditionError] = useState("");
+  const [auditionUrl, setAuditionUrl] = useState("");
 
   // The deployment's settings live on the runtime, not here; read them for the
   // effective table. The answer carries the runtime it belongs to, so a runtime
@@ -378,6 +381,55 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
             ? `${runtimeConfig.activeModel} · ${strings.agentForm.ovcModelActive}`
             : `${runtimeConfig.model} · ${strings.agentForm.ovcModelInactive}`
           : `${runtimeConfig.model} · ${strings.agentForm.ovcModelUnreachable}`;
+
+  // A new audition replaces the previous recording; the old blob is revoked with
+  // the element that played it, and again when the form unmounts.
+  useEffect(() => {
+    return () => {
+      if (auditionUrl !== "") URL.revokeObjectURL(auditionUrl);
+    };
+  }, [auditionUrl]);
+
+  /**
+   * Speak a sample through the agent's TTS profile, converted with what the
+   * rehearsal shows.
+   *
+   * Inherit sends no `ovc` field, so the runtime applies the deployment's
+   * shaping; off and custom send exactly what a turn would. The profile's key and
+   * the runtime's token stay on the server; the browser only receives WAV.
+   */
+  async function auditionVoice(): Promise<void> {
+    setAuditionPending(true);
+    setAuditionError("");
+    try {
+      const response = await fetch("/api/agents/voice-conversion/audition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          runtimeId,
+          ttsProfileId,
+          ...(previewConversion === null ? {} : { ovc: previewConversion }),
+          text:
+            language === "vietnamese"
+              ? "Xin chào, đây là giọng nói thử nghiệm."
+              : "Hello, this is how this voice sounds.",
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${response.status}`);
+      }
+      setAuditionUrl(URL.createObjectURL(await response.blob()));
+    } catch (error) {
+      setAuditionError(
+        error instanceof Error && error.message !== ""
+          ? error.message
+          : strings.agentForm.ovcAuditionFailed
+      );
+    } finally {
+      setAuditionPending(false);
+    }
+  }
 
   /** Ask the account's TTS provider whether it holds this voice. */
   async function checkVoice(value: string): Promise<void> {
@@ -842,6 +894,27 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
                 </table>
               </div>
             </div>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void auditionVoice()}
+              disabled={auditionPending || runtimeId === ""}
+              className="rounded border border-zinc-900 px-3 py-1.5 text-sm font-medium text-zinc-900 disabled:opacity-50 dark:border-zinc-100 dark:text-zinc-100"
+            >
+              {auditionPending
+                ? strings.agentForm.ovcAuditionPending
+                : `🔊 ${strings.agentForm.ovcAudition}`}
+            </button>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              {strings.agentForm.ovcAuditionHint}
+            </span>
+          </div>
+          {auditionUrl !== "" && (
+            <audio key={auditionUrl} controls autoPlay src={auditionUrl} className="mt-2 w-full" />
+          )}
+          {auditionError !== "" && (
+            <p className="mt-2 text-xs text-red-700 dark:text-red-300">{auditionError}</p>
           )}
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             {strings.agentForm.ovcRehearsalHint}

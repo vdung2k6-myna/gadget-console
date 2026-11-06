@@ -222,6 +222,11 @@ export const en: Strings = {
     ovcModelInactive: "inactive",
     ovcModelUnreachable: "unreachable",
     ovcSettingsUnavailable: "Deployment settings are unavailable",
+    ovcAudition: "Hear this voice",
+    ovcAuditionPending: "Preparing the voice…",
+    ovcAuditionHint:
+      "Speaks a short sample through this agent's TTS profile with the settings above.",
+    ovcAuditionFailed: "The voice could not be played",
     ovcCustom: "Custom shaping",
     ovcPreset: "Preset",
     ovcPresetCustom: "Custom",
