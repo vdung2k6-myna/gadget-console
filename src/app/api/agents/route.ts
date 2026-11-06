@@ -19,7 +19,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ errors: ["the body must be JSON"] }, { status: 400 });
   }
 
-  const validation = await validateAgentDraft(body, user.id);
+  const validation = await validateAgentDraft(body, user.id, {
+    allowCustomProfiles: user.role === "admin",
+  });
   if (!validation.ok) return NextResponse.json({ errors: validation.errors }, { status: 400 });
 
   return NextResponse.json({ agent: await createAgent(user.id, validation.draft) }, { status: 201 });

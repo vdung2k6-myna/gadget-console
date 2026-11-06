@@ -31,6 +31,28 @@ export const viGuide: Guide = {
       ],
     },
     {
+      id: "setup",
+      title: "Thiết lập gadget của bạn",
+      blocks: [
+        {
+          kind: "steps",
+          items: [
+            "Bật gadget và nhập sáu chữ số trên màn hình vào ô mã ở trang chủ. Quản trị viên sẽ duyệt yêu cầu; trong lúc chờ, trang chủ cho biết yêu cầu đang được xem xét.",
+            "Chọn cách nó nói: chọn một tính cách trong danh sách, hoặc viết một câu mô tả cách nó nên nói.",
+            "Nghe thử bằng “Nghe thử”, rồi lưu. Mỗi gadget chỉ có một tính cách đang dùng, và có thể đổi ngay trên thẻ của nó.",
+          ],
+        },
+        {
+          kind: "note",
+          text: "Giọng nói và mô hình trả lời do hệ thống này cung cấp. Bạn không cần API key, địa chỉ endpoint hay tên mô hình.",
+        },
+        {
+          kind: "note",
+          text: "Nếu “Nghe thử” báo giọng nói bị từ chối, dịch vụ giọng nói của hệ thống không có giọng đó. Hãy chọn giọng khác hoặc nhờ quản trị viên.",
+        },
+      ],
+    },
+    {
       id: "roles",
       title: "Tài khoản, và ai nhìn thấy gì",
       blocks: [

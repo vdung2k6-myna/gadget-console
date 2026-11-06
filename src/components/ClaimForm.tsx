@@ -18,6 +18,7 @@ export function ClaimForm() {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
+  const [waiting, setWaiting] = useState<string | null>(null);
 
   async function claim(event: React.FormEvent) {
     event.preventDefault();
@@ -29,10 +30,14 @@ export function ClaimForm() {
 
     if (answer.ok) {
       setCode("");
-      setMessage({
-        tone: "ok",
-        text: answer.status === 202 ? strings.devices.claimPending : strings.devices.claimOk,
-      });
+      if (answer.status === 202) {
+        const device = (answer.data as { device?: { name?: string; deviceId?: string } } | undefined)
+          ?.device;
+        setWaiting(device?.name ?? device?.deviceId ?? "");
+        router.refresh();
+        return;
+      }
+      setMessage({ tone: "ok", text: strings.devices.claimOk });
       router.refresh();
       return;
     }
@@ -41,6 +46,18 @@ export function ClaimForm() {
       tone: "error",
       text: key === null ? answer.message || strings.common.unexpected : strings.devices[key],
     });
+  }
+
+  if (waiting !== null) {
+    return (
+      <section className="mt-6 rounded border border-amber-300 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950">
+        <h2 className="text-base font-semibold text-amber-900 dark:text-amber-100">
+          {strings.devices.pendingHeading}
+        </h2>
+        <p className="mt-1 text-sm text-amber-900 dark:text-amber-100">{strings.home.waiting}</p>
+        {waiting !== "" && <p className="mt-2 font-mono text-xs text-amber-900 dark:text-amber-100">{waiting}</p>}
+      </section>
+    );
   }
 
   return (

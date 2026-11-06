@@ -10,8 +10,7 @@ before(() => requireTestDatabase());
 beforeEach(resetDb);
 after(closeDb);
 
-const SEED = JSON.stringify([
-  {
+const SEED = JSON.stringify([  {
     kind: "tts",
     name: "house-voice",
     baseUrl: "http://localhost:8082",
@@ -34,6 +33,9 @@ const SEED = JSON.stringify([
     default: true,
   },
 ]);
+
+/** A fixed 32-byte key, so the tests never depend on the developer's `.env`. */
+const LLM_KEY = Buffer.alloc(32, 7).toString("base64");
 
 /**
  * Run the seed against the test database.
@@ -111,5 +113,87 @@ describe("the provider seed", () => {
       1,
       "a provider the list no longer names is not deleted"
     );
+  });
+
+  it("publishes an llm built-in with an encrypted key and never prints it", async () => {
+    const key = "sk-test-secret-value-that-must-not-appear";
+    const payload = JSON.stringify([
+      {
+        kind: "llm",
+        name: "house-model",
+        baseUrl: "https://llm.example/v1",
+        model: "model-1",
+        apiKey: key,
+        temperature: 0.4,
+        default: true,
+      },
+    ]);
+
+    const output = seed({ PROVIDER_SEED: payload, LLM_KEY_SECRET: LLM_KEY });
+    const seeded = await rows();
+
+    assert.equal(seeded.length, 1);
+    assert.equal(seeded[0]!.kind, "llm");
+    assert.equal(seeded[0]!.builtin, true);
+    assert.equal(seeded[0]!.isDefault, true);
+    assert.equal(seeded[0]!.temperature, 0.4);
+    assert.match(seeded[0]!.encryptedKey, /^v1:/, "the key is stored in the secret box's format");
+    assert.equal(seeded[0]!.encryptedKey.includes(key), false, "the stored value is not the key");
+    assert.equal(output.includes(key), false, "no log line contains the key");
+  });
+
+  it("refuses a key or a temperature on the wrong kind", async () => {
+    const keyOnTts = JSON.stringify([
+      { kind: "tts", name: "x", baseUrl: "http://localhost:8082", model: "m", voice: "v", apiKey: "k" },
+    ]);
+    assert.throws(
+      () => seed({ PROVIDER_SEED: keyOnTts, LLM_KEY_SECRET: LLM_KEY }),
+      /apiKey is only allowed/
+    );
+
+    const badTemperature = JSON.stringify([
+      { kind: "llm", name: "x", baseUrl: "https://llm.example/v1", model: "m", temperature: 3 },
+    ]);
+    assert.throws(
+      () => seed({ PROVIDER_SEED: badTemperature, LLM_KEY_SECRET: LLM_KEY }),
+      /temperature must be a number from 0 to 2/
+    );
+
+    assert.equal((await rows()).length, 0, "a refused list writes nothing");
+  });
+
+  it("keeps an llm built-in's stored key when a re-run names none", async () => {
+    const key = "sk-test-secret-value";
+    seed({
+      PROVIDER_SEED: JSON.stringify([
+        {
+          kind: "llm",
+          name: "house-model",
+          baseUrl: "https://llm.example/v1",
+          model: "model-1",
+          apiKey: key,
+          default: true,
+        },
+      ]),
+      LLM_KEY_SECRET: LLM_KEY,
+    });
+    const [first] = await rows();
+
+    seed({
+      PROVIDER_SEED: JSON.stringify([
+        {
+          kind: "llm",
+          name: "house-model",
+          baseUrl: "https://llm.example/v1",
+          model: "model-2",
+          default: true,
+        },
+      ]),
+      LLM_KEY_SECRET: LLM_KEY,
+    });
+    const [second] = await rows();
+
+    assert.equal(second!.model, "model-2");
+    assert.equal(second!.encryptedKey, first!.encryptedKey, "a re-run without a key keeps it");
   });
 });

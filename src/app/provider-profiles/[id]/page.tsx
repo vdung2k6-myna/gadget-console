@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ProviderProfileForm } from "@/components/ProviderProfileForm";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireAdmin } from "@/lib/auth/admin";
 import { findProviderProfile, publicProviderProfile } from "@/lib/provider-profiles";
 import { getStrings } from "@/lib/i18n/locale";
 
@@ -15,7 +15,7 @@ type Params = { params: Promise<{ id: string }> };
 export default async function EditProviderProfilePage({ params }: Params) {
   const { id } = await params;
   const { strings } = await getStrings();
-  const user = await requireUser();
+  const user = await requireAdmin();
 
   const row = await findProviderProfile(user.id, id);
   // A built-in is visible but not this account's to change, another account's

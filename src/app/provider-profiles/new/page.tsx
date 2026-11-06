@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ProviderProfileForm } from "@/components/ProviderProfileForm";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireAdmin } from "@/lib/auth/admin";
 import { getStrings } from "@/lib/i18n/locale";
 
 // Every screen reads the session and the database per request; there is nothing
@@ -10,7 +10,7 @@ export const instant = false;
 
 export default async function NewProviderProfilePage() {
   const { strings } = await getStrings();
-  await requireUser();
+  await requireAdmin();
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">

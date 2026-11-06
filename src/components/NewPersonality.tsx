@@ -1,0 +1,49 @@
+"use client";
+
+import { useState } from "react";
+
+import { AgentForm, type AgentValue, type ProfileOption, type RuntimeOption } from "./AgentForm";
+import { PersonalityForm, type PersonalityDefaults } from "./PersonalityForm";
+import { useStrings } from "./LocaleProvider";
+
+interface Props {
+  runtimes: RuntimeOption[];
+  profiles: ProfileOption[];
+  defaults: PersonalityDefaults;
+  agent?: AgentValue;
+  isAdmin: boolean;
+}
+
+/**
+ * The simple form first, the full form behind "Advanced".
+ *
+ * Both write the same agent through the same route; the toggle only decides
+ * which fields are offered. Nothing here decides what an owner may name — the
+ * agent route does that, so hiding the advanced button would not be the
+ * boundary.
+ */
+export function NewPersonality({ runtimes, profiles, defaults, agent, isAdmin }: Props) {
+  const strings = useStrings();
+  const [advanced, setAdvanced] = useState(false);
+
+  if (advanced) {
+    return (
+      <div className="mt-4">
+        <button type="button" className="text-sm underline" onClick={() => setAdvanced(false)}>
+          {strings.personality.simple}
+        </button>
+        <AgentForm runtimes={runtimes} profiles={profiles} agent={agent} isAdmin={isAdmin} />
+      </div>
+    );
+  }
+
+  return (
+    <PersonalityForm
+      runtimes={runtimes}
+      defaults={defaults}
+      agent={agent}
+      isAdmin={isAdmin}
+      onAdvanced={() => setAdvanced(true)}
+    />
+  );
+}

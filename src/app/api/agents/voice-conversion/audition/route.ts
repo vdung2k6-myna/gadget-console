@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { currentUser, unauthenticated } from "@/lib/auth/guard";
 import {
   activeAccountProvider,
+  defaultProviderProfile,
   findProviderProfile,
   runtimeProvider,
 } from "@/lib/provider-profiles";
@@ -40,13 +41,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "runtime not found" }, { status: 404 });
   }
 
-  // The agent names a profile; an agent that names none uses the account's
-  // speech setting, which is the profile a turn would fall back to.
+  // An owner previews through the deployment's built-in voice, whatever the
+  // agent names; an administrator may name a profile or fall back to the
+  // account's speech setting, then the built-in default.
+  const allowCustom = user.role === "admin";
   const profileId = typeof body.ttsProfileId === "string" ? body.ttsProfileId : "";
-  const profile =
-    profileId === ""
-      ? await activeAccountProvider(user.id, "tts")
-      : await findProviderProfile(user.id, profileId);
+  const named = profileId === "" ? undefined : await findProviderProfile(user.id, profileId);
+  let profile = named;
+  if (!allowCustom && profile !== undefined && !profile.builtin) profile = undefined;
+  if (profile === undefined) {
+    profile = allowCustom
+      ? ((await activeAccountProvider(user.id, "tts")) ?? (await defaultProviderProfile("tts")))
+      : await defaultProviderProfile("tts");
+  }
+  // A template may name a voice the profile itself does not: the profile is the
+  // endpoint and the model, the agent's voice is the one asked for.
+  const requestedVoice = typeof body.voice === "string" ? body.voice.trim() : "";
   if (profile === undefined) {
     return NextResponse.json(
       { ok: false, error: "no TTS profile is available for this agent" },
@@ -67,7 +77,8 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  if (provider.voice === undefined) {
+  const voice = requestedVoice === "" ? provider.voice : requestedVoice;
+  if (voice === undefined) {
     return NextResponse.json(
       { ok: false, error: "the TTS profile has no voice" },
       { status: 400 }
@@ -77,7 +88,7 @@ export async function POST(request: Request) {
   const payload: Record<string, unknown> = {
     ttsBaseUrl: provider.baseUrl,
     ttsModel: provider.model,
-    ttsVoice: provider.voice,
+    ttsVoice: voice,
     ...(provider.apiKey === undefined ? {} : { ttsApiKey: provider.apiKey }),
     ...(body.ovc === undefined ? {} : { ovc: body.ovc }),
     ...(typeof body.text === "string" && body.text.trim() !== ""

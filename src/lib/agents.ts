@@ -1,7 +1,11 @@
 import { and, eq, ne } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { agents, devices } from "@/lib/db/schema";
-import { findProviderProfile, type ProviderKind } from "./provider-profiles";
+import {
+  defaultProviderProfile,
+  findProviderProfile,
+  type ProviderKind,
+} from "./provider-profiles";
 import { findRuntime, type Runtime } from "./runtimes";
 import {
   validateAgentVoiceConversion,
@@ -48,8 +52,11 @@ export type AgentValidation =
 
 export async function validateAgentDraft(
   input: unknown,
-  userId: string
+  userId: string,
+  options: { allowCustomProfiles?: boolean } = {}
 ): Promise<AgentValidation> {
+  const allowCustomProfiles = options.allowCustomProfiles ?? true;
+
   if (typeof input !== "object" || input === null) {
     return { ok: false, errors: ["an agent must be an object"] };
   }
@@ -80,7 +87,8 @@ export async function validateAgentDraft(
 
   // A profile is the agent's account's or a built-in, and it has to be the kind
   // the agent is binding it for: an `stt` profile cannot speak, and another
-  // account's profile would spend that account's key.
+  // account's profile would spend that account's key. An owner may name only a
+  // built-in: the deployment's providers are theirs, an account's key is not.
   async function profileOf(
     kind: ProviderKind,
     raw: unknown,
@@ -97,17 +105,29 @@ export async function validateAgentDraft(
       errors.push(`${label} ${JSON.stringify(id)} is a ${profile.kind} profile, not a ${kind} one`);
       return null;
     }
+    if (!allowCustomProfiles && !profile.builtin) {
+      errors.push(`${label} ${JSON.stringify(id)} is not one this account can name`);
+      return null;
+    }
     return id;
   }
 
-  // The answering model is required: there is no deployment default to answer a
-  // turn that names none, so an agent without one is one that cannot speak.
-  const llmProfileId = await profileOf("llm", body.llmProfileId, "the LLM profile");
+  // An owner names no provider: the deployment's built-ins answer. An
+  // administrator may name an account profile of each kind.
+  let llmProfileId = await profileOf("llm", body.llmProfileId, "the LLM profile");
+  let sttProfileId = await profileOf("stt", body.sttProfileId, "the STT profile");
+  let ttsProfileId = await profileOf("tts", body.ttsProfileId, "the TTS profile");
+
+  if (!allowCustomProfiles) {
+    llmProfileId ??= (await defaultProviderProfile("llm"))?.id ?? null;
+    sttProfileId ??= (await defaultProviderProfile("stt"))?.id ?? null;
+    ttsProfileId ??= (await defaultProviderProfile("tts"))?.id ?? null;
+  }
+
+  // The answering model is required: an agent without one cannot speak.
   if (llmProfileId === null && !errors.some((error) => error.startsWith("the LLM profile"))) {
     errors.push("an answering model is required");
   }
-  const sttProfileId = await profileOf("stt", body.sttProfileId, "the STT profile");
-  const ttsProfileId = await profileOf("tts", body.ttsProfileId, "the TTS profile");
 
   // A voice this agent overrides its `tts` profile's with. Free text: this route
   // cannot know what an arbitrary provider holds, so the form checks it against

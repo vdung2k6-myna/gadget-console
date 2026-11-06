@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
-import { currentUser, unauthenticated } from "@/lib/auth/guard";
+import { currentAdmin } from "@/lib/auth/admin";
+import { notFound } from "@/lib/auth/guard";
 import { publicProfile } from "@/lib/crypto/profiles";
 import { createProfile, listProfiles, validateProfileDraft } from "@/lib/llm-profiles";
 
 export async function GET() {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
   return NextResponse.json({ profiles: (await listProfiles(user.id)).map(publicProfile) });
 }
 
 export async function POST(request: Request) {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
 
   let body: unknown;
   try {

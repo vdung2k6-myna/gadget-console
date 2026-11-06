@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { currentUser, unauthenticated } from "@/lib/auth/guard";
+import { currentAdmin } from "@/lib/auth/admin";
+import { notFound } from "@/lib/auth/guard";
 import {
   accountSpeechSettings,
   saveAccountProvider,
@@ -25,14 +26,14 @@ function labelFor(kind: SpeechKind): string {
 }
 
 export async function GET() {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
   return NextResponse.json({ settings: await accountSpeechSettings(user.id) });
 }
 
 export async function PUT(request: Request) {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
 
   let body: unknown;
   try {

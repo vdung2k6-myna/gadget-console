@@ -316,17 +316,23 @@ export async function providersForAgent(
   userId: string,
   ids: { stt: string | null; tts: string | null; llm: string | null },
   /** The voice this agent speaks in, overriding its `tts` profile's. */
-  voice?: string | null
+  voice?: string | null,
+  /** An owner answers from the deployment's built-ins; an admin may use account profiles. */
+  options: { allowCustom?: boolean } = {}
 ): Promise<{ stt: RuntimeProvider | null; tts: RuntimeProvider | null; llm: RuntimeProvider | null }> {
   async function one(
     kind: ProviderKind,
     id: string | null,
     voiceOverride?: string | null
   ): Promise<RuntimeProvider | null> {
-    // No id means no provider of that kind, and an agent's own voice has nothing
-    // to apply to: the console no longer fills a kind in from a deployment default.
-    const row = id === null ? undefined : await findProviderProfile(userId, id);
-    if (row === undefined || row.kind !== kind) return null;
+    const named = id === null ? undefined : await findProviderProfile(userId, id);
+    let row = named !== undefined && named.kind === kind ? named : undefined;
+    // An owner answers from the deployment's built-ins, whatever an older agent
+    // row still names; an administrator may keep using an account profile.
+    if (options.allowCustom === false && (row === undefined || !row.builtin)) {
+      row = await defaultProviderProfile(kind);
+    }
+    if (row === undefined) return null;
     const provider = runtimeProvider(row);
     return voiceOverride !== undefined && voiceOverride !== null && voiceOverride !== ""
       ? { ...provider, voice: voiceOverride }

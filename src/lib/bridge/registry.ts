@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { findRuntime } from "@/lib/runtimes";
 import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/db/client";
-import { agents, devices, turns } from "@/lib/db/schema";
+import { agents, devices, turns, users } from "@/lib/db/schema";
 import { allowClaimIssue, awaitingApproval, issueClaim, isPendingClaim, normalizeDeviceId } from "@/lib/claims";
 import { providersForAgent } from "@/lib/provider-profiles";
 import { getCalibration } from "@/lib/device-calibration";
@@ -145,6 +145,12 @@ function agentWithRuntime(agentId: string, userId: string) {
       if (agent === undefined) return undefined;
       const runtime = await findRuntime(agent.runtimeId);
       if (runtime === undefined) return undefined;
+      const owner = await getDb()
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+        .then((rows) => rows[0]);
       const providers = await providersForAgent(
         userId,
         {
@@ -152,7 +158,8 @@ function agentWithRuntime(agentId: string, userId: string) {
           tts: agent.ttsProfileId,
           llm: agent.llmProfileId,
         },
-        agent.voice
+        agent.voice,
+        { allowCustom: owner?.role === "admin" }
       );
       const {
         runtimeId: _runtimeId,

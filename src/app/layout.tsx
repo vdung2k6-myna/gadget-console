@@ -42,20 +42,25 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               {user !== undefined && (
                 <>
                   <Link href="/devices" className="hover:underline">
-                    {strings.nav.devices}
+                    {strings.nav.home}
                   </Link>
                   <Link href="/agents" className="hover:underline">
-                    {strings.nav.agents}
-                  </Link>
-                  <Link href="/provider-profiles" className="hover:underline">
-                    {strings.nav.providers}
+                    {strings.nav.personalities}
                   </Link>
                 </>
               )}
               {adminStrings !== null && (
-                <Link href="/admin/devices" className="hover:underline">
-                  {adminStrings.nav}
-                </Link>
+                <>
+                  <Link href="/admin/devices" className="hover:underline">
+                    {adminStrings.nav}
+                  </Link>
+                  <Link href="/provider-profiles" className="hover:underline">
+                    {strings.nav.providers}
+                  </Link>
+                  <Link href="/llm-profiles" className="hover:underline">
+                    {strings.llmProfiles.heading}
+                  </Link>
+                </>
               )}
               <Link href="/help" className="hover:underline">
                 {strings.nav.help}

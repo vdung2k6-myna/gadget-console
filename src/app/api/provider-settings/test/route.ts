@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { currentUser, unauthenticated } from "@/lib/auth/guard";
+import { currentAdmin } from "@/lib/auth/admin";
+import { notFound } from "@/lib/auth/guard";
 import { testSpeechProvider } from "@/lib/provider-profiles";
 
 /**
@@ -16,8 +17,8 @@ function text(value: unknown): string {
 }
 
 export async function POST(request: Request) {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
 
   let body: unknown;
   try {

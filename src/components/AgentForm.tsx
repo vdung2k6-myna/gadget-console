@@ -100,6 +100,8 @@ interface Props {
   runtimes: RuntimeOption[];
   profiles: ProfileOption[];
   agent?: AgentValue;
+  /** An administrator may choose a provider; an owner answers on the built-ins. */
+  isAdmin: boolean;
 }
 
 /**
@@ -111,7 +113,7 @@ interface Props {
  * that provider before a turn discovers it. The profile ids are carried so
  * saving an agent does not clear links the settings page maintains.
  */
-export function AgentForm({ runtimes, profiles, agent }: Props) {
+export function AgentForm({ runtimes, profiles, agent, isAdmin }: Props) {
   const strings = useStrings();
   const router = useRouter();
   const editing = agent !== undefined;
@@ -121,9 +123,16 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
   const [runtimeId, setRuntimeId] = useState(agent?.runtimeId ?? runtimes[0]?.id ?? "");
   const [language, setLanguage] = useState(agent?.language ?? runtimes[0]?.languages[0] ?? "");
   const llmProfiles = profiles.filter((profile) => profile.kind === "llm");
+  const builtinLlm = llmProfiles.find((profile) => profile.builtin);
   // No empty option and no default: an agent that names no model has nothing to
   // answer it, so a new agent starts on the first model the account configured.
-  const [llmProfileId, setLlmProfileId] = useState(agent?.llmProfileId ?? llmProfiles[0]?.id ?? "");
+  // An owner starts on the deployment's built-in, which is the only one they may
+  // name.
+  const [llmProfileId, setLlmProfileId] = useState(
+    isAdmin
+      ? (agent?.llmProfileId ?? llmProfiles[0]?.id ?? "")
+      : (builtinLlm?.id ?? agent?.llmProfileId ?? llmProfiles[0]?.id ?? "")
+  );
   const [sttProfileId, setSttProfileId] = useState(agent?.sttProfileId ?? "");
   const [ttsProfileId, setTtsProfileId] = useState(agent?.ttsProfileId ?? "");
   const [voice, setVoice] = useState(agent?.voice ?? "");
@@ -518,10 +527,16 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
   if (llmProfiles.length === 0) {
     return (
       <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-        {strings.agentForm.noProfiles}{" "}
-        <Link href="/provider-profiles/new" className="underline">
-          {strings.providerProfiles.createModel}
-        </Link>
+        {isAdmin ? (
+          <>
+            {strings.agentForm.noProfiles}{" "}
+            <Link href="/provider-profiles/new" className="underline">
+              {strings.providerProfiles.createModel}
+            </Link>
+          </>
+        ) : (
+          strings.personality.noModel
+        )}
       </p>
     );
   }
@@ -922,21 +937,23 @@ export function AgentForm({ runtimes, profiles, agent }: Props) {
         </div>
       </fieldset>
 
-      <label className="mt-3 block text-sm">
-        {strings.agentForm.llmProfile}
-        <select
-          className={field}
-          value={llmProfileId}
-          onChange={(event) => setLlmProfileId(event.target.value)}
-          required
-        >
-          {llmProfiles.map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {optionLabel(profile)}
-            </option>
-          ))}
-        </select>
-      </label>
+      {isAdmin && (
+        <label className="mt-3 block text-sm">
+          {strings.agentForm.llmProfile}
+          <select
+            className={field}
+            value={llmProfileId}
+            onChange={(event) => setLlmProfileId(event.target.value)}
+            required
+          >
+            {llmProfiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {optionLabel(profile)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <label className="mt-3 block text-sm">
         {strings.agentForm.answerMode}

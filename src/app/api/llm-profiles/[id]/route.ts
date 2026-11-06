@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { currentUser, notFound, unauthenticated } from "@/lib/auth/guard";
+import { currentAdmin } from "@/lib/auth/admin";
+import { notFound } from "@/lib/auth/guard";
 import { publicProfile } from "@/lib/crypto/profiles";
 import { deleteProfile, updateProfile, validateProfileDraft } from "@/lib/llm-profiles";
 
@@ -7,8 +8,8 @@ type Params = { params: Promise<{ id: string }> };
 
 /** A blank key keeps the stored one, so the form never has to echo a secret back. */
 export async function PATCH(request: Request, { params }: Params) {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
 
   const { id } = await params;
   let body: unknown;
@@ -27,8 +28,8 @@ export async function PATCH(request: Request, { params }: Params) {
 
 /** The answer says how many agents were left on the runtime's default. */
 export async function DELETE(_request: Request, { params }: Params) {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
 
   const { id } = await params;
   const result = await deleteProfile(user.id, id);

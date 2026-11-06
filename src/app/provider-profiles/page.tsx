@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { DeleteProviderProfileButton } from "@/components/DeleteProviderProfileButton";
 import { SpeechSettingsForm } from "@/components/SpeechSettingsForm";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireAdmin } from "@/lib/auth/admin";
 import {
   accountSpeechSettings,
   listProviderProfiles,
@@ -16,7 +16,7 @@ export const instant = false;
 
 export default async function ProviderSettingsPage() {
   const { strings } = await getStrings();
-  const user = await requireUser();
+  const user = await requireAdmin();
   const settings = await accountSpeechSettings(user.id);
   const models = (await listProviderProfiles(user.id))
     .filter((profile) => profile.kind === "llm")

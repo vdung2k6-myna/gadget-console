@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AgentForm } from "@/components/AgentForm";
+import { NewPersonality } from "@/components/NewPersonality";
 import { requireUser } from "@/lib/auth/require-user";
 import { ownAgent } from "@/lib/auth/ownership";
 import { listOwnedDevices } from "@/lib/devices";
-import { listProviderProfiles, publicProviderProfile } from "@/lib/provider-profiles";
+import {
+  defaultProviderProfile,
+  listProviderProfiles,
+  publicProviderProfile,
+} from "@/lib/provider-profiles";
 import { listRuntimes } from "@/lib/runtimes";
 import { deviceLabel } from "@/lib/ui/format";
 import { getStrings } from "@/lib/i18n/locale";
@@ -26,6 +30,14 @@ export default async function EditAgentPage({ params }: Params) {
   const runtimes = await listRuntimes();
   const profiles = (await listProviderProfiles(user.id)).map(publicProviderProfile);
   const devices = (await listOwnedDevices(user.id)).filter((device) => device.agentId === agent.id);
+  const isAdmin = user.role === "admin";
+  const fallback = (kind: "llm" | "stt" | "tts") =>
+    isAdmin ? (profiles.find((profile) => profile.kind === kind)?.id ?? null) : null;
+  const defaults = {
+    llm: (await defaultProviderProfile("llm"))?.id ?? fallback("llm"),
+    stt: (await defaultProviderProfile("stt"))?.id ?? fallback("stt"),
+    tts: (await defaultProviderProfile("tts"))?.id ?? fallback("tts"),
+  };
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -34,11 +46,13 @@ export default async function EditAgentPage({ params }: Params) {
       </Link>
       <h1 className="mt-2 text-2xl font-semibold">{agent.name}</h1>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        {strings.agents.answers}:{" "}
-        {devices.length === 0 ? strings.agents.answersNone : devices.map(deviceLabel).join(", ")}
+        {strings.personality.answers}:{" "}
+        {devices.length === 0
+          ? strings.personality.answersNone
+          : devices.map(deviceLabel).join(", ")}
       </p>
 
-      <AgentForm
+      <NewPersonality
         runtimes={runtimes.map((runtime) => ({
           id: runtime.id,
           name: runtime.name,
@@ -50,6 +64,8 @@ export default async function EditAgentPage({ params }: Params) {
           name: profile.name,
           builtin: profile.builtin,
         }))}
+        defaults={defaults}
+        isAdmin={isAdmin}
         agent={{
           id: agent.id,
           name: agent.name,

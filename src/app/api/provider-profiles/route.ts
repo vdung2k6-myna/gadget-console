@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { currentUser, unauthenticated } from "@/lib/auth/guard";
+import { currentAdmin } from "@/lib/auth/admin";
+import { notFound } from "@/lib/auth/guard";
 import {
   createProviderProfile,
   listProviderProfiles,
@@ -9,16 +10,16 @@ import {
 } from "@/lib/provider-profiles";
 
 export async function GET() {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
   return NextResponse.json({
     profiles: (await listProviderProfiles(user.id)).map(publicProviderProfile),
   });
 }
 
 export async function POST(request: Request) {
-  const user = await currentUser();
-  if (user === undefined) return unauthenticated();
+  const user = await currentAdmin();
+  if (user === undefined) return notFound();
 
   let body: unknown;
   try {

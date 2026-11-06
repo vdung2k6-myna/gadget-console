@@ -19,7 +19,7 @@ import {
   validateProviderDraft,
 } from "../src/lib/provider-profiles";
 import { createRuntime } from "../src/lib/runtimes";
-import { agents, devices, providerProfiles } from "../src/lib/db/schema";
+import { agents, devices, providerProfiles, users } from "../src/lib/db/schema";
 
 before(() => requireTestDatabase());
 beforeEach(async () => {
@@ -231,6 +231,9 @@ describe("an agent's provider profile", () => {
 describe("the resolution the bridge receives", () => {
   async function claimedAgent() {
     const ann = await account("ann@example.com");
+    // An account profile is an administrator's to name now; an owner answers on
+    // the deployment's built-ins. This suite is about the account-profile path.
+    await getDb().update(users).set({ role: "admin" }).where(eq(users.id, ann.id));
     const rt = createRuntime({
       name: "interview",
       baseUrl: "http://127.0.0.1:4000",
@@ -290,3 +293,91 @@ describe("the resolution the bridge receives", () => {
     assert.notEqual(providers.llm, null, "the answering model is required, so it is always named");
   });
 });
+
+describe("an owner's provider choice", () => {
+  async function builtins() {
+    return getDb()
+      .insert(providerProfiles)
+      .values([
+        {
+          userId: null,
+          builtin: true,
+          isDefault: true,
+          kind: "llm",
+          name: "House model",
+          baseUrl: "https://llm.example/v1",
+          model: "house-model",
+          encryptedKey: "",
+        },
+        {
+          userId: null,
+          builtin: true,
+          isDefault: true,
+          kind: "stt",
+          name: "House transcriber",
+          baseUrl: "http://localhost:8080",
+          model: "stt",
+          encryptedKey: "",
+        },
+        {
+          userId: null,
+          builtin: true,
+          isDefault: true,
+          kind: "tts",
+          name: "House voice",
+          baseUrl: "http://localhost:8082",
+          model: "tts",
+          voice: "house-voice",
+          encryptedKey: "",
+        },
+      ])
+      .returning();
+  }
+
+  const simpleDraft = (runtimeId: string) => ({
+    name: "assistant",
+    runtimeId,
+    llmProfileId: null,
+    sttProfileId: null,
+    ttsProfileId: null,
+    systemPrompt: "be helpful",
+    language: "vietnamese",
+    answerMode: "generate",
+    topics: [],
+  });
+
+  it("refuses an account profile and answers on the deployment's built-ins", async () => {
+    const ann = await account("owner@example.com");
+    const runtime = await createRuntime({
+      name: "interview",
+      baseUrl: "http://127.0.0.1:4000",
+      token: "runtime-token",
+      engines: ["engine-a"],
+      languages: ["vietnamese"],
+    });
+    const validation = validateProviderDraft(draft(), { requireKey: true });
+    if (!validation.ok) throw new Error("draft should be valid");
+    const ownProfile = await createProviderProfile(ann.id, validation.draft);
+    const built = await builtins();
+
+    const refused = await validateAgentDraft(
+      { ...simpleDraft(runtime.id), llmProfileId: ownProfile.id },
+      ann.id,
+      { allowCustomProfiles: false }
+    );
+    assert.equal(refused.ok, false);
+    if (!refused.ok) {
+      assert.ok(refused.errors.some((error) => error.includes("not one this account can name")));
+    }
+
+    const accepted = await validateAgentDraft(simpleDraft(runtime.id), ann.id, {
+      allowCustomProfiles: false,
+    });
+    assert.equal(accepted.ok, true);
+    if (!accepted.ok) return;
+    assert.equal(accepted.draft.llmProfileId, built.find((row) => row.kind === "llm")?.id);
+    assert.equal(accepted.draft.sttProfileId, built.find((row) => row.kind === "stt")?.id);
+    assert.equal(accepted.draft.ttsProfileId, built.find((row) => row.kind === "tts")?.id);
+  });
+});
+

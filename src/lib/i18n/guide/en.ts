@@ -25,6 +25,28 @@ export const enGuide: Guide = {
       ],
     },
     {
+      id: "setup",
+      title: "Setting up your gadget",
+      blocks: [
+        {
+          kind: "steps",
+          items: [
+            "Turn the gadget on and type the six digits it shows into the code box on the home. An admin approves the claim; while it waits, the home says it is being reviewed.",
+            "Choose how it talks: pick a personality from the list, or write a sentence describing how it should talk.",
+            "Listen to the voice with “Hear it”, then save. A gadget has one active personality at a time, and its card can switch it whenever you like.",
+          ],
+        },
+        {
+          kind: "note",
+          text: "The voices and the answering model are provided by this deployment. You do not need an API key, an endpoint or a model name.",
+        },
+        {
+          kind: "note",
+          text: "If “Hear it” says the voice was refused, the deployment's speech service does not hold that voice. Pick another, or ask an administrator.",
+        },
+      ],
+    },
+    {
       id: "roles",
       title: "Accounts, and who can see what",
       blocks: [

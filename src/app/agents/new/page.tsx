@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { AgentForm } from "@/components/AgentForm";
+import { NewPersonality } from "@/components/NewPersonality";
 import { requireUser } from "@/lib/auth/require-user";
-import { listProviderProfiles, publicProviderProfile } from "@/lib/provider-profiles";
+import {
+  defaultProviderProfile,
+  listProviderProfiles,
+  publicProviderProfile,
+} from "@/lib/provider-profiles";
 import { listRuntimes } from "@/lib/runtimes";
 import { getStrings } from "@/lib/i18n/locale";
 
@@ -14,14 +18,26 @@ export default async function NewAgentPage() {
   const user = await requireUser();
   const runtimes = await listRuntimes();
   const profiles = (await listProviderProfiles(user.id)).map(publicProviderProfile);
+  const isAdmin = user.role === "admin";
+
+  // The simple form answers on the deployment's built-in defaults. An
+  // administrator, who may name an account profile, falls back to the first
+  // profile of a kind when the deployment marks no default.
+  const fallback = (kind: "llm" | "stt" | "tts") =>
+    isAdmin ? (profiles.find((profile) => profile.kind === kind)?.id ?? null) : null;
+  const defaults = {
+    llm: (await defaultProviderProfile("llm"))?.id ?? fallback("llm"),
+    stt: (await defaultProviderProfile("stt"))?.id ?? fallback("stt"),
+    tts: (await defaultProviderProfile("tts"))?.id ?? fallback("tts"),
+  };
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
       <Link href="/agents" className="text-sm text-zinc-600 hover:underline dark:text-zinc-400">
         ← {strings.common.back}
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold">{strings.agents.create}</h1>
-      <AgentForm
+      <h1 className="mt-2 text-2xl font-semibold">{strings.personality.create}</h1>
+      <NewPersonality
         runtimes={runtimes.map((runtime) => ({
           id: runtime.id,
           name: runtime.name,
@@ -33,6 +49,8 @@ export default async function NewAgentPage() {
           name: profile.name,
           builtin: profile.builtin,
         }))}
+        defaults={defaults}
+        isAdmin={isAdmin}
       />
     </main>
   );
