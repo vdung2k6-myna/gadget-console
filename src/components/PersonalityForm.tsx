@@ -47,6 +47,7 @@ interface Props {
   /** The setup form picks a gadget; the personality edit form does not. */
   showGadgets?: boolean;
   showAdvanced?: boolean;
+  showName?: boolean;
   agent?: AgentValue;
   isAdmin: boolean;
   onAdvanced?: () => void;
@@ -68,6 +69,7 @@ export function PersonalityForm({
   initialGadgetId,
   showGadgets = true,
   showAdvanced = true,
+  showName = false,
   agent,
   isAdmin,
   onAdvanced,
@@ -85,6 +87,7 @@ export function PersonalityForm({
   const initialAgent = agent ?? initialGadget?.agent ?? undefined;
 
   const [gadgetId, setGadgetId] = useState<string>(initialGadget?.id ?? "");
+  const [name, setName] = useState(agent?.name ?? "");
   const [language, setLanguage] = useState(initialAgent?.language ?? "english");
   const [voice, setVoice] = useState(
     initialAgent?.voice ?? defaultVoiceFor(initialAgent?.language ?? "english")
@@ -206,7 +209,7 @@ export function PersonalityForm({
       name:
         copyForGadget && baseAgent !== undefined && gadget !== undefined
           ? `${baseAgent.name} (${gadget.label})`
-          : baseAgent?.name ?? defaultNameFor(language),
+          : (showName ? name.trim() : "") || baseAgent?.name || defaultNameFor(language),
       systemPrompt: baseAgent?.systemPrompt ?? defaultPromptFor(language),
       runtimeId: runtime.id,
       language,
@@ -253,6 +256,13 @@ export function PersonalityForm({
     }
 
     setPending(false);
+    // Create-first: saving an unbound personality returns to the list, where
+    // its card offers “Use on gadget”. Device-first and edit stay here.
+    if (!showGadgets && agent === undefined && savedId !== null) {
+      router.push("/agents");
+      router.refresh();
+      return;
+    }
     setMessage({ tone: "ok", text: strings.personality.saved });
     router.refresh();
   }
@@ -263,6 +273,18 @@ export function PersonalityForm({
 
   return (
     <form onSubmit={save} className="mt-3 max-w-xl">
+      {showName && (
+        <label className="mt-2 block text-sm">
+          {strings.personality.name}
+          <input
+            className={field}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={defaultNameFor(language)}
+          />
+        </label>
+      )}
+
       {showGadgets && (
         <label className="mt-2 block text-sm">
           {strings.personality.useOnGadget}

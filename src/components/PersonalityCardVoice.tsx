@@ -33,7 +33,9 @@ export function PersonalityCardVoice({
   const strings = useStrings();
   const router = useRouter();
 
-  const initial = gadgets.find((entry) => entry.agentId === agent.id) ?? gadgets[0];
+  // A personality answers a gadget only when one is chosen; an unassigned
+  // personality previews its own voice until then.
+  const initial = gadgets.find((entry) => entry.agentId === agent.id);
   const [gadgetId, setGadgetId] = useState(initial?.id ?? "");
   const [url, setUrl] = useState("");
   const [previewPending, setPreviewPending] = useState(false);
@@ -101,21 +103,18 @@ export function PersonalityCardVoice({
       <label className="block text-xs text-zinc-600 dark:text-zinc-400">
         {strings.personality.useOnGadget}
         <select className={field} value={gadgetId} onChange={(event) => setGadgetId(event.target.value)}>
-          {gadgets.length === 0 ? (
-            <option value="">{strings.personality.answersNone}</option>
-          ) : (
-            gadgets.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))
-          )}
+          <option value="">{strings.personality.none}</option>
+          {gadgets.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {entry.label}
+            </option>
+          ))}
         </select>
       </label>
 
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
         {gadget === undefined
-          ? strings.personality.answersNone
+          ? strings.personality.none
           : gadget.agent === null
             ? `${gadget.label}: ${strings.personality.noSavedVoice}`
             : `${gadget.label}: ${source.language} · ${source.voice ?? strings.personality.none}`}

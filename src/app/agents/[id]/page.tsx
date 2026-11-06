@@ -96,6 +96,7 @@ export default async function EditAgentPage({ params }: Params) {
         defaults={defaults}
         gadgets={gadgets}
         showGadgets={false}
+        showName
         isAdmin={isAdmin}
         agent={{
           id: agent.id,

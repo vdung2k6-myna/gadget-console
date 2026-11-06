@@ -22,6 +22,7 @@ export default async function NewAgentPage({
   searchParams: Promise<{ gadget?: string }>;
 }) {
   const { gadget } = await searchParams;
+  const deviceMode = typeof gadget === "string" && gadget !== "";
   const { strings } = await getStrings();
   const user = await requireUser();
   const runtimes = await listRuntimes();
@@ -72,7 +73,9 @@ export default async function NewAgentPage({
       <Link href="/agents" className="text-sm text-zinc-600 hover:underline dark:text-zinc-400">
         ← {strings.common.back}
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold">{strings.personality.setupTitle}</h1>
+      <h1 className="mt-2 text-2xl font-semibold">
+        {deviceMode ? strings.personality.setupTitle : strings.personality.create}
+      </h1>
       <NewPersonality
         runtimes={runtimes.map((runtime) => ({
           id: runtime.id,
@@ -87,8 +90,10 @@ export default async function NewAgentPage({
         }))}
         defaults={defaults}
         gadgets={gadgets}
-        initialGadgetId={typeof gadget === "string" ? gadget : undefined}
-        showAdvanced={false}
+        initialGadgetId={deviceMode && typeof gadget === "string" ? gadget : undefined}
+        showGadgets={deviceMode}
+        showAdvanced={!deviceMode}
+        showName={!deviceMode}
         isAdmin={isAdmin}
       />
     </main>

@@ -18,6 +18,7 @@ interface Props {
   initialGadgetId?: string;
   showGadgets?: boolean;
   showAdvanced?: boolean;
+  showName?: boolean;
   agent?: AgentValue;
   isAdmin: boolean;
 }
@@ -38,6 +39,7 @@ export function NewPersonality({
   initialGadgetId,
   showGadgets,
   showAdvanced = true,
+  showName,
   agent,
   isAdmin,
 }: Props) {
@@ -63,6 +65,7 @@ export function NewPersonality({
       initialGadgetId={initialGadgetId}
       showGadgets={showGadgets}
       showAdvanced={showAdvanced}
+      showName={showName}
       agent={agent}
       isAdmin={isAdmin}
       onAdvanced={showAdvanced ? () => setAdvanced(true) : undefined}

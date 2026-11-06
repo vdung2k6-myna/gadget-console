@@ -138,7 +138,7 @@ account may still configure its own speech settings for its own agents.
 | `/devices` | The owner's home: the claim steps when there is nothing yet, then a card per gadget with its active personality, when it was last seen, and the switch to another personality. A claim awaiting an admin shows as a waiting step. |
 | `/devices/[id]` | One gadget: identifier, personality, partner, last seen, the board its firmware reported and the release targeted for it, what it can do; rename, bind, pair, release; and its conversation record. |
 | `/agents` | Personalities: cards with a plain description, language, voice, the gadgets each answers, a preview and a "use on a gadget" action. |
-| `/agents/new`, `/agents/[id]` | The personality form. It starts with the account's gadgets: choosing one loads its language and voice. The voice defaults per language (piper; bryce in English, vi_VN-vais1000-medium in Vietnamese) and stays editable. Saving assigns the personality to the chosen gadget. Advanced adds the name, prompt, runtime, answer mode, topics and voice conversion. No provider field is offered to an owner. |
+| `/agents/new`, `/agents/[id]` | The personality form. “Create a personality” carries a name, language, voice and voice style (OVC); Hear it previews it and Save leaves it unassigned. Assignment is on its card: “Use on gadget” → choose the gadget. `/agents/new?gadget=<id>` is the device shortcut: it loads that gadget's current voice and style; an OVC change saves a copy for that gadget. |
 | `/provider-profiles` | **Administrator only.** The deployment's built-in providers (read-only), the admin account's speech settings, and its answering models. A user gets the not-found page. |
 | `/help` | The guide: every step from unboxing to release, and what each common failure means. |
 | `/admin/devices`, `/admin/users`, `/admin/claims` | The admin area: every device, every account, and the requests waiting for a decision. Visible in the header only to an admin. |
@@ -152,9 +152,9 @@ A walk through it, in order:
 2. Power a gadget. Its OTA answer carries a code; it shows and speaks the six digits.
 3. Enter the code on the home. That is a **request**: it waits for an admin's approval,
    and the home says it is being reviewed.
-4. Once approved, the gadget appears. Set its voice: choose the gadget, then the
-   language and the voice (its saved or default voice loads), use "Hear it", and save.
-   The personality is assigned to that gadget.
+4. Once approved, gadget appears. Create a personality (name, language, voice,
+   voice style), use "Hear it", save, then on its card choose the gadget and press
+   "Use this personality".
 5. The gadget answers with the chosen personality. Its card switches to another
    personality at any time.
 6. Speak to the gadget. The turn appears under "Hội thoại" on its page, and the tools
