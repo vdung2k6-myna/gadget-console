@@ -46,10 +46,21 @@ export function NewPersonality({
   const strings = useStrings();
   const [advanced, setAdvanced] = useState(false);
 
+  /**
+   * Switch between the personality form and the full form as two screens, and
+   * start the chosen one at its top. Without this, "Advanced settings" pressed
+   * at the bottom of the form leaves you at the bottom of a long form, with the
+   * way back to the personality out of sight.
+   */
+  function show(next: boolean): void {
+    setAdvanced(next);
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0 }));
+  }
+
   if (advanced) {
     return (
       <div className="mt-4">
-        <button type="button" className="text-sm underline" onClick={() => setAdvanced(false)}>
+        <button type="button" className="text-sm underline" onClick={() => show(false)}>
           {strings.personality.simple}
         </button>
         <AgentForm runtimes={runtimes} profiles={profiles} agent={agent} isAdmin={isAdmin} />
@@ -68,7 +79,7 @@ export function NewPersonality({
       showName={showName}
       agent={agent}
       isAdmin={isAdmin}
-      onAdvanced={showAdvanced ? () => setAdvanced(true) : undefined}
+      onAdvanced={showAdvanced ? () => show(true) : undefined}
     />
   );
 }

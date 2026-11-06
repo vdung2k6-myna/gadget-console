@@ -17,8 +17,6 @@ const field =
   "mt-1 w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 const button =
   "mt-3 rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
-const danger =
-  "mt-3 rounded border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950";
 
 /**
  * The shaping presets, as values rather than labels. Labels live in the
@@ -508,19 +506,6 @@ export function AgentForm({ runtimes, profiles, agent, isAdmin }: Props) {
     router.refresh();
   }
 
-  async function remove() {
-    if (!window.confirm(strings.agentForm.deleteConfirm)) return;
-    setPending(true);
-    const answer = await sendJson(`/api/agents/${agent!.id}`, undefined, "DELETE");
-    setPending(false);
-    if (answer.ok) {
-      router.push("/agents");
-      router.refresh();
-      return;
-    }
-    setMessage({ tone: "error", text: answer.message || strings.common.unexpected });
-  }
-
   if (runtimes.length === 0) {
     return <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">{strings.agentForm.noRuntimes}</p>;
   }
@@ -979,12 +964,6 @@ export function AgentForm({ runtimes, profiles, agent, isAdmin }: Props) {
       <button className={button} disabled={pending}>
         {editing ? strings.agentForm.save : strings.agentForm.create}
       </button>
-
-      {editing && (
-        <button type="button" className={danger} disabled={pending} onClick={remove}>
-          {strings.agentForm.delete}
-        </button>
-      )}
 
       {message !== null && <Notice tone={message.tone}>{message.text}</Notice>}
     </form>
