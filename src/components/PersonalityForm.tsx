@@ -6,10 +6,14 @@ import { useRouter } from "next/navigation";
 import { sendJson } from "@/lib/ui/client";
 import {
   DEFAULT_TTS_ENGINE,
+  VOICE_STYLE_PRESETS,
   defaultNameFor,
   defaultPromptFor,
   defaultVoiceFor,
   rehearsalTextFor,
+  sameVoiceConfig,
+  voiceStyleFor,
+  type VoiceStyle,
 } from "@/lib/voice-defaults";
 import type { AgentValue, RuntimeOption } from "./AgentForm";
 import { useStrings } from "./LocaleProvider";
@@ -42,6 +46,7 @@ interface Props {
   initialGadgetId?: string;
   /** The setup form picks a gadget; the personality edit form does not. */
   showGadgets?: boolean;
+  showAdvanced?: boolean;
   agent?: AgentValue;
   isAdmin: boolean;
   onAdvanced?: () => void;
@@ -62,6 +67,7 @@ export function PersonalityForm({
   gadgets,
   initialGadgetId,
   showGadgets = true,
+  showAdvanced = true,
   agent,
   isAdmin,
   onAdvanced,
@@ -83,6 +89,7 @@ export function PersonalityForm({
   const [voice, setVoice] = useState(
     initialAgent?.voice ?? defaultVoiceFor(initialAgent?.language ?? "english")
   );
+  const [style, setStyle] = useState<VoiceStyle>(voiceStyleFor(initialAgent?.ovcConfig ?? null));
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [savedAgentId, setSavedAgentId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -94,6 +101,17 @@ export function PersonalityForm({
   // The personality this form speaks for: the one being edited, or the chosen
   // gadget's active personality.
   const baseAgent = agent ?? gadget?.agent ?? undefined;
+  // A personality shared by several gadgets: editing one of them copies it, so
+  // the others keep the voice they have.
+  const sharedCount =
+    gadget?.agentId === null || gadget?.agentId === undefined
+      ? 0
+      : gadgets.filter((entry) => entry.agentId === gadget.agentId).length;
+  const styleConfig =
+    style === "custom" ? (baseAgent?.ovcConfig ?? null) : VOICE_STYLE_PRESETS[style];
+  const ovcChanged = !sameVoiceConfig(styleConfig, gadget?.agent?.ovcConfig ?? null);
+  const copyForGadget =
+    agent === undefined && gadget?.agent != null && sharedCount > 1 && ovcChanged;
 
   const runtime = useMemo(
     () => runtimes.find((entry) => entry.id === baseAgent?.runtimeId) ?? runtimes[0],
@@ -121,9 +139,11 @@ export function PersonalityForm({
     if (next !== undefined && next !== null) {
       setLanguage(next.language);
       setVoice(next.voice ?? defaultVoiceFor(next.language));
+      setStyle(voiceStyleFor(next.ovcConfig));
     } else {
       setLanguage("english");
       setVoice(defaultVoiceFor("english"));
+      setStyle("inherit");
     }
   }
 
@@ -149,9 +169,7 @@ export function PersonalityForm({
           runtimeId: runtime?.id ?? "",
           ttsProfileId: isAdmin ? (baseAgent?.ttsProfileId ?? defaults.tts) : defaults.tts,
           voice: previewVoice,
-          ...(baseAgent?.ovcConfig === undefined || baseAgent?.ovcConfig === null
-            ? {}
-            : { ovc: baseAgent.ovcConfig }),
+          ...(styleConfig === null ? {} : { ovc: styleConfig }),
           text: rehearsalTextFor(language),
         }),
       });
@@ -185,7 +203,10 @@ export function PersonalityForm({
     setPending(true);
     setMessage(null);
     const body = {
-      name: baseAgent?.name ?? defaultNameFor(language),
+      name:
+        copyForGadget && baseAgent !== undefined && gadget !== undefined
+          ? `${baseAgent.name} (${gadget.label})`
+          : baseAgent?.name ?? defaultNameFor(language),
       systemPrompt: baseAgent?.systemPrompt ?? defaultPromptFor(language),
       runtimeId: runtime.id,
       language,
@@ -194,11 +215,13 @@ export function PersonalityForm({
       sttProfileId: isAdmin ? (baseAgent?.sttProfileId ?? defaults.stt) : defaults.stt,
       ttsProfileId: isAdmin ? (baseAgent?.ttsProfileId ?? defaults.tts) : defaults.tts,
       voice: voice.trim() === "" ? null : voice.trim(),
-      ovcConfig: baseAgent?.ovcConfig ?? null,
+      ovcConfig: styleConfig ?? null,
       topics: baseAgent?.topics ?? [],
     };
 
-    const targetId = agent?.id ?? gadget?.agent?.id ?? savedAgentId ?? null;
+    const targetId =
+      agent?.id ??
+      (copyForGadget ? (savedAgentId ?? null) : (gadget?.agent?.id ?? savedAgentId ?? null));
     const answer =
       targetId === null
         ? await sendJson("/api/agents", body)
@@ -264,6 +287,11 @@ export function PersonalityForm({
       <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
         {showGadgets ? strings.personality.voiceIntro : strings.personality.voiceIntroEdit}
       </p>
+      {showGadgets && sharedCount > 1 && (
+        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+          {strings.personality.sharedHint}
+        </p>
+      )}
 
       <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
         {strings.personality.engine}: <span className="font-mono">{DEFAULT_TTS_ENGINE}</span>
@@ -305,6 +333,28 @@ export function PersonalityForm({
         </span>
       </label>
 
+      <label className="mt-3 block text-sm">
+        {strings.personality.ovcStyle}
+        <select
+          className={field}
+          value={style}
+          onChange={(event) => {
+            setStyle(event.target.value as VoiceStyle);
+            setPreviewError("");
+            setMessage(null);
+          }}
+        >
+          <option value="inherit">{strings.personality.ovcInherit}</option>
+          <option value="off">{strings.personality.ovcOff}</option>
+          <option value="natural">{strings.personality.ovcNatural}</option>
+          <option value="deep">{strings.personality.ovcDeep}</option>
+          <option value="monster">{strings.personality.ovcMonster}</option>
+          {style === "custom" && (
+            <option value="custom">{strings.personality.ovcCustom}</option>
+          )}
+        </select>
+      </label>
+
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button type="button" className={secondary} disabled={previewPending} onClick={() => void preview()}>
           {previewPending ? strings.personality.previewing : strings.personality.preview}
@@ -312,7 +362,7 @@ export function PersonalityForm({
         <button type="submit" className={primary} disabled={pending}>
           {pending ? strings.personality.saving : strings.personality.save}
         </button>
-        {onAdvanced !== undefined && (
+        {showAdvanced && onAdvanced !== undefined && (
           <button type="button" className="text-sm underline" onClick={onAdvanced}>
             {strings.personality.advanced}
           </button>

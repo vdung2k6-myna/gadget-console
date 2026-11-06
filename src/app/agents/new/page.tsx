@@ -88,6 +88,7 @@ export default async function NewAgentPage({
         defaults={defaults}
         gadgets={gadgets}
         initialGadgetId={typeof gadget === "string" ? gadget : undefined}
+        showAdvanced={false}
         isAdmin={isAdmin}
       />
     </main>

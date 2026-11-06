@@ -45,6 +45,7 @@ export function PersonalityCardVoice({
   const gadget = gadgets.find((entry) => entry.id === gadgetId);
   // The chosen gadget's own voice, or this personality when the gadget has none.
   const source = gadget?.agent ?? agent;
+  const sharedCount = gadgets.filter((entry) => entry.agentId === source.id).length;
 
   useEffect(() => {
     return () => {
@@ -119,6 +120,12 @@ export function PersonalityCardVoice({
             ? `${gadget.label}: ${strings.personality.noSavedVoice}`
             : `${gadget.label}: ${source.language} · ${source.voice ?? strings.personality.none}`}
       </p>
+
+      {sharedCount > 1 && (
+        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+          {strings.personality.sharedWith}
+        </p>
+      )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button type="button" className={secondary} disabled={previewPending} onClick={() => void preview()}>

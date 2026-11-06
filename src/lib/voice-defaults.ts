@@ -1,3 +1,5 @@
+import type { AgentVoiceConversion } from "./agent-voice-conversion";
+
 /**
  * The deployment's voice defaults.
  *
@@ -46,4 +48,56 @@ export function rehearsalTextFor(language: string): string {
   return asLanguage(language) === "vietnamese"
     ? "Xin chào, đây là giọng nói của tôi."
     : "Hello, this is how I sound.";
+}
+
+export type VoiceStyle = "inherit" | "off" | "natural" | "deep" | "monster" | "custom";
+
+/** The OVC shapes the simple form offers; Custom keeps the stored config. */
+export const VOICE_STYLE_PRESETS: Record<
+  Exclude<VoiceStyle, "custom">,
+  AgentVoiceConversion | null
+> = {
+  inherit: null,
+  off: { enabled: false },
+  natural: { pitchShift: 0, formantShift: 0, f0Method: "pm", effects: {} },
+  deep: {
+    pitchShift: -6,
+    formantShift: -4,
+    f0Method: "pm",
+    effects: { eq: { enabled: true, low: 4, high: -2 } },
+  },
+  monster: {
+    pitchShift: -9,
+    formantShift: -5,
+    f0Method: "pm",
+    effects: {
+      distortion: { enabled: true, drive: 0.45 },
+      reverb: { enabled: true, size: 0.35, mix: 0.25 },
+    },
+  },
+};
+
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  const object = value as Record<string, unknown>;
+  return `{${Object.keys(object)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonical(object[key])}`)
+    .join(",")}}`;
+}
+
+export function sameVoiceConfig(
+  a: AgentVoiceConversion | null,
+  b: AgentVoiceConversion | null
+): boolean {
+  return canonical(a) === canonical(b);
+}
+
+export function voiceStyleFor(config: AgentVoiceConversion | null): VoiceStyle {
+  if (config === null) return "inherit";
+  for (const id of ["off", "natural", "deep", "monster"] as const) {
+    if (sameVoiceConfig(config, VOICE_STYLE_PRESETS[id])) return id;
+  }
+  return "custom";
 }

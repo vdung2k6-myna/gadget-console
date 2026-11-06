@@ -7,6 +7,8 @@ import {
   defaultPromptFor,
   defaultVoiceFor,
   rehearsalTextFor,
+  VOICE_STYLE_PRESETS,
+  voiceStyleFor,
 } from "../src/lib/voice-defaults";
 
 describe("the voice defaults", () => {
@@ -21,6 +23,13 @@ describe("the voice defaults", () => {
     assert.match(rehearsalTextFor("english"), /Hello/);
     assert.match(rehearsalTextFor("vietnamese"), /Xin chào/);
     assert.notEqual(rehearsalTextFor("english"), rehearsalTextFor("vietnamese"));
+  });
+
+  it("recognizes the voice style a personality carries", () => {
+    assert.equal(voiceStyleFor(null), "inherit");
+    assert.equal(voiceStyleFor({ enabled: false }), "off");
+    assert.equal(voiceStyleFor(VOICE_STYLE_PRESETS.monster), "monster");
+    assert.equal(voiceStyleFor({ pitchShift: 3 }), "custom");
   });
 
   it("has a name and a prompt for each language", () => {
