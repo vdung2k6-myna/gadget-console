@@ -82,8 +82,10 @@ printf '%s' "$BRIDGE_TOKEN"  | gcloud secrets create bridge-token           --da
 printf '%s' "$RUNTIME_TOKEN" | gcloud secrets create runtime-token          --data-file=-
 printf '%s' "$LLM_KEY"       | gcloud secrets create console-llm-key-secret --data-file=-
 printf '%s' "$DB_PASSWORD"   | gcloud secrets create gadget-db-password     --data-file=-
+# The tailnet auth key is generated in the Tailscale admin console, not here.
+printf '%s' "<auth-key>"     | gcloud secrets create tailscale-auth-key     --data-file=-
 
-for s in bridge-token runtime-token console-llm-key-secret gadget-db-password; do
+for s in bridge-token runtime-token console-llm-key-secret gadget-db-password tailscale-auth-key; do
   gcloud secrets add-iam-policy-binding "$s" --member="serviceAccount:$SA" \
     --role=roles/secretmanager.secretAccessor --quiet >/dev/null
 done
@@ -152,6 +154,11 @@ sudo apt update && sudo apt install -y caddy
 
 curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
 sudo bash add-google-cloud-ops-agent-repo.sh --also-install
+
+# Tailscale: install, then join the tailnet and tag the node. Complete the login
+# URL it prints. The tag must be owned in the ACL policy before this runs.
+curl -fsSL https://tailscale.com/install.sh | sudo sh
+sudo tailscale up --advertise-tags=tag:gadget-app --hostname=gadget-app --accept-dns
 ```
 
 `--scopes=cloud-platform` is what lets the host read Secret Manager at boot; without it the service
@@ -216,6 +223,18 @@ BRIDGE_MUSIC_GAIN_DB=-3
 BRIDGE_SPEECH_PROB_MIN=0.5
 BRIDGE_SPEECH_MIN_FRAMES=3
 ENV
+
+# Join the tailnet with the stored auth key; node state survives a reboot, and
+# this re-joins after that state is lost.
+if command -v tailscale >/dev/null 2>&1; then
+  TS_KEY=$(secret tailscale-auth-key 2>/dev/null || true)
+  if [ -n "${TS_KEY:-}" ]; then
+    for i in 1 2 3 4 5; do
+      tailscale up --authkey="$TS_KEY" --hostname=gadget-app --accept-dns >/dev/null 2>&1 && break
+      sleep 2
+    done || true
+  fi
+fi
 
 chmod 600 /etc/gadget/*.env
 SCRIPT
@@ -343,10 +362,10 @@ tool refuses to call that success.
 
 ### The speech tier (STT, TTS and conversion)
 
-The speech tier runs on the operator's machine, behind a named Cloudflare tunnel. It is not a
+The speech tier runs on the operator's machine, reached over a private tailnet. It is not a
 cloud instance: Docker with the NVIDIA container toolkit, the audio compose project, the
-conversion compose project with its GPU override, and the tunnel unit. That machine's card is the
-deployment's only GPU, and transcription and conversion share it.
+conversion compose project with its GPU override, and the Tailscale client. That machine's card is
+the deployment's only GPU, and transcription and conversion share it.
 
 Install Docker and the NVIDIA container toolkit, then prove the card reaches a container:
 
@@ -360,7 +379,7 @@ and `supertonic`, from the sources in `AUDIO_TIER.md`. The conversion model and 
 their own directory; `vctk-p225.pth` is the pilot's. Audio models usually sit on the working
 drive, which is re-provisionable and not backed up.
 
-Start the audio tier, bound to loopback because the tunnel reaches it locally:
+Start the audio tier, bound to loopback because the tailnet serve mapping reaches it locally:
 
 ```bash
 AUDIO_BIND_ADDR=127.0.0.1 AUDIO_MODELS_DIR=<audio-models-dir> \
@@ -382,37 +401,42 @@ The card is 4 GB: transcription holds about 3 GB and conversion about 0.7 GB, le
 0.5 GB free. That margin is why the two do not always coexist; `OVC_REQUIRED=false` delivers the
 unconverted audio and reports the failure rather than failing the turn.
 
-Expose the three services through the named tunnel. Its configuration lists one hostname per
-service before the catch-all, and DNS carries a route for each:
-
-```yaml
-- hostname: stt.<domain>
-  service: http://127.0.0.1:8080
-- hostname: tts.<domain>
-  service: http://127.0.0.1:8082
-- hostname: ovc.<domain>
-  service: http://127.0.0.1:8085
-```
+Join the machine to the tailnet, tag it, and expose the loopback ports with `tailscale serve`.
+Nothing is published on a public hostname:
 
 ```bash
-cloudflared tunnel route dns <tunnel> stt.<domain>
-cloudflared tunnel route dns <tunnel> tts.<domain>
-cloudflared tunnel route dns <tunnel> ovc.<domain>
-sudo cloudflared tunnel ingress validate --config /etc/cloudflared/config.yml
-sudo systemctl restart cloudflared-gadget-audio
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --advertise-tags=tag:speech-host --hostname=<speech-node> --accept-dns
+sudo tailscale serve --bg --tcp=8080 tcp://127.0.0.1:8080
+sudo tailscale serve --bg --tcp=8082 tcp://127.0.0.1:8082
+sudo tailscale serve --bg --tcp=8085 tcp://127.0.0.1:8085
+tailscale serve status
 ```
 
-The speech services have no authentication, so the tunnel hostnames are the boundary. Do not
-publish them beyond this deployment, and do not replace the named tunnel with a quick tunnel whose
-address changes when it restarts. The machine must stay awake and online whenever the deployment
-is in use; sleeping it removes transcription, synthesis and conversion together.
+Apply the ACL in the admin console's Access controls. The services have no authentication of their
+own, so the tailnet and this rule are the boundary:
+
+```json
+{
+  "tagOwners": {
+    "tag:gadget-app": ["autogroup:admin"],
+    "tag:speech-host": ["autogroup:admin"]
+  },
+  "acls": [
+    {"action": "accept", "src": ["tag:gadget-app"], "dst": ["tag:speech-host:8080,8082,8085"]}
+  ]
+}
+```
+
+The machine must stay awake and online whenever the deployment is in use; sleeping it removes
+transcription, synthesis and conversion together.
 
 The model names under the conversion models directory are the operator's; `vctk-p225.pth` is the
 pilot's. Point the runtime at the conversion endpoint in `/etc/gadget/api.env` and restart
 `gadget-api`:
 
 ```ini
-OVC_URL=https://ovc.<domain>
+OVC_URL=http://<speech-node>:8085
 OVC_MODEL=vctk-p225.pth
 OVC_TIMEOUT_MS=60000
 OVC_REQUIRED=false
@@ -459,8 +483,8 @@ sudo install -m 600 /dev/null /root/provider-seed.json
 sudo tee /root/provider-seed.json >/dev/null <<'JSON'
 [
   {"kind":"llm","name":"<model name>","baseUrl":"<openai-compatible url>","model":"<model>","apiKey":"<key>","default":true},
-  {"kind":"stt","name":"Local STT","baseUrl":"https://stt.<domain>","model":"stt","default":true},
-  {"kind":"tts","name":"Local TTS","baseUrl":"https://tts.<domain>","model":"piper","voice":"<voice>","default":true}
+  {"kind":"stt","name":"Local STT","baseUrl":"http://<speech-node>:8080","model":"stt","default":true},
+  {"kind":"tts","name":"Local TTS","baseUrl":"http://<speech-node>:8082","model":"piper","voice":"<voice>","default":true}
 ]
 JSON
 sudo bash -c 'set -a; . /etc/gadget/console.env; set +a; cd /srv/gadget-console/current; \

@@ -14,10 +14,10 @@ commands and the three files verbatim.
 | Runtime tree | `/srv/adaptive-interview-api/current` (Express) |
 | Bridge tree | `/srv/gadget-bridge/current` |
 | Speech tree | the audio compose project in the `adaptive-interview-api` checkout; models in its own directory |
-| STT proxy | `https://stt.<domain>`, through the named Cloudflare tunnel |
-| Audio gateway | `https://tts.<domain>`, through the named Cloudflare tunnel |
+| STT proxy | `http://<speech-node>:8080`, over the private tailnet |
+| Audio gateway | `http://<speech-node>:8082`, over the private tailnet |
 | OVC tree | the conversion compose project in the `adaptive-interview-api` checkout; models in their own directory; an activation sidecar in the same project |
-| OVC service | `https://ovc.<domain>`, through the named Cloudflare tunnel |
+| OVC service | `http://<speech-node>:8085`, over the private tailnet |
 | Environment files | `/etc/gadget/console.env`, `api.env`, `bridge.env` (0600, rewritten at boot) |
 | Secrets fetched at boot | `/usr/local/bin/gadget-secrets.sh`, run by `gadget-secrets.service` |
 | Caddy | `/etc/caddy/Caddyfile`, unit `caddy` |
@@ -33,7 +33,7 @@ internet --443--> Caddy --+--> console 127.0.0.1:3001
                                    /xiaozhi/v1*  -> 127.0.0.1:8001
 bridge --> console 127.0.0.1:3001, runtime 127.0.0.1:4000
 console --> Cloud SQL <db-private-ip>:5432
-runtime --> stt.<domain> (STT), tts.<domain> (TTS), ovc.<domain> (conversion), over the named tunnel
+runtime --> <speech-node>:8080 (STT), :8082 (TTS), :8085 (conversion), over the private tailnet
 ```
 
 ## Deploying an update
@@ -137,7 +137,7 @@ sudo journalctl -u gadget-console -n 100 --no-pager
 docker compose -f docker-compose.audio.yml logs -f gateway
 docker logs --tail 50 -f interview-ovc-ovc-1
 docker logs --tail 20 interview-ovc-activate-1
-curl -s https://ovc.<domain>/api/models/active
+curl -s http://<speech-node>:8085/api/models/active
 ```
 
 A healthy bridge session prints `device connected`, the client and server hellos, and then either
@@ -147,8 +147,8 @@ transcribed the turn as …`, the `tts` sentences, and `turn recorded`.
 
 Health: `localhost:3001/health` (console, answers 503 when the database is unreachable),
 `localhost:4000/health`, `http://127.0.0.1:8003/` for the bridge's advertised addresses, and the
-public `https://stt.<domain>/health`, `https://tts.<domain>/health` and
-`https://ovc.<domain>/api/models/active` for the speech tier.
+private `http://<speech-node>:8080/health`, `http://<speech-node>:8082/health` and
+`http://<speech-node>:8085/api/models/active` for the speech tier.
 
 ### Logs in Cloud Logging
 
@@ -234,8 +234,8 @@ them, and the owner never configures a provider.
 
 | Kind | Endpoint | Runs on | Reaches |
 | --- | --- | --- | --- |
-| `stt` | `https://stt.<domain>` | the operator's machine (`stt-proxy` → `audiocpp`, CUDA) | the named tunnel |
-| `tts` | `https://tts.<domain>` | the operator's machine (`gateway` → three engines) | the named tunnel |
+| `stt` | `http://<speech-node>:8080` | the operator's machine (`stt-proxy` → `audiocpp`, CUDA) | the private tailnet |
+| `tts` | `http://<speech-node>:8082` | the operator's machine (`gateway` → three engines) | the private tailnet |
 | `llm` | an OpenAI-compatible endpoint | the provider | the internet |
 
 The built-ins are seeded, not edited in a browser. From `/srv/gadget-console` with the console's
@@ -244,8 +244,8 @@ environment:
 ```bash
 PROVIDER_SEED='[
   {"kind":"llm","name":"<model name>","baseUrl":"<openai-compatible url>","model":"<model>","apiKey":"<key>","default":true},
-  {"kind":"stt","name":"Local STT","baseUrl":"https://stt.<domain>","model":"stt","default":true},
-  {"kind":"tts","name":"Local TTS","baseUrl":"https://tts.<domain>","model":"piper","voice":"<voice>","default":true}
+  {"kind":"stt","name":"Local STT","baseUrl":"http://<speech-node>:8080","model":"stt","default":true},
+  {"kind":"tts","name":"Local TTS","baseUrl":"http://<speech-node>:8082","model":"piper","voice":"<voice>","default":true}
 ]' npm run seed:providers
 ```
 
@@ -272,13 +272,13 @@ When a turn fails at a speech call:
 1. On the operator's machine, `docker compose -f docker-compose.audio.yml ps` — the seven
    containers are up and healthy, and `curl -s http://127.0.0.1:8080/health` and `:8082/health`
    answer;
-2. From the app host, `curl -s https://stt.<domain>/health` and `https://tts.<domain>/health` —
-   the named tunnel and its ingress;
-3. For conversion, `curl -s https://ovc.<domain>/api/models/active` and
+2. From the app host, `curl -s http://<speech-node>:8080/health` and
+   `http://<speech-node>:8082/health` — the tailnet path and its ACL;
+3. For conversion, `curl -s http://<speech-node>:8085/api/models/active` and
    `docker logs --tail 20 interview-ovc-activate-1` on the operator's machine.
 
-The speech tier is not part of a session: it runs on the operator's machine behind the named
-Cloudflare tunnel, and its compose projects and the tunnel unit start with that machine. `npm run
+The speech tier is not part of a session: it runs on the operator's machine and is reached over the
+private tailnet; its compose projects and the tailnet client start with that machine. `npm run
 ops -- session start|stop` covers only the database and the app host.
 
 ## Troubleshooting
@@ -286,10 +286,10 @@ ops -- session start|stop` covers only the database and the app host.
 | Symptom | First check |
 | --- | --- |
 | Bridge logs `the console did not take … (401)` | `BRIDGE_TOKEN` vs `BRIDGE_CONSOLE_TOKEN` |
-| Turn rejected `no transcription provider is configured` | no `stt` built-in is published, or the agent names one the account cannot use; check the built-ins and `https://stt.<domain>/health` |
+| Turn rejected `no transcription provider is configured` | no `stt` built-in is published, or the agent names one the account cannot use; check the built-ins and `http://<speech-node>:8080/health` |
 | Turn rejected `fetch failed` | no `llm` built-in is published or reachable; re-seed the built-in (or, for an admin's agent, check the account's profile) |
 | Turn rejected `STT failed (404)` | the provider's base URL already ends in `/v1`; the runtime appends `/v1/audio/…` itself |
-| Turn converts to nothing / unchanged voice | `curl -s https://ovc.<domain>/api/models/active`; if `"active":false`, check the activation sidecar (`docker logs --tail 20 interview-ovc-activate-1`) — it re-activates on its next poll |
+| Turn converts to nothing / unchanged voice | `curl -s http://<speech-node>:8085/api/models/active`; if `"active":false`, check the activation sidecar (`docker logs --tail 20 interview-ovc-activate-1`) — it re-activates on its next poll |
 | Device page lists no tools | the bridge's warning carries the console's reason; see `TOOL_LIMITS` in `src/lib/device-tools.ts` |
 | `wss` handshake fails from outside | the `gw` block in the Caddyfile, then `journalctl -u caddy` |
 | Certificate warning on `console` | `journalctl -u caddy`; Caddy renews automatically |
@@ -308,5 +308,5 @@ them and neither can a browser route. An administrator's own speech settings are
   `seed:providers`, so a later seed does not silently reverse the change.
 - Do not open 8001 or 8003 in a firewall rule; the front exists so they stay closed.
 - Do not commit a secret, a real device identifier or an environment file.
-- Do not point a speech provider at a quick tunnel. The deployment's speech tier uses a named
-  tunnel whose hostnames are stable; a quick tunnel's URL changes when it restarts.
+- Do not expose the speech tier on a public hostname. It is reachable only over the private
+  tailnet, and the ACL admits the app host to the three speech ports and nothing else.

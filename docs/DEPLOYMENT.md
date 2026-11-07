@@ -6,8 +6,8 @@ deployment is.
 
 The pilot deployment planned by `gadget-console-gcp-console-bridge-deployment`. One Compute Engine
 app host runs the console, the bridge and the runtime; the speech tier — speech-to-text, the TTS
-gateway and engines, and voice conversion — runs on the operator's machine behind a named
-Cloudflare tunnel; the console's database is Cloud SQL.
+gateway and engines, and voice conversion — runs on the operator's machine and is reached over a
+private tailnet; the console's database is Cloud SQL.
 The deployment publishes built-in `stt`, `tts` and `llm` providers, so an owner picks a personality
 and never configures a provider.
 
@@ -19,18 +19,19 @@ and never configures a provider.
 | console (`gadget-console`) | `gadget-app` | `:3001` | Caddy, over loopback |
 | runtime (`adaptive-interview-api`) | `gadget-app` | `127.0.0.1:4000` | the bridge, over loopback |
 | bridge (`gadget-bridge`) | `gadget-app` | `:8003` OTA, `:8001` WS | Caddy only; no firewall rule opens them |
-| STT proxy and `audiocpp` (CUDA) | the operator's machine | `https://stt.<domain>` | the app host, over the named Cloudflare tunnel |
-| audio gateway (`interview-audio/gateway`) | the operator's machine | `https://tts.<domain>` | the app host, over the named Cloudflare tunnel |
+| STT proxy and `audiocpp` (CUDA) | the operator's machine | `http://<speech-node>:8080` | the app host, over the private tailnet |
+| audio gateway (`interview-audio/gateway`) | the operator's machine | `http://<speech-node>:8082` | the app host, over the private tailnet |
 | TTS engines (`kokoro`, `piper`, `supertonic`) | the operator's machine | inside the compose network | the gateway, over the compose network |
-| voice conversion (`interview-ovc`) | the operator's machine | `https://ovc.<domain>` | the app host, over the named Cloudflare tunnel |
+| voice conversion (`interview-ovc`) | the operator's machine | `http://<speech-node>:8085` | the app host, over the private tailnet |
 | Cloud SQL Postgres | managed | `<db-private-ip>:5432` | the host's subnet |
 
 Only 80 and 443 are opened to the internet. Caddy terminates TLS for both hostnames and proxies
 `gw.<domain>/xiaozhi/ota*` to 8003 and `gw.<domain>/xiaozhi/v1*` to 8001, so a gadget speaks
 `https` and `wss`. The bridge's raw ports, the console's internal API and the runtime have no
 firewall rule at all, and the runtime's socket is bound to loopback as well. The speech tier is
-reached only through the named Cloudflare tunnel; its services have no authentication of their own,
-so those tunnel hostnames are the boundary and are not to be published beyond this deployment.
+reachable only over the private tailnet; its services have no authentication of their own, so
+tailnet membership and its ACL are the boundary. Nothing exposes the speech tier on a public
+hostname.
 
 The speech tier runs on the operator's machine: `audiocpp` with the CUDA backend, the STT proxy,
 the TTS gateway and engines, and OpenVoiceChanger with its GPU override. The card is 4 GB:
@@ -41,7 +42,7 @@ conversion together, and its models are re-provisionable rather than backed up. 
 crosses the internet twice instead of staying inside a VPC, so each transcription window and each
 synthesized segment pays a round trip the old placement did not.
 
-The runtime carries `OVC_URL=https://ovc.<domain>`, `OVC_MODEL=vctk-p225.pth`,
+The runtime carries `OVC_URL=http://<speech-node>:8085`, `OVC_MODEL=vctk-p225.pth`,
 `OVC_TIMEOUT_MS=60000`, `OVC_REQUIRED=false` and the deployment shaping. The conversion
 composition includes an activation sidecar: the active model lives only in the service's memory,
 so the sidecar polls `/api/models/active` and activates the named model whenever the answer is no.
@@ -60,10 +61,10 @@ the unconverted audio and reports it rather than failing the turn.
 
 The speech tier runs on the operator's machine, not on a cloud instance: Docker with the NVIDIA
 container toolkit, the audio compose project (models in its own directory), the conversion compose
-project with the GPU override, and the named Cloudflare tunnel unit. It must be on whenever the
-deployment is in use. Its audio models sit on an NTFS working drive, which has lost writes before;
-they are re-provisionable and are not backed up. Conversion models live on the machine's native
-filesystem.
+project with the GPU override, and the Tailscale client. It must be on whenever the deployment is
+in use. `<speech-node>` is the machine's MagicDNS name on the tailnet. Its audio models sit on an
+NTFS working drive, which has lost writes before; they are re-provisionable and are not backed up.
+Conversion models live on the machine's native filesystem.
 
 ## Ports
 
@@ -74,8 +75,8 @@ filesystem.
 | 22 | `35.235.240.0/20` | SSH through IAP only |
 
 Everything else is denied by the implied ingress rule, including the bridge's 8001 and 8003. The
-speech tier has no cloud firewall rule: the app host reaches it outbound over 443 to the named
-tunnel, and the operator's machine exposes nothing inbound.
+speech tier has no cloud firewall rule: the app host reaches it over the private tailnet, and the
+operator's machine exposes nothing publicly.
 
 ## Configuration and secrets
 
@@ -116,8 +117,8 @@ therefore answer 500; this deployment serves the gadget path only.
 - `RUNTIME_URL` in that row is `http://127.0.0.1:4000`;
 - `BRIDGE_PUBLIC_HOST` is `gw.<domain>`, `BRIDGE_PUBLIC_URL` is `https://gw.<domain>` — the
   front the bridge advertises — and `CONSOLE_PUBLIC_URL` is `https://console.<domain>`;
-- the built-in `stt` endpoint is `https://stt.<domain>`, the built-in `tts` endpoint is
-  `https://tts.<domain>`, and the runtime's `OVC_URL` is `https://ovc.<domain>`.
+- the built-in `stt` endpoint is `http://<speech-node>:8080`, the built-in `tts` endpoint is
+  `http://<speech-node>:8082`, and the runtime's `OVC_URL` is `http://<speech-node>:8085`.
 
 A mismatch answers 401 — at the console for the bridge, at the runtime for the bridge — rather than
 failing quietly. A speech endpoint that no longer answers fails the turn at that stage and names it.
@@ -146,8 +147,8 @@ what a replacement host mounts.
    RUNTIME_TOKEN="$(the runtime token)" npm run seed:runtime
    PROVIDER_SEED='[
      {"kind":"llm","name":"<model name>","baseUrl":"<openai-compatible url>","model":"<model>","apiKey":"<key>","default":true},
-     {"kind":"stt","name":"Local STT","baseUrl":"https://stt.<domain>","model":"stt","default":true},
-     {"kind":"tts","name":"Local TTS","baseUrl":"https://tts.<domain>","model":"piper","voice":"<voice>","default":true}
+     {"kind":"stt","name":"Local STT","baseUrl":"http://<speech-node>:8080","model":"stt","default":true},
+     {"kind":"tts","name":"Local TTS","baseUrl":"http://<speech-node>:8082","model":"piper","voice":"<voice>","default":true}
    ]' npm run seed:providers
    ```
 
@@ -224,12 +225,12 @@ conversion model's name so the activation sidecar keeps it active.
   built-in answers not-found. An operator without the seed environment cannot fix a wrong voice
   from the console.
 - **The `ops` speech probes are operator-side.** `speech.sttUrl` and `speech.ttsUrl` are the
-  deployment's public speech endpoints, fetched from the operator's machine. The speech tier is
+  deployment's private speech endpoints, fetched from the operator's machine. The speech tier is
   not started or stopped by the tool.
 - **One machine carries the whole speech tier.** Its 4 GB card is the limit: transcription and
   conversion together use about 3.7 GB, and a host, card or network failure takes transcription,
-  synthesis and conversion together. The tunnel endpoints are unauthenticated, so they are the
-  exposure surface.
+  synthesis and conversion together. The speech endpoints are unauthenticated, so the tailnet and
+  its ACL are the boundary.
 - **No model and no knowledge retrieval.** `material` answer mode has nothing to speak, and the
   document-extraction service is not deployed.
 - Caddy carries the WebSocket upgrade; a wrong path match breaks every gadget at once, so the
