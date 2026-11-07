@@ -1,8 +1,9 @@
 # Provisioning
 
-Building the pilot from nothing: the network, the database, the app host, the speech host, the four
-secrets, the systemd units and the two Caddy sites. `DEPLOYMENT.md` says what the result is and
-`RUNBOOK.md` how to operate it; this file is the one that assumes none of it exists.
+Building the pilot from nothing: the network, the database, the app host, the speech tier on the
+operator's machine, the four secrets, the systemd units and the two Caddy sites. `DEPLOYMENT.md`
+says what the result is and `RUNBOOK.md` how to operate it; this file is the one that assumes none
+of it exists.
 
 Run it in a bash shell with `gcloud` authenticated (Cloud Shell is enough). Nothing here is
 idempotent by design — a second run against existing resources fails loudly, which is the right
@@ -34,7 +35,7 @@ gcloud services enable \
 ```bash
 gcloud compute networks create gadget-vpc --subnet-mode=custom
 gcloud compute networks subnets create gadget-subnet \
-  --network=gadget-vpc --region="$REGION" --range=10.10.0.0/24
+  --network=gadget-vpc --region="$REGION" --range=<vpc-range>
 
 gcloud compute firewall-rules create gadget-web \
   --network=gadget-vpc --direction=INGRESS --action=ALLOW \
@@ -340,170 +341,78 @@ never as root: a root-owned tree breaks the next build. The build's exit status 
 failed build leaves the previous release answering `/health` while serving old content, and the
 tool refuses to call that success.
 
-### The speech host (STT, TTS and conversion)
+### The speech tier (STT, TTS and conversion)
 
-`gadget-gpu` is one GPU VM in the same VPC and subnet, tag `gpu`, `g2-standard-4` (4 vCPU, 16 GB,
-one NVIDIA L4 with 24 GB), Ubuntu 22.04, a 100 GB boot disk and no service account. It runs the
-STT proxy with `audiocpp` on CUDA, the TTS gateway and engines, and the conversion service. The
-L4 is the reason: the two models together use about 4 GB, so one card carries the whole speech
-tier.
+The speech tier runs on the operator's machine, behind a named Cloudflare tunnel. It is not a
+cloud instance: Docker with the NVIDIA container toolkit, the audio compose project, the
+conversion compose project with its GPU override, and the tunnel unit. That machine's card is the
+deployment's only GPU, and transcription and conversion share it.
 
-The GPU machine type is not available in every zone at every moment; the pilot uses
-`asia-southeast1-b` because `-a` had no capacity. Create it there:
+Install Docker and the NVIDIA container toolkit, then prove the card reaches a container:
 
 ```bash
-export GPU_ZONE=asia-southeast1-b
-
-gcloud compute instances create gadget-gpu --zone=$GPU_ZONE --machine-type=g2-standard-4 \
-  --maintenance-policy=TERMINATE --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud \
-  --boot-disk-size=100GB --boot-disk-type=pd-balanced \
-  --network=gadget-vpc --subnet=gadget-subnet --tags=gpu \
-  --no-service-account --no-scopes
-
-# the speech endpoints, only from the app host
-gcloud compute firewall-rules create gadget-gpu-api --network=gadget-vpc \
-  --direction=INGRESS --action=ALLOW --rules=tcp:8080,tcp:8082,tcp:8085 \
-  --source-tags=app --target-tags=gpu --priority=900
-# SSH through IAP only: deny the world, allow the IAP range above it
-gcloud compute firewall-rules create gadget-gpu-deny-ssh --network=gadget-vpc \
-  --direction=INGRESS --action=DENY --rules=tcp:22 \
-  --source-ranges=0.0.0.0/0 --target-tags=gpu --priority=1000
-gcloud compute firewall-rules create gadget-gpu-iap-ssh --network=gadget-vpc \
-  --direction=INGRESS --action=ALLOW --rules=tcp:22 \
-  --source-ranges=35.235.240.0/20 --target-tags=gpu --priority=900
+docker run --rm --gpus all nvidia/cuda:12.9.0-base-ubuntu24.04 \
+  nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 ```
 
-The VPC has no Cloud NAT, so give the VM a temporary external address for the install and the
-build, and remove it afterwards:
+Provision the speech models under one directory (`AUDIO_MODELS_DIR`): `audiocpp`, `kokoro`, `piper`
+and `supertonic`, from the sources in `AUDIO_TIER.md`. The conversion model and its assets go in
+their own directory; `vctk-p225.pth` is the pilot's. Audio models usually sit on the working
+drive, which is re-provisionable and not backed up.
+
+Start the audio tier, bound to loopback because the tunnel reaches it locally:
 
 ```bash
-gcloud compute instances add-access-config gadget-gpu --zone=$GPU_ZONE \
-  --access-config-name=external-nat
-```
-
-Install the NVIDIA driver (CUDA 13 needs 580 or newer) and the container toolkit. The kernel is
-built with gcc-12; DKMS fails without it, and the failure is only visible in
-`/var/lib/dkms/nvidia/*/build/make.log`:
-
-```bash
-sudo apt-get update && sudo apt-get install -y build-essential gcc-12 \
-  linux-headers-$(uname -r) ca-certificates wget
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
-sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-12 100
-cd /tmp && wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
-sudo dpkg -i cuda-keyring_1.1-1_all.deb
-sudo apt-get update && sudo apt-get install -y cuda-drivers-580
-sudo reboot
-```
-
-After the reboot, install Docker from Docker's repository as in §7, then the container toolkit,
-and prove the card reaches a container:
-
-```bash
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
-  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#' | \
-  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
-sudo docker run --rm --gpus all nvidia/cuda:12.9.0-base-ubuntu22.04 \
-  nvidia-smi --query-gpu=name --format=csv,noheader
-```
-
-Ship the audio tree and the models, then start the whole tier — including `audiocpp`:
-
-```bash
-git -C <repo> archive --format=tar.gz -o "$TEMP/audio-tier.tar.gz" HEAD
-gcloud compute scp "$TEMP/audio-tier.tar.gz" gadget-gpu:/tmp/ --zone=$GPU_ZONE --tunnel-through-iap
-tar -C <repo>/audio-models -czf "$TEMP/audio-models.tar.gz" kokoro piper supertonic
-gcloud compute scp "$TEMP/audio-models.tar.gz" gadget-gpu:/tmp/ --zone=$GPU_ZONE --tunnel-through-iap
-
-# on the host
-sudo mkdir -p /srv/audio-tier /srv/audio-models
-sudo tar xzf /tmp/audio-tier.tar.gz -C /srv/audio-tier
-sudo tar xzf /tmp/audio-models.tar.gz -C /srv/audio-models
-# the ASR model, pinned and checksummed by the service's own script
-cd /srv/audio-tier && sudo python3 audiocpp-service/download_models.py --dest /srv/audio-models/audiocpp
-cd /srv/audio-tier
-sudo env AUDIO_BIND_ADDR=<gpu-private-ip> AUDIO_MODELS_DIR=/srv/audio-models \
+AUDIO_BIND_ADDR=127.0.0.1 AUDIO_MODELS_DIR=<audio-models-dir> \
   docker compose -f docker-compose.audio.yml up -d --build \
   audiocpp stt-proxy gateway tts-proxy kokoro piper supertonic
 ```
 
-The gateway answers at `http://gadget-gpu:8082/health` and the STT proxy at `:8080`; the app host
-resolves the instance's internal DNS name, and only its tag may reach the ports.
-
-The conversion service is the second project on the same host. Ship its service, both compose
-files and the model directory, then build and start with the GPU override:
+Start the conversion project with the GPU override and the model the activation sidecar keeps
+active. The service holds the active model in memory only, so the sidecar polls
+`/api/models/active` and re-activates the named model whenever the answer is no — after a
+container restart and after a host reboot:
 
 ```bash
-gcloud compute scp --recurse --tunnel-through-iap ovc-service gadget-gpu:/tmp/ --zone=$GPU_ZONE
-gcloud compute scp --tunnel-through-iap docker-compose.ovc.yml docker-compose.ovc.gpu.yml \
-  gadget-gpu:/tmp/ --zone=$GPU_ZONE
-gcloud compute scp --recurse --tunnel-through-iap <ovc-models-dir> gadget-gpu:/tmp/ --zone=$GPU_ZONE
-# on the host
-sudo mkdir -p /srv/ovc
-sudo mv /tmp/ovc-service /srv/ovc/
-sudo mv /tmp/docker-compose.ovc.yml /tmp/docker-compose.ovc.gpu.yml /srv/ovc/
-sudo mv /tmp/<ovc-models-dir> /srv/ovc-models
-cd /srv/ovc
-sudo env OVC_TAG=cpu docker compose -f docker-compose.ovc.yml build
-sudo env OVC_MODELS_DIR=/srv/ovc-models OVC_BIND_ADDR=0.0.0.0 OVC_PUBLISHED_PORT=8085 \
-  OVC_TAG=cpu docker compose -f docker-compose.ovc.yml -f docker-compose.ovc.gpu.yml up -d
+OVC_MODELS_DIR=<ovc-models-dir> OVC_MODEL=vctk-p225.pth OVC_TAG=cpu \
+  docker compose -f docker-compose.ovc.yml -f docker-compose.ovc.gpu.yml up -d --build
 ```
 
-Remove the temporary address, then install the activation unit. The service keeps its active
-model in memory only, so this is what makes a restart or a stopped VM come back converting:
+The card is 4 GB: transcription holds about 3 GB and conversion about 0.7 GB, leaving roughly
+0.5 GB free. That margin is why the two do not always coexist; `OVC_REQUIRED=false` delivers the
+unconverted audio and reports the failure rather than failing the turn.
 
-```bash
-gcloud compute instances delete-access-config gadget-gpu --zone=$GPU_ZONE \
-  --access-config-name=external-nat
+Expose the three services through the named tunnel. Its configuration lists one hostname per
+service before the catch-all, and DNS carries a route for each:
+
+```yaml
+- hostname: stt.<domain>
+  service: http://127.0.0.1:8080
+- hostname: tts.<domain>
+  service: http://127.0.0.1:8082
+- hostname: ovc.<domain>
+  service: http://127.0.0.1:8085
 ```
 
 ```bash
-#!/bin/bash
-# /usr/local/bin/gadget-ovc-activate.sh
-set -uo pipefail
-for i in $(seq 1 120); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' -m 3 \
-    http://127.0.0.1:8085/api/models/active 2>/dev/null || true)
-  [ "$code" = "200" ] && break
-  sleep 2
-done
-curl -sf -m 240 -X POST http://127.0.0.1:8085/api/models/vctk-p225.pth/activate >/dev/null
-curl -s -m 5 http://127.0.0.1:8085/api/models/active | grep -q '"active":true'
+cloudflared tunnel route dns <tunnel> stt.<domain>
+cloudflared tunnel route dns <tunnel> tts.<domain>
+cloudflared tunnel route dns <tunnel> ovc.<domain>
+sudo cloudflared tunnel ingress validate --config /etc/cloudflared/config.yml
+sudo systemctl restart cloudflared-gadget-audio
 ```
+
+The speech services have no authentication, so the tunnel hostnames are the boundary. Do not
+publish them beyond this deployment, and do not replace the named tunnel with a quick tunnel whose
+address changes when it restarts. The machine must stay awake and online whenever the deployment
+is in use; sleeping it removes transcription, synthesis and conversion together.
+
+The model names under the conversion models directory are the operator's; `vctk-p225.pth` is the
+pilot's. Point the runtime at the conversion endpoint in `/etc/gadget/api.env` and restart
+`gadget-api`:
 
 ```ini
-# /etc/systemd/system/gadget-ovc-activate.service
-[Unit]
-Description=Activate the OVC voice-conversion model
-After=docker.service network-online.target
-Requires=docker.service
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/local/bin/gadget-ovc-activate.sh
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo chmod 755 /usr/local/bin/gadget-ovc-activate.sh
-sudo systemctl daemon-reload
-sudo systemctl enable --now gadget-ovc-activate.service
-```
-
-The model names under `/srv/ovc-models` are the operator's; `vctk-p225.pth` is the pilot's. Point
-the runtime at the host in `/etc/gadget/api.env` and restart `gadget-api`:
-
-```ini
-OVC_URL=http://gadget-gpu:8085
+OVC_URL=https://ovc.<domain>
 OVC_MODEL=vctk-p225.pth
 OVC_TIMEOUT_MS=60000
 OVC_REQUIRED=false
@@ -516,24 +425,10 @@ Also add these lines to the `api.env` heredoc inside `/usr/local/bin/gadget-secr
 That script rewrites `/etc/gadget/api.env` at every boot, so a line added only to the file is
 silently dropped when the host is stopped and started again — the deployment then reports
 `configured: false` and every reply, including the console's audition, is the provider's own
-voice. After changing the script, append the lines to the running file (or re-run the script)
-and restart `gadget-api`.
+voice. After changing the script, restart `gadget-secrets` and `gadget-api`.
 
-Add the host to `ops.local.json` so a session starts, stops and reports it. Both entries name the
-same instance; the tool tolerates the second start or stop:
-
-```json
-"audio": {
-  "instance": "gadget-gpu",
-  "zone": "asia-southeast1-b",
-  "healthUrl": "http://gadget-gpu:8082/health"
-},
-"ovc": {
-  "instance": "gadget-gpu",
-  "zone": "asia-southeast1-b",
-  "healthUrl": "http://gadget-gpu:8085/api/models/active"
-}
-```
+Do not add `audio` or `ovc` entries to `ops.local.json`: the speech tier is not started or stopped
+by the operator tool, and a session start cannot reach it.
 
 ## 9. Enable and seed
 
@@ -564,8 +459,8 @@ sudo install -m 600 /dev/null /root/provider-seed.json
 sudo tee /root/provider-seed.json >/dev/null <<'JSON'
 [
   {"kind":"llm","name":"<model name>","baseUrl":"<openai-compatible url>","model":"<model>","apiKey":"<key>","default":true},
-  {"kind":"stt","name":"Speech to text","baseUrl":"http://gadget-gpu:8080","model":"stt","default":true},
-  {"kind":"tts","name":"Voice","baseUrl":"http://gadget-gpu:8082","model":"piper","voice":"<voice>","default":true}
+  {"kind":"stt","name":"Local STT","baseUrl":"https://stt.<domain>","model":"stt","default":true},
+  {"kind":"tts","name":"Local TTS","baseUrl":"https://tts.<domain>","model":"piper","voice":"<voice>","default":true}
 ]
 JSON
 sudo bash -c 'set -a; . /etc/gadget/console.env; set +a; cd /srv/gadget-console/current; \
@@ -621,8 +516,8 @@ admin approves the claim at `/admin/claims`.
 
 - The firmware: its OTA address must be `https://<bridge-host>/xiaozhi/ota/`, which is a build-time
   value in the XiaoZhi configuration.
-- The GPU driver and the container toolkit are prerequisites on the speech host, and one L4 host
-  carries the whole speech tier. The provisioning above installs them; a host without the driver
-  falls back to CPU conversion, which is slow enough to notice.
+- The GPU driver and the container toolkit are prerequisites on the operator's machine, and one
+  4 GB card carries transcription and conversion together. The section above installs them; a
+  machine without the driver falls back to CPU conversion, which is slow enough to notice.
 - A personality created from the console has a neutral name and prompt for its language; the
   owner edits them under Advanced.
