@@ -3,6 +3,7 @@ import { bridgeAuthorized } from "@/lib/bridge/auth";
 import { resolveDevice } from "@/lib/bridge/registry";
 import { deviceIdFrom } from "@/lib/http/device-id";
 import { tenantForBridgeRequest } from "@/lib/tenancy/bridge";
+import { quotaRefusalMessage } from "@/lib/tenancy/quotas";
 
 export async function POST(request: Request) {
   if (!bridgeAuthorized(request)) {
@@ -22,6 +23,12 @@ export async function POST(request: Request) {
   const resolution = await resolveDevice(deviceId, tenant.id);
   if (resolution.kind === "wrong-tenant") {
     return NextResponse.json({ error: "wrong tenant for this device" }, { status: 403 });
+  }
+  if (resolution.kind === "quota-exceeded") {
+    return NextResponse.json(
+      { error: quotaRefusalMessage(resolution.refusal) },
+      { status: 403 }
+    );
   }
   if (resolution.kind === "rate-limited") {
     return NextResponse.json({ error: "too many claim requests for this device" }, { status: 429 });

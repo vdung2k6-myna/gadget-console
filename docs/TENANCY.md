@@ -52,6 +52,21 @@ The pooling caveat is why this is a separate step: a session-level `SET` on a
 pooled connection would leak the tenant to the next borrower. The repository's
 throw-without-context rule is what keeps the application safe until RLS lands.
 
+## Quotas
+
+`tenants.quotas` bounds `devices`, `turns`, `concurrency`, `speechSeconds` and
+`providerSpend`; an absent key means no bound. `checkQuota` returns a refusal
+that names the tenant and the quota, and `quotaRefusalMessage` turns it into the
+sentence the console or bridge answers with.
+
+- A new device is checked against the device quota before its row is created;
+  an owned device's connection is checked against the 24-hour turn quota.
+- Speech seconds are summed from `usage_events`; provider spend and concurrency
+  are checked against a caller-supplied used value. The runtime that would report
+  those values is the metering task (6.4).
+- `test/tenancy-quotas.test.ts` covers the checks, the device and turn
+  enforcement, and the speech-second sum.
+
 ## Retention
 
 Each tenant's `retention_days` overrides the deployment's `RETENTION_DAYS` for

@@ -7,6 +7,12 @@ import { allowClaimIssue, awaitingApproval, issueClaim, isPendingClaim, normaliz
 import { providersForAgent } from "@/lib/provider-profiles";
 import { getCalibration } from "@/lib/device-calibration";
 import { targetFor } from "@/lib/firmware";
+import { findTenant } from "@/lib/tenants";
+import {
+  enforceDeviceQuota,
+  enforceTurnQuota,
+  type QuotaRefusal,
+} from "@/lib/tenancy/quotas";
 
 /**
  * What the bridge asks the console, and what the console answers.
@@ -27,7 +33,8 @@ export type Resolution =
   | { kind: "owned"; body: Record<string, unknown> }
   | { kind: "unowned"; body: Record<string, unknown> }
   | { kind: "rate-limited" }
-  | { kind: "wrong-tenant" };
+  | { kind: "wrong-tenant" }
+  | { kind: "quota-exceeded"; refusal: QuotaRefusal };
 
 export async function resolveDevice(
   rawDeviceId: string,
@@ -50,6 +57,16 @@ export async function resolveDevice(
   if (device !== undefined && tenantId !== undefined && device.tenantId === null) {
     await getDb().update(devices).set({ tenantId }).where(eq(devices.id, device.id));
     device = { ...device, tenantId };
+  }
+
+  const tenant = tenantId === undefined ? undefined : await findTenant(tenantId);
+  if (tenant !== undefined && device === undefined) {
+    const refusal = await enforceDeviceQuota(tenant);
+    if (refusal !== null) return { kind: "quota-exceeded", refusal };
+  }
+  if (tenant !== undefined && device !== undefined && device.userId !== null) {
+    const refusal = await enforceTurnQuota(tenant);
+    if (refusal !== null) return { kind: "quota-exceeded", refusal };
   }
 
   if (device === undefined || device.userId === null) {
