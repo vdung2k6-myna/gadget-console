@@ -52,6 +52,15 @@ The pooling caveat is why this is a separate step: a session-level `SET` on a
 pooled connection would leak the tenant to the next borrower. The repository's
 throw-without-context rule is what keeps the application safe until RLS lands.
 
+## Retention
+
+Each tenant's `retention_days` overrides the deployment's `RETENTION_DAYS` for
+its turns. The scheduled `pruneAll` iterates tenants and deletes each tenant's
+turns on its own cutoff; a tenant that states no retention follows the
+deployment's, and rows that predate tenancy follow it too. The unclaimed-device
+and claim TTLs remain deployment settings. `test/tenancy-retention.test.ts` seeds
+two tenants with different values and checks what each pass removes.
+
 ## Keys
 
 `LLM_KEY_SECRET` is the deployment's master key. A platform built-in is encrypted

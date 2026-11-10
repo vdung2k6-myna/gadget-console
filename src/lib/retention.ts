@@ -1,7 +1,7 @@
-import { inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/db/client";
-import { claims, devices, turns } from "@/lib/db/schema";
+import { claims, devices, tenants, turns } from "@/lib/db/schema";
 
 /**
  * Deletion the deployment does for itself.
@@ -120,14 +120,30 @@ export async function pruneClaims(
  * and the prune is a scheduled run rather than something a request does, so a
  * read never pays for cleanup.
  */
+/**
+ * Turns past a retention period.
+ *
+ * A named tenant limits the delete to its rows; `null` is the legacy rows that
+ * predate tenancy; omitting it keeps the single-deployment behaviour and deletes
+ * across every tenant.
+ */
 export async function pruneTurns(
   retentionDays = loadConfig().retentionDays,
-  now = new Date()
+  now = new Date(),
+  tenantId?: string | null
 ): Promise<number> {
   const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+  const old = lt(turns.createdAt, cutoff);
+  const where =
+    tenantId === undefined
+      ? old
+      : tenantId === null
+        ? and(old, isNull(turns.tenantId))
+        : and(old, eq(turns.tenantId, tenantId));
+
   const deleted = await getDb()
     .delete(turns)
-    .where(lt(turns.createdAt, cutoff))
+    .where(where)
     .returning({ id: turns.id });
   return deleted.length;
 }
@@ -143,7 +159,22 @@ export async function pruneAll(now: Date = new Date()): Promise<PruneReport> {
   const config = loadConfig();
   const devicesPruned = await pruneUnclaimedDevices(now, config.pruneBatch);
   const claimsPruned = await pruneClaims(now, config.pruneBatch);
-  const turnsPruned = await pruneTurns(config.retentionDays, now);
+
+  // Each tenant's turns follow its own retention; a tenant that states none
+  // follows the deployment's. Rows that predate tenancy follow the deployment's.
+  const tenantRows = await getDb()
+    .select({ id: tenants.id, retentionDays: tenants.retentionDays })
+    .from(tenants);
+  let turnsPruned = 0;
+  for (const tenant of tenantRows) {
+    turnsPruned += await pruneTurns(
+      tenant.retentionDays ?? config.retentionDays,
+      now,
+      tenant.id
+    );
+  }
+  turnsPruned += await pruneTurns(config.retentionDays, now, null);
+
   return {
     devices: devicesPruned.devices,
     claims: devicesPruned.claims + claimsPruned,
