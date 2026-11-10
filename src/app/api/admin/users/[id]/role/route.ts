@@ -29,7 +29,7 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ error: "role is required" }, { status: 400 });
   }
 
-  const result = await changeRoleAsAdmin(admin.email, id, role);
+  const result = await changeRoleAsAdmin(admin, id, role);
   if (result.ok) return new NextResponse(null, { status: 204 });
 
   if (result.reason === "unknown-role") {
@@ -40,6 +40,9 @@ export async function PATCH(request: Request, { params }: Params) {
   }
   if (result.reason === "last-admin") {
     return NextResponse.json({ error: "last-admin" }, { status: 409 });
+  }
+  if (result.reason === "no-tenant") {
+    return NextResponse.json({ error: "no-tenant" }, { status: 409 });
   }
   return notFound();
 }

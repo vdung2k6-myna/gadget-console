@@ -19,6 +19,11 @@ export interface AdminStrings {
   noTools: string;
   viewing: string;
   role: string;
+  roleUser: string;
+  roleSupport: string;
+  roleTenantAdmin: string;
+  rolePlatformAdmin: string;
+  noTenant: string;
   deviceCount: string;
   agentCount: string;
   joined: string;
@@ -183,6 +188,11 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     noTools: "chưa báo",
     viewing: "Bạn đang xem thiết bị của",
     role: "Quyền",
+    roleUser: "Người dùng",
+    roleSupport: "Hỗ trợ",
+    roleTenantAdmin: "Quản trị tenant",
+    rolePlatformAdmin: "Quản trị nền tảng",
+    noTenant: "Quản trị nền tảng không thuộc tenant nào; hãy gán tenant trước khi hạ quyền.",
     deviceCount: "Thiết bị",
     agentCount: "Agent",
     joined: "Tham gia",
@@ -322,6 +332,11 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     noTools: "not reported",
     viewing: "You are looking at a device belonging to",
     role: "Role",
+    roleUser: "User",
+    roleSupport: "Support",
+    roleTenantAdmin: "Tenant admin",
+    rolePlatformAdmin: "Platform admin",
+    noTenant: "A platform admin has no tenant; assign a tenant before demoting it.",
     deviceCount: "Devices",
     agentCount: "Agents",
     joined: "Joined",

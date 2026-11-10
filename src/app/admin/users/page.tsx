@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { RoleControl } from "@/components/RoleControl";
 import { requireAdmin } from "@/lib/auth/admin";
+import { isPlatformAdmin } from "@/lib/auth/roles";
 import { listAccounts } from "@/lib/users";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
@@ -10,8 +11,13 @@ export const instant = false;
 export default async function AdminUsersPage() {
   const { locale } = await getStrings();
   const adminStrings = adminStringsFor(locale);
-  await requireAdmin();
-  const accounts = await listAccounts();
+  const admin = await requireAdmin();
+  // The platform admin sees every tenant; a tenant admin sees only its own.
+  const scope =
+    isPlatformAdmin(admin.role) || admin.role === "admin"
+      ? undefined
+      : (admin.tenantId ?? "");
+  const accounts = await listAccounts(scope);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -45,7 +51,13 @@ export default async function AdminUsersPage() {
               <dd className="text-zinc-600 dark:text-zinc-400">{account.createdAt.toLocaleDateString()}</dd>
             </dl>
             <div className="mt-2">
-              <RoleControl userId={account.id} email={account.email} role={account.role} locale={locale} />
+              <RoleControl
+                userId={account.id}
+                email={account.email}
+                role={account.role}
+                actorRole={admin.role}
+                locale={locale}
+              />
             </div>
           </li>
         ))}
@@ -73,7 +85,13 @@ export default async function AdminUsersPage() {
                 {account.createdAt.toLocaleDateString()}
               </td>
               <td className="py-2 text-right">
-                <RoleControl userId={account.id} email={account.email} role={account.role} locale={locale} />
+                <RoleControl
+                  userId={account.id}
+                  email={account.email}
+                  role={account.role}
+                  actorRole={admin.role}
+                  locale={locale}
+                />
               </td>
             </tr>
           ))}

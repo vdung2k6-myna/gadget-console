@@ -4,34 +4,54 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import type { Locale } from "@/lib/i18n/locales";
+import type { UserRole } from "@/lib/auth/roles";
+
+const ROLE_ORDER: UserRole[] = ["user", "support", "tenant_admin", "platform_admin"];
 
 /**
- * Granting or taking away the admin role, from the account list.
+ * Changing a role from the account list.
  *
- * The route refuses a change that would leave no admin; the page turns that
- * refusal into a sentence, because the words belong to the interface. Demoting
- * asks first — it takes the area away from somebody else.
+ * A platform admin may grant any role; a tenant admin may grant only the
+ * tenant-scoped ones. The route refuses the last-admin, protected and
+ * platform-admin-without-a-tenant cases; the page turns each into a sentence.
  */
 export function RoleControl({
   userId,
   email,
   role,
+  actorRole,
   locale,
 }: {
   userId: string;
   email: string;
-  role: "user" | "admin";
+  role: UserRole;
+  actorRole: string;
   locale: Locale;
 }) {
   const strings = adminStringsFor(locale);
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [selected, setSelected] = useState<UserRole>(role);
   const [error, setError] = useState("");
 
-  const next = role === "admin" ? "user" : "admin";
+  const allowed = ROLE_ORDER.filter(
+    (entry) =>
+      entry !== "platform_admin" || actorRole === "platform_admin" || actorRole === "admin"
+  );
 
-  async function change() {
-    if (next === "user" && !window.confirm(strings.demoteConfirm.replace("{email}", email))) return;
+  function label(entry: UserRole): string {
+    if (entry === "platform_admin") return strings.rolePlatformAdmin;
+    if (entry === "tenant_admin") return strings.roleTenantAdmin;
+    if (entry === "support") return strings.roleSupport;
+    return strings.roleUser;
+  }
+
+  async function change(next: UserRole): Promise<void> {
+    if (next === role) return;
+    if (next === "user" && !window.confirm(strings.demoteConfirm.replace("{email}", email))) {
+      setSelected(role);
+      return;
+    }
 
     setPending(true);
     setError("");
@@ -45,11 +65,19 @@ export function RoleControl({
 
     if (response.status === 409) {
       const body = (await response.json().catch(() => ({}))) as { error?: unknown };
-      setError(body.error === "protected" ? strings.protectedAccount : strings.lastAdmin);
+      setError(
+        body.error === "protected"
+          ? strings.protectedAccount
+          : body.error === "no-tenant"
+            ? strings.noTenant
+            : strings.lastAdmin
+      );
+      setSelected(role);
       return;
     }
     if (!response.ok) {
       setError(strings.roleFailed);
+      setSelected(role);
       return;
     }
     router.refresh();
@@ -57,13 +85,22 @@ export function RoleControl({
 
   return (
     <span className="flex flex-col gap-1">
-      <button
-        className="text-xs underline disabled:opacity-50"
+      <select
+        className="rounded border border-zinc-200 bg-transparent px-1 py-0.5 text-xs disabled:opacity-50 dark:border-zinc-800"
+        value={selected}
         disabled={pending}
-        onClick={change}
+        onChange={(event) => {
+          const next = event.target.value as UserRole;
+          setSelected(next);
+          void change(next);
+        }}
       >
-        {next === "admin" ? strings.promote : strings.demote}
-      </button>
+        {allowed.map((entry) => (
+          <option key={entry} value={entry}>
+            {label(entry)}
+          </option>
+        ))}
+      </select>
       {error !== "" && (
         <span role="alert" className="text-xs text-red-700 dark:text-red-300">
           {error}

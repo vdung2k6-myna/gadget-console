@@ -9,7 +9,7 @@ import { createAgent, validateAgentDraft } from "../src/lib/agents";
 import { createProviderProfile } from "../src/lib/provider-profiles";
 import { changeRoleAsAdmin, listAccounts, setRole } from "../src/lib/users";
 import { createRuntime } from "../src/lib/runtimes";
-import { devices, turns } from "../src/lib/db/schema";
+import { devices, tenants, turns } from "../src/lib/db/schema";
 
 before(() => requireTestDatabase());
 beforeEach(resetDb);
@@ -17,6 +17,20 @@ after(closeDb);
 
 async function account(email: string) {
   const result = await registerAccount(email, "a good password");
+  if (!result.ok) throw new Error(`could not register ${email}`);
+  return result.user;
+}
+
+async function tenant(slug: string) {
+  const rows = await getDb()
+    .insert(tenants)
+    .values({ name: slug, slug })
+    .returning();
+  return rows[0]!;
+}
+
+async function tenantAccount(email: string, tenantId: string) {
+  const result = await registerAccount(email, "a good password", tenantId);
   if (!result.ok) throw new Error(`could not register ${email}`);
   return result.user;
 }
@@ -77,84 +91,144 @@ function captureLog(run: () => Promise<unknown>): Promise<{ result: unknown; lin
 
 describe("granting the role", () => {
   it("sets it, and says what it was", async () => {
-    const ann = await account("ann@example.com");
-    const result = await setRole(" ANN@Example.com ", "admin");
+    const acme = await tenant("acme");
+    const ann = await tenantAccount("ann@example.com", acme.id);
+    const result = await setRole(" ANN@Example.com ", "tenant_admin");
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(result.email, "ann@example.com");
     assert.equal(result.previous, "user");
-    assert.equal(result.role, "admin");
+    assert.equal(result.role, "tenant_admin");
 
-    const again = await setRole("ann@example.com", "admin");
-    assert.equal(again.ok && again.previous, "admin", "setting it twice changes nothing");
+    const again = await setRole("ann@example.com", "tenant_admin");
+    assert.equal(again.ok && again.previous, "tenant_admin", "setting it twice changes nothing");
     assert.ok(ann.id);
   });
 
   it("refuses an address nobody holds, and a role that is not one", async () => {
-    assert.deepEqual(await setRole("nobody@example.com", "admin"), {
+    const acme = await tenant("acme");
+    await tenantAccount("ann@example.com", acme.id);
+    assert.deepEqual(await setRole("nobody@example.com", "tenant_admin"), {
       ok: false,
       reason: "no-such-account",
     });
-    await account("ann@example.com");
     assert.deepEqual(await setRole("ann@example.com", "root"), { ok: false, reason: "unknown-role" });
+  });
+
+  it("refuses a tenant role for an account with no tenant", async () => {
+    await account("platform@example.com");
+    assert.deepEqual(await setRole("platform@example.com", "tenant_admin"), {
+      ok: false,
+      reason: "no-tenant",
+    });
+    assert.deepEqual(await setRole("platform@example.com", "platform_admin"), {
+      ok: true,
+      email: "platform@example.com",
+      previous: "user",
+      role: "platform_admin",
+    });
   });
 });
 
 describe("an admin granting the role", () => {
   it("promotes and demotes another account, recording who did it", async () => {
-    const ann = await account("ann@example.com");
-    const root = await account("root@example.com");
-    await setRole("root@example.com", "admin");
+    const acme = await tenant("acme");
+    const ann = await tenantAccount("ann@example.com", acme.id);
+    await tenantAccount("root@example.com", acme.id);
+    await setRole("root@example.com", "tenant_admin");
+    const root = { email: "root@example.com", role: "tenant_admin", tenantId: acme.id };
 
-    const promoted = await captureLog(() => changeRoleAsAdmin(root.email, ann.id, "admin"));
+    const promoted = await captureLog(() => changeRoleAsAdmin(root, ann.id, "tenant_admin"));
     assert.deepEqual(promoted.result, { ok: true });
     assert.ok(promoted.lines.some((line) => line.includes("root@example.com") && line.includes("ann@example.com")));
 
-    const accounts = await listAccounts();
-    assert.equal(accounts.find((entry) => entry.email === "ann@example.com")?.role, "admin");
+    const accounts = await listAccounts(acme.id);
+    assert.equal(accounts.find((entry) => entry.email === "ann@example.com")?.role, "tenant_admin");
 
-    // Now two admins, so one may be demoted.
-    assert.deepEqual(await changeRoleAsAdmin(root.email, ann.id, "user"), { ok: true });
+    // Now two tenant admins, so one may be demoted.
+    assert.deepEqual(await changeRoleAsAdmin(root, ann.id, "user"), { ok: true });
   });
 
-  it("refuses to remove the last admin", async () => {
-    const ann = await account("ann@example.com");
-    await setRole("ann@example.com", "admin");
+  it("refuses to remove the last tenant admin", async () => {
+    const acme = await tenant("acme");
+    const ann = await tenantAccount("ann@example.com", acme.id);
+    await setRole("ann@example.com", "tenant_admin");
+    const admin = { email: "ann@example.com", role: "tenant_admin", tenantId: acme.id };
 
-    assert.deepEqual(await changeRoleAsAdmin("ann@example.com", ann.id, "user"), {
+    assert.deepEqual(await changeRoleAsAdmin(admin, ann.id, "user"), {
       ok: false,
       reason: "last-admin",
     });
-    assert.equal((await listAccounts()).find((entry) => entry.email === "ann@example.com")?.role, "admin");
+    assert.equal(
+      (await listAccounts(acme.id)).find((entry) => entry.email === "ann@example.com")?.role,
+      "tenant_admin"
+    );
+  });
+
+  it("refuses a tenant admin reaching another tenant", async () => {
+    const acme = await tenant("acme");
+    const other = await tenant("other");
+    const ann = await tenantAccount("ann@example.com", acme.id);
+    const bob = await tenantAccount("bob@example.com", other.id);
+    const admin = { email: "ann@example.com", role: "tenant_admin", tenantId: acme.id };
+
+    assert.deepEqual(await changeRoleAsAdmin(admin, bob.id, "tenant_admin"), {
+      ok: false,
+      reason: "not-found",
+    });
+    assert.deepEqual(await changeRoleAsAdmin(admin, ann.id, "platform_admin"), {
+      ok: false,
+      reason: "not-found",
+    });
+  });
+
+  it("refuses to remove the last platform admin", async () => {
+    const acme = await tenant("acme");
+    const root = await tenantAccount("root@example.com", acme.id);
+    await setRole("root@example.com", "platform_admin");
+    const admin = { email: "root@example.com", role: "platform_admin", tenantId: null };
+
+    assert.deepEqual(await changeRoleAsAdmin(admin, root.id, "tenant_admin"), {
+      ok: false,
+      reason: "last-admin",
+    });
   });
 
   it("refuses to return a protected admin to a user, from the area or the command", async () => {
     // The guard is the deployment's setting, so the test names its own account.
     process.env.PROTECTED_ADMINS = "guardian@example.com";
     try {
-      await account("guardian@example.com");
-      await setRole("guardian@example.com", "admin");
+      const acme = await tenant("acme");
+      await tenantAccount("guardian@example.com", acme.id);
+      await setRole("guardian@example.com", "platform_admin");
 
       const protectedAccount = (await listAccounts()).find((entry) => entry.email === "guardian@example.com")!;
-      assert.deepEqual(await changeRoleAsAdmin("root@example.com", protectedAccount.id, "user"), {
+      const admin = { email: "root@example.com", role: "platform_admin", tenantId: null };
+      assert.deepEqual(await changeRoleAsAdmin(admin, protectedAccount.id, "user"), {
         ok: false,
         reason: "protected",
       });
       assert.deepEqual(await setRole("guardian@example.com", "user"), { ok: false, reason: "protected" });
-      assert.equal((await listAccounts()).find((entry) => entry.email === "guardian@example.com")?.role, "admin");
+      assert.equal(
+        (await listAccounts()).find((entry) => entry.email === "guardian@example.com")?.role,
+        "platform_admin"
+      );
     } finally {
       delete process.env.PROTECTED_ADMINS;
     }
   });
 
   it("refuses an unknown role and an unknown account", async () => {
-    const ann = await account("ann@example.com");
-    assert.deepEqual(await changeRoleAsAdmin("root@example.com", ann.id, "root"), {
+    const acme = await tenant("acme");
+    const ann = await tenantAccount("ann@example.com", acme.id);
+    const admin = { email: "root@example.com", role: "platform_admin", tenantId: null };
+
+    assert.deepEqual(await changeRoleAsAdmin(admin, ann.id, "root"), {
       ok: false,
       reason: "unknown-role",
     });
     assert.deepEqual(
-      await changeRoleAsAdmin("root@example.com", "00000000-0000-0000-0000-000000000000", "admin"),
+      await changeRoleAsAdmin(admin, "00000000-0000-0000-0000-000000000000", "tenant_admin"),
       { ok: false, reason: "not-found" }
     );
   });

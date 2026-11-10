@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { closeDb } from "../src/lib/db/client";
-import { setRole } from "../src/lib/users";
+import { ROLES, setRole } from "../src/lib/users";
 
 /**
  * Grants or takes away the admin role. The only writer of `users.role` — there
@@ -11,7 +11,7 @@ import { setRole } from "../src/lib/users";
 async function main(): Promise<void> {
   const [email, role] = process.argv.slice(2);
   if (email === undefined || role === undefined) {
-    console.error("usage: npm run role -- <email> <user|admin>");
+    console.error(`usage: npm run role -- <email> <${ROLES.join("|")}>`);
     process.exitCode = 1;
     return;
   }
@@ -20,10 +20,12 @@ async function main(): Promise<void> {
   if (!result.ok) {
     console.error(
       result.reason === "unknown-role"
-        ? `unknown role ${JSON.stringify(role)}: the roles are user and admin`
+        ? `unknown role ${JSON.stringify(role)}: the roles are ${ROLES.join(", ")}`
         : result.reason === "protected"
-          ? `${JSON.stringify(email)} is a protected admin and cannot be returned to a user`
-          : `no account with the address ${JSON.stringify(email)}`
+          ? `${JSON.stringify(email)} is a protected admin and cannot be demoted`
+          : result.reason === "no-tenant"
+            ? `${JSON.stringify(email)} has no tenant; a tenant role needs one`
+            : `no account with the address ${JSON.stringify(email)}`
     );
     process.exitCode = 1;
     return;
