@@ -2,7 +2,7 @@ import Link from "next/link";
 import { NewPersonality } from "@/components/NewPersonality";
 import { requireUser } from "@/lib/auth/require-user";
 import {
-  defaultProviderProfile,
+  defaultProviderProfileFor,
   listProviderProfiles,
   publicProviderProfile,
 } from "@/lib/provider-profiles";
@@ -63,9 +63,9 @@ export default async function NewAgentPage({
   const fallback = (kind: "llm" | "stt" | "tts") =>
     isAdmin ? (profiles.find((profile) => profile.kind === kind)?.id ?? null) : null;
   const defaults = {
-    llm: (await defaultProviderProfile("llm"))?.id ?? fallback("llm"),
-    stt: (await defaultProviderProfile("stt"))?.id ?? fallback("stt"),
-    tts: (await defaultProviderProfile("tts"))?.id ?? fallback("tts"),
+    llm: (await defaultProviderProfileFor(user.id, "llm"))?.id ?? fallback("llm"),
+    stt: (await defaultProviderProfileFor(user.id, "stt"))?.id ?? fallback("stt"),
+    tts: (await defaultProviderProfileFor(user.id, "tts"))?.id ?? fallback("tts"),
   };
 
   return (

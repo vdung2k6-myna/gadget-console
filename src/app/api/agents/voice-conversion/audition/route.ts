@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { currentUser, unauthenticated } from "@/lib/auth/guard";
 import {
   activeAccountProvider,
-  defaultProviderProfile,
+  defaultProviderProfileFor,
   findProviderProfile,
   runtimeProvider,
 } from "@/lib/provider-profiles";
@@ -51,8 +51,8 @@ export async function POST(request: Request) {
   if (!allowCustom && profile !== undefined && !profile.builtin) profile = undefined;
   if (profile === undefined) {
     profile = allowCustom
-      ? ((await activeAccountProvider(user.id, "tts")) ?? (await defaultProviderProfile("tts")))
-      : await defaultProviderProfile("tts");
+      ? ((await activeAccountProvider(user.id, "tts")) ?? (await defaultProviderProfileFor(user.id, "tts")))
+      : await defaultProviderProfileFor(user.id, "tts");
   }
   // A template may name a voice the profile itself does not: the profile is the
   // endpoint and the model, the agent's voice is the one asked for.

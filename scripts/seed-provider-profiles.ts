@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { closeDb, getDb } from "../src/lib/db/client";
 import { providerProfiles } from "../src/lib/db/schema";
@@ -132,7 +132,8 @@ async function ensureBuiltin(entry: SeedEntry): Promise<void> {
         and(
           eq(providerProfiles.builtin, true),
           eq(providerProfiles.kind, entry.kind),
-          eq(providerProfiles.isDefault, true)
+          eq(providerProfiles.isDefault, true),
+          isNull(providerProfiles.tenantId)
         )
       );
   }
@@ -144,7 +145,8 @@ async function ensureBuiltin(entry: SeedEntry): Promise<void> {
       and(
         eq(providerProfiles.builtin, true),
         eq(providerProfiles.kind, entry.kind),
-        eq(providerProfiles.name, entry.name)
+        eq(providerProfiles.name, entry.name),
+        isNull(providerProfiles.tenantId)
       )
     )
     .limit(1);
@@ -167,6 +169,7 @@ async function ensureBuiltin(entry: SeedEntry): Promise<void> {
   }
 
   await db.insert(providerProfiles).values({
+    tenantId: null,
     userId: null,
     builtin: true,
     isDefault: entry.default,

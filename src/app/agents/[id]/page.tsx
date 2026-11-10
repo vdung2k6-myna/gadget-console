@@ -6,7 +6,7 @@ import { ownAgent } from "@/lib/auth/ownership";
 import { listAgents } from "@/lib/agents";
 import { listOwnedDevices } from "@/lib/devices";
 import {
-  defaultProviderProfile,
+  defaultProviderProfileFor,
   listProviderProfiles,
   publicProviderProfile,
 } from "@/lib/provider-profiles";
@@ -63,9 +63,9 @@ export default async function EditAgentPage({ params }: Params) {
   const fallback = (kind: "llm" | "stt" | "tts") =>
     isAdmin ? (profiles.find((profile) => profile.kind === kind)?.id ?? null) : null;
   const defaults = {
-    llm: (await defaultProviderProfile("llm"))?.id ?? fallback("llm"),
-    stt: (await defaultProviderProfile("stt"))?.id ?? fallback("stt"),
-    tts: (await defaultProviderProfile("tts"))?.id ?? fallback("tts"),
+    llm: (await defaultProviderProfileFor(user.id, "llm"))?.id ?? fallback("llm"),
+    stt: (await defaultProviderProfileFor(user.id, "stt"))?.id ?? fallback("stt"),
+    tts: (await defaultProviderProfileFor(user.id, "tts"))?.id ?? fallback("tts"),
   };
 
   return (

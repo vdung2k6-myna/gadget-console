@@ -2,7 +2,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { agents, devices } from "@/lib/db/schema";
 import {
-  defaultProviderProfile,
+  defaultProviderProfileFor,
   findProviderProfile,
   type ProviderKind,
 } from "./provider-profiles";
@@ -137,9 +137,9 @@ export async function validateAgentDraft(
   let ttsProfileId = await profileOf("tts", body.ttsProfileId, "the TTS profile");
 
   if (!allowCustomProfiles) {
-    llmProfileId ??= (await defaultProviderProfile("llm"))?.id ?? null;
-    sttProfileId ??= (await defaultProviderProfile("stt"))?.id ?? null;
-    ttsProfileId ??= (await defaultProviderProfile("tts"))?.id ?? null;
+    llmProfileId ??= (await defaultProviderProfileFor(userId, "llm"))?.id ?? null;
+    sttProfileId ??= (await defaultProviderProfileFor(userId, "stt"))?.id ?? null;
+    ttsProfileId ??= (await defaultProviderProfileFor(userId, "tts"))?.id ?? null;
   }
 
   // The answering model is required: an agent without one cannot speak.

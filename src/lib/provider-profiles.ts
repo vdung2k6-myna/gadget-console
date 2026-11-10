@@ -1,7 +1,7 @@
-import { and, count, desc, eq, or } from "drizzle-orm";
+import { and, count, desc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
-import { agents, providerProfiles } from "@/lib/db/schema";
+import { agents, providerProfiles, users } from "@/lib/db/schema";
 import { encryptionKey, storeKey } from "@/lib/crypto/profiles";
 import { decryptSecret } from "@/lib/crypto/secret-box";
 
@@ -192,28 +192,56 @@ function normalizeBaseUrl(raw: string): string | undefined {
   return (url.origin + url.pathname).replace(/\/+$/, "");
 }
 
-/** An account's own profiles together with the deployment's built-ins. */
+/** The tenant a user belongs to; null for a platform admin or a legacy account. */
+async function tenantForUser(userId: string): Promise<string | null> {
+  const rows = await getDb()
+    .select({ tenantId: users.tenantId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0]?.tenantId ?? null;
+}
+
+/** What this account may see: its own, its tenant's built-ins, and the platform's. */
 export async function listProviderProfiles(userId: string): Promise<ProviderProfileRow[]> {
+  const tenantId = await tenantForUser(userId);
+  if (tenantId === null) {
+    return getDb()
+      .select()
+      .from(providerProfiles)
+      .where(or(eq(providerProfiles.userId, userId), eq(providerProfiles.builtin, true)));
+  }
   return getDb()
     .select()
     .from(providerProfiles)
-    .where(or(eq(providerProfiles.userId, userId), eq(providerProfiles.builtin, true)));
+    .where(
+      or(
+        and(eq(providerProfiles.userId, userId), eq(providerProfiles.tenantId, tenantId)),
+        and(eq(providerProfiles.builtin, true), eq(providerProfiles.tenantId, tenantId)),
+        and(eq(providerProfiles.builtin, true), isNull(providerProfiles.tenantId))
+      )
+    );
 }
 
-/** A profile this account may name: its own, or a built-in. */
+/** A profile this account may name: its own, its tenant built-in, or a platform built-in. */
 export async function findProviderProfile(
   userId: string,
   id: string
 ): Promise<ProviderProfileRow | undefined> {
+  const tenantId = await tenantForUser(userId);
+  const visible =
+    tenantId === null
+      ? or(eq(providerProfiles.userId, userId), eq(providerProfiles.builtin, true))
+      : or(
+          and(eq(providerProfiles.userId, userId), eq(providerProfiles.tenantId, tenantId)),
+          and(eq(providerProfiles.builtin, true), eq(providerProfiles.tenantId, tenantId)),
+          and(eq(providerProfiles.builtin, true), isNull(providerProfiles.tenantId))
+        );
+
   const rows = await getDb()
     .select()
     .from(providerProfiles)
-    .where(
-      and(
-        eq(providerProfiles.id, id),
-        or(eq(providerProfiles.userId, userId), eq(providerProfiles.builtin, true))
-      )
-    )
+    .where(and(eq(providerProfiles.id, id), visible))
     .limit(1);
   return rows[0];
 }
@@ -223,6 +251,7 @@ async function findEditableProfile(
   userId: string,
   id: string
 ): Promise<ProviderProfileRow | undefined> {
+  const tenantId = await tenantForUser(userId);
   const rows = await getDb()
     .select()
     .from(providerProfiles)
@@ -230,7 +259,8 @@ async function findEditableProfile(
       and(
         eq(providerProfiles.id, id),
         eq(providerProfiles.userId, userId),
-        eq(providerProfiles.builtin, false)
+        eq(providerProfiles.builtin, false),
+        ...(tenantId === null ? [] : [eq(providerProfiles.tenantId, tenantId)])
       )
     )
     .limit(1);
@@ -241,10 +271,12 @@ export async function createProviderProfile(
   userId: string,
   draft: ProviderProfileDraft
 ): Promise<ProviderProfileRow> {
+  const tenantId = await tenantForUser(userId);
   const rows = await getDb()
     .insert(providerProfiles)
     .values({
       userId,
+      tenantId,
       builtin: false,
       kind: draft.kind,
       name: draft.name,
@@ -265,6 +297,7 @@ export async function updateProviderProfile(
   id: string,
   draft: ProviderProfileDraft
 ): Promise<ProviderProfileRow | undefined> {
+  const tenantId = await tenantForUser(userId);
   const existing = await findEditableProfile(userId, id);
   if (existing === undefined) return undefined;
 
@@ -280,7 +313,13 @@ export async function updateProviderProfile(
       // A blank key on edit is "keep what is stored", not "store nothing".
       ...(draft.apiKey === undefined ? {} : { encryptedKey: storeKey(draft.apiKey) }),
     })
-    .where(and(eq(providerProfiles.id, id), eq(providerProfiles.userId, userId)))
+    .where(
+      and(
+        eq(providerProfiles.id, id),
+        eq(providerProfiles.userId, userId),
+        ...(tenantId === null ? [] : [eq(providerProfiles.tenantId, tenantId)])
+      )
+    )
     .returning();
   return rows[0];
 }
@@ -310,6 +349,7 @@ export async function deleteProviderProfile(
   userId: string,
   id: string
 ): Promise<{ deleted: boolean; agentsAffected: number }> {
+  const tenantId = await tenantForUser(userId);
   const profile = await findEditableProfile(userId, id);
   if (profile === undefined) return { deleted: false, agentsAffected: 0 };
   const agentsAffected = await agentsUsingProvider(userId, id);
@@ -318,7 +358,13 @@ export async function deleteProviderProfile(
   // the fallback: the agents stay and fall to the runtime's default.
   await getDb()
     .delete(providerProfiles)
-    .where(and(eq(providerProfiles.id, id), eq(providerProfiles.userId, userId)));
+    .where(
+      and(
+        eq(providerProfiles.id, id),
+        eq(providerProfiles.userId, userId),
+        ...(tenantId === null ? [] : [eq(providerProfiles.tenantId, tenantId)])
+      )
+    );
   return { deleted: true, agentsAffected };
 }
 
@@ -336,6 +382,8 @@ export async function providersForAgent(
   /** An owner answers from the deployment's built-ins; an admin may use account profiles. */
   options: { allowCustom?: boolean } = {}
 ): Promise<{ stt: RuntimeProvider | null; tts: RuntimeProvider | null; llm: RuntimeProvider | null }> {
+  const tenantId = await tenantForUser(userId);
+
   async function one(
     kind: ProviderKind,
     id: string | null,
@@ -346,7 +394,7 @@ export async function providersForAgent(
     // An owner answers from the deployment's built-ins, whatever an older agent
     // row still names; an administrator may keep using an account profile.
     if (options.allowCustom === false && (row === undefined || !row.builtin)) {
-      row = await defaultProviderProfile(kind);
+      row = await defaultProviderProfile(kind, tenantId);
     }
     if (row === undefined) return null;
     const provider = runtimeProvider(row);
@@ -372,10 +420,33 @@ function agentSpeechColumn(kind: SpeechKind) {
   return kind === "stt" ? agents.sttProfileId : agents.ttsProfileId;
 }
 
-/** The built-in a deployment marks as the default for a kind, if it marks one. */
+/**
+ * The built-in marked as the default for a kind.
+ *
+ * A tenant's own default wins over the platform's; a tenant with none falls back
+ * to the platform default. With no tenant named, only the platform default is
+ * considered.
+ */
 export async function defaultProviderProfile(
-  kind: ProviderKind
+  kind: ProviderKind,
+  tenantId?: string | null
 ): Promise<ProviderProfileRow | undefined> {
+  if (tenantId !== undefined && tenantId !== null) {
+    const tenantDefault = await getDb()
+      .select()
+      .from(providerProfiles)
+      .where(
+        and(
+          eq(providerProfiles.builtin, true),
+          eq(providerProfiles.isDefault, true),
+          eq(providerProfiles.kind, kind),
+          eq(providerProfiles.tenantId, tenantId)
+        )
+      )
+      .limit(1);
+    if (tenantDefault[0] !== undefined) return tenantDefault[0];
+  }
+
   const rows = await getDb()
     .select()
     .from(providerProfiles)
@@ -383,11 +454,20 @@ export async function defaultProviderProfile(
       and(
         eq(providerProfiles.builtin, true),
         eq(providerProfiles.isDefault, true),
-        eq(providerProfiles.kind, kind)
+        eq(providerProfiles.kind, kind),
+        isNull(providerProfiles.tenantId)
       )
     )
     .limit(1);
   return rows[0];
+}
+
+/** The default for the tenant this account belongs to. */
+export async function defaultProviderProfileFor(
+  userId: string,
+  kind: ProviderKind
+): Promise<ProviderProfileRow | undefined> {
+  return defaultProviderProfile(kind, await tenantForUser(userId));
 }
 
 /**
@@ -402,6 +482,7 @@ export async function activeAccountProvider(
   userId: string,
   kind: SpeechKind
 ): Promise<ProviderProfileRow | undefined> {
+  const tenantId = await tenantForUser(userId);
   const own = await getDb()
     .select()
     .from(providerProfiles)
@@ -409,7 +490,8 @@ export async function activeAccountProvider(
       and(
         eq(providerProfiles.userId, userId),
         eq(providerProfiles.kind, kind),
-        eq(providerProfiles.builtin, false)
+        eq(providerProfiles.builtin, false),
+        ...(tenantId === null ? [] : [eq(providerProfiles.tenantId, tenantId)])
       )
     )
     .orderBy(desc(providerProfiles.createdAt));
