@@ -129,11 +129,23 @@ A console host resolves its tenant through `tenant_domains`; the platform host i
 request's host as `x-forwarded-host`, and a device that belongs to another tenant
 is refused before a secret or claim code is issued.
 
+## Domains
+
+`registerTenantDomain(tenantId, { domain, kind })` registers a console or gateway
+host. The host is normalized like a request host (lowercased, scheme, port and
+trailing slash removed), and `tenant_domains.domain` is unique across the
+deployment, so a duplicate host is refused with `domain-taken` even when the same
+tenant registers it again. The `(tenant_id, kind)` uniqueness allows one console
+and one gateway host per tenant; a second host of the same kind is `kind-taken`.
+Registration is on the platform admin surface at
+`/api/admin/tenants/<id>/domains`. DNS and TLS are the next step.
+
 ## Tests
 
 | layer | test |
 | --- | --- |
 | repository context and two-tenant matrix | `test/tenancy-isolation.test.ts` |
 | host and path resolution | `test/tenancy-resolve.test.ts` |
+| domain registration and uniqueness | `test/tenancy-domains.test.ts` |
 | bridge resolution scoping | `test/bridge-api.test.ts` |
 | role and tenant management | `test/roles.test.ts`, `test/administration.test.ts`, `test/tenants.test.ts` |
