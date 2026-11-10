@@ -19,6 +19,7 @@ export interface TenantDraft {
   slug: string;
   locale: "vi" | "en";
   retentionDays: number | null;
+  speechAllowanceSeconds: number | null;
   plan: string | null;
   quotas: Record<string, number> | null;
   branding: Record<string, unknown> | null;
@@ -62,6 +63,20 @@ export function validateTenantDraft(input: unknown): TenantValidation {
     }
   }
 
+  let speechAllowanceSeconds: number | null = null;
+  if (
+    input.speechAllowanceSeconds !== undefined &&
+    input.speechAllowanceSeconds !== null &&
+    input.speechAllowanceSeconds !== ""
+  ) {
+    const value = Number(input.speechAllowanceSeconds);
+    if (!Number.isInteger(value) || value < 0) {
+      errors.push("speechAllowanceSeconds must be a non-negative integer");
+    } else {
+      speechAllowanceSeconds = value;
+    }
+  }
+
   const plan = text(input.plan) || null;
 
   let quotas: Record<string, number> | null = null;
@@ -94,6 +109,7 @@ export function validateTenantDraft(input: unknown): TenantValidation {
       slug,
       locale: locale as "vi" | "en",
       retentionDays,
+      speechAllowanceSeconds,
       plan,
       quotas,
       branding,
@@ -113,6 +129,7 @@ export async function createTenant(draft: TenantDraft): Promise<CreateTenantResu
       slug: draft.slug,
       locale: draft.locale,
       retentionDays: draft.retentionDays,
+      speechAllowanceSeconds: draft.speechAllowanceSeconds,
       plan: draft.plan,
       quotas: draft.quotas,
       branding: draft.branding,

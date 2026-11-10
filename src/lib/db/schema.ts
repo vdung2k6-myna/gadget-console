@@ -41,6 +41,8 @@ export const tenants = pgTable(
     locale: text("locale").notNull().default("vi"),
     /** Null inherits the deployment's retention. */
     retentionDays: integer("retention_days"),
+    /** Platform speech seconds included before overage is billed; null means none. */
+    speechAllowanceSeconds: integer("speech_allowance_seconds"),
     plan: text("plan"),
     quotas: jsonb("quotas").$type<Record<string, number>>(),
     branding: jsonb("branding").$type<Record<string, unknown>>(),
@@ -358,6 +360,8 @@ export const usageEvents = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     /** `speech`, `llm`, `turn` or `device`; checked by the usage module. */
     kind: text("kind").notNull(),
+    /** `platform` (metered and billable over the allowance) or `reseller` (recorded, not billed). */
+    source: text("source").notNull().default("platform"),
     /** The provider or adapter the usage belongs to, when known. */
     provider: text("provider"),
     /** Audio seconds for speech, zero otherwise. */

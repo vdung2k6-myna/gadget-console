@@ -52,6 +52,25 @@ The pooling caveat is why this is a separate step: a session-level `SET` on a
 pooled connection would leak the tenant to the next borrower. The repository's
 throw-without-context rule is what keeps the application safe until RLS lands.
 
+## Usage and allowance
+
+`usage_events` records platform speech and reseller speech separately with its
+`source`. `recordUsage` writes one event; `usageReport(tenantId, { since })` sums
+the speech seconds in the window and returns:
+
+```
+platformSeconds   metered, and the only seconds that can be billed
+resellerSeconds   recorded for the tenant view; never billed by the platform
+allowanceSeconds  the tenant's speech_allowance_seconds, or an override
+overageSeconds    max(0, platformSeconds - allowanceSeconds)
+billableSeconds   overageSeconds
+```
+
+The report returns seconds; the commercial rate turns the overage into money.
+`test/tenancy-usage.test.ts` covers the allowance, the overage, an explicit
+override and the unbilled reseller path. The runtime that reports the seconds on
+a live turn is the adapter/speech integration (`10.x`).
+
 ## Quotas
 
 `tenants.quotas` bounds `devices`, `turns`, `concurrency`, `speechSeconds` and
