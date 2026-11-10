@@ -1,0 +1,38 @@
+# The console front. Install as /etc/caddy/Caddyfile and reload with
+# `systemctl reload caddy`.
+#
+# One HTTPS listener serves every white-label host. Certificates are issued on
+# demand, but only after the console authorizes the host against
+# `tenant_domains`; a host that is not registered never receives a certificate.
+#
+# Gateway hosts use the same listener:
+#   /xiaozhi/ota*  -> the bridge OTA server (8003)
+#   /xiaozhi/v1*   -> the bridge WebSocket server (8001)
+# Everything else on a console host (and the platform host) is the console.
+
+{
+	on_demand_tls {
+		ask http://127.0.0.1:3001/api/internal/tenant-domains/check
+	}
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+
+	@ota path /xiaozhi/ota*
+	@ws path /xiaozhi/v1*
+
+	handle @ota {
+		reverse_proxy 127.0.0.1:8003
+	}
+
+	handle @ws {
+		reverse_proxy 127.0.0.1:8001
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3001
+	}
+}

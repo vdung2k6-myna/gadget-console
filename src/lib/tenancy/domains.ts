@@ -1,7 +1,7 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
-import { tenantDomains } from "@/lib/db/schema";
+import { tenantDomains, tenants } from "@/lib/db/schema";
 import { findTenant } from "@/lib/tenants";
 import { normalizeHost } from "./request";
 
@@ -119,4 +119,27 @@ export async function removeTenantDomain(
     .where(and(eq(tenantDomains.tenantId, tenantId), eq(tenantDomains.id, domainId)))
     .returning({ id: tenantDomains.id });
   return removed.length > 0;
+}
+
+/**
+ * Whether a certificate may be issued for this host.
+ *
+ * This is the authority an on-demand TLS front (Caddy's `on_demand_tls` ask
+ * endpoint) calls before asking the CA. Only a registered console or gateway
+ * host of a tenant that has not been deleted qualifies; a suspended tenant still
+ * qualifies so its console can be read and its data exported.
+ */
+export async function canIssueCertificate(
+  raw: string | null | undefined
+): Promise<boolean> {
+  const domain = normalizeHost(raw);
+  if (domain === undefined) return false;
+
+  const rows = await getDb()
+    .select({ id: tenantDomains.id })
+    .from(tenantDomains)
+    .innerJoin(tenants, eq(tenants.id, tenantDomains.tenantId))
+    .where(and(eq(tenantDomains.domain, domain), ne(tenants.status, "deleted")))
+    .limit(1);
+  return rows.length > 0;
 }

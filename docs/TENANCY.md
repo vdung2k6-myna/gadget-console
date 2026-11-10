@@ -138,7 +138,26 @@ deployment, so a duplicate host is refused with `domain-taken` even when the sam
 tenant registers it again. The `(tenant_id, kind)` uniqueness allows one console
 and one gateway host per tenant; a second host of the same kind is `kind-taken`.
 Registration is on the platform admin surface at
-`/api/admin/tenants/<id>/domains`. DNS and TLS are the next step.
+`/api/admin/tenants/<id>/domains`.
+
+`src/proxy.ts` routes a console request. A registered console host passes; an
+unregistered host answers 404 unless it is the platform host, loopback, or the
+deployment states no `PLATFORM_HOST` (a single-tenant or local console). The
+`/t/<slug>/...` fallback is rewritten to the same path with `x-tenant-path` set
+for `currentTenant`, and the header is stripped from every other request so a
+browser cannot pick a tenant.
+
+The bridge resolves its tenant from a **gateway** host, not a console host:
+`findTenantByGatewayHost` is the lookup, so a real `gw.<domain>` OTA URL resolves
+and a console host does not.
+
+TLS is issued on demand. Caddy asks
+`http://127.0.0.1:3001/api/internal/tenant-domains/check?domain=<host>`; the route
+answers 200 only for a registered host of a tenant that is not deleted (suspended
+still qualifies so its console and export remain reachable), and 404 otherwise.
+`deploy/Caddyfile.example` is the listener: one HTTPS front for console, platform
+and gateway hosts, with `/xiaozhi/ota*` to the bridge's OTA port and
+`/xiaozhi/v1*` to its socket port.
 
 ## Tests
 

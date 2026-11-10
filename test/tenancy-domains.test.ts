@@ -1,8 +1,10 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
 import {
+  canIssueCertificate,
   listTenantDomains,
   registerTenantDomain,
   removeTenantDomain,
@@ -130,5 +132,25 @@ describe("tenant domains", () => {
       (await registerTenantDomain(second.id, { domain: "console.example", kind: "console" })).ok,
       true
     );
+  });
+
+  it("authorizes a certificate only for a live registered host", async () => {
+    const first = await tenant("first");
+    assert.equal(
+      (await registerTenantDomain(first.id, { domain: "console.example", kind: "console" })).ok,
+      true
+    );
+    assert.equal(
+      (await registerTenantDomain(first.id, { domain: "gw.example", kind: "gateway" })).ok,
+      true
+    );
+
+    assert.equal(await canIssueCertificate("console.example"), true);
+    assert.equal(await canIssueCertificate("HTTPS://GW.Example:443/"), true);
+    assert.equal(await canIssueCertificate("unknown.example"), false);
+    assert.equal(await canIssueCertificate(undefined), false);
+
+    await getDb().update(tenants).set({ status: "deleted" }).where(eq(tenants.id, first.id));
+    assert.equal(await canIssueCertificate("console.example"), false);
   });
 });

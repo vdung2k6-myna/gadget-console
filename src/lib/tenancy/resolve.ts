@@ -34,8 +34,9 @@ export async function findTenantBySlug(
   return rows[0];
 }
 
-export async function findTenantByConsoleHost(
-  host: string
+async function findTenantByDomain(
+  host: string,
+  kind: "console" | "gateway"
 ): Promise<typeof tenants.$inferSelect | undefined> {
   const rows = await getDb()
     .select({ tenant: tenants })
@@ -44,12 +45,24 @@ export async function findTenantByConsoleHost(
     .where(
       and(
         eq(tenantDomains.domain, host),
-        eq(tenantDomains.kind, "console"),
+        eq(tenantDomains.kind, kind),
         ne(tenants.status, "deleted")
       )
     )
     .limit(1);
   return rows[0]?.tenant;
+}
+
+export async function findTenantByConsoleHost(
+  host: string
+): Promise<typeof tenants.$inferSelect | undefined> {
+  return findTenantByDomain(host, "console");
+}
+
+export async function findTenantByGatewayHost(
+  host: string
+): Promise<typeof tenants.$inferSelect | undefined> {
+  return findTenantByDomain(host, "gateway");
 }
 
 export async function resolveConsoleTenant(

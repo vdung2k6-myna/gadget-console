@@ -366,20 +366,20 @@ describe("tenant-scoped bridge resolution", () => {
     assert.equal(await activationState(MAC, second.id), "unknown");
   });
 
-  it("resolves the tenant from the forwarded host at the route", async () => {
+  it("resolves the tenant from the gateway host at the route", async () => {
     const { first } = await twoTenants();
     await getDb().insert(tenantDomains).values({
       tenantId: first.id,
-      domain: "console.first.example",
-      kind: "console",
+      domain: "gateway.first.example",
+      kind: "gateway",
     });
 
-    const request = new Request("http://console.test/api/bridge/resolve", {
+    const request = new Request("http://gateway.test/api/bridge/resolve", {
       method: "POST",
       headers: {
         authorization: `Bearer ${process.env.BRIDGE_TOKEN}`,
         "content-type": "application/json",
-        "x-forwarded-host": "console.first.example",
+        "x-forwarded-host": "gateway.first.example",
       },
       body: JSON.stringify({ deviceId: MAC }),
     });

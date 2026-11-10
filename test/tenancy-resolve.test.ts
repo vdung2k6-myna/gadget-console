@@ -5,18 +5,22 @@ import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
 import { tenantDomains, tenants } from "../src/lib/db/schema";
 import { parseTenantRequest } from "../src/lib/tenancy/request";
-import { resolveConsoleTenant } from "../src/lib/tenancy/resolve";
+import { findTenantByConsoleHost, findTenantByGatewayHost, resolveConsoleTenant } from "../src/lib/tenancy/resolve";
 
 before(() => requireTestDatabase());
 beforeEach(resetDb);
 after(closeDb);
 
-async function seedTenant(slug: string, domain: string) {
+async function seedTenant(
+  slug: string,
+  domain: string,
+  kind: "console" | "gateway" = "console"
+) {
   const [tenant] = await getDb()
     .insert(tenants)
     .values({ name: slug, slug })
     .returning();
-  await getDb().insert(tenantDomains).values({ tenantId: tenant.id, domain, kind: "console" });
+  await getDb().insert(tenantDomains).values({ tenantId: tenant.id, domain, kind });
   return tenant;
 }
 
@@ -102,6 +106,21 @@ describe("tenant resolution", () => {
   it("answers unknown for an unregistered path slug", async () => {
     const resolved = await resolveConsoleTenant({ host: null, pathname: "/t/missing/agents" });
     assert.equal(resolved.kind, "unknown");
+  });
+
+  it("keeps console and gateway hosts in their own kind", async () => {
+    const tenant = await seedTenant("acme", "gateway.acme.example", "gateway");
+
+    assert.equal((await findTenantByGatewayHost("gateway.acme.example"))?.id, tenant.id);
+    assert.equal(await findTenantByConsoleHost("gateway.acme.example"), undefined);
+    assert.equal(await findTenantByGatewayHost("console.acme.example"), undefined);
+
+    await getDb().insert(tenantDomains).values({
+      tenantId: tenant.id,
+      domain: "console.acme.example",
+      kind: "console",
+    });
+    assert.equal((await findTenantByConsoleHost("console.acme.example"))?.id, tenant.id);
   });
 
   it("stops serving a deleted tenant's host", async () => {
