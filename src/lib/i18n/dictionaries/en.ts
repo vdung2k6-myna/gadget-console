@@ -220,6 +220,11 @@ export const en: Strings = {
     answeringModels: "Answering models",
     createModel: "Add a model",
     noAnsweringModel: "No answering model yet. Add one before creating an agent.",
+    builtinsHeading: "Tenant provider built-ins",
+    builtinsIntro:
+      "Providers this tenant publishes to every account in it. The platform's built-ins are seeded by the operator and appear read-only.",
+    defaultLabel: "Default for its kind",
+    publish: "Publish",
   },
 
   agentForm: {

@@ -13,6 +13,7 @@ export interface AdminStrings {
   heading: string;
   devices: string;
   users: string;
+  providerBuiltins: string;
   owner: string;
   tools: string;
   noOwner: string;
@@ -182,6 +183,7 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     },
     devices: "Tất cả thiết bị",
     users: "Tài khoản",
+    providerBuiltins: "Provider có sẵn",
     owner: "Chủ",
     tools: "Tool",
     noOwner: "chưa có chủ",
@@ -326,6 +328,7 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     },
     devices: "All devices",
     users: "Accounts",
+    providerBuiltins: "Provider built-ins",
     owner: "Owner",
     tools: "Tools",
     noOwner: "no owner",

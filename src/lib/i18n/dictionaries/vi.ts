@@ -221,6 +221,11 @@ export const vi = {
     answeringModels: "Model trả lời",
     createModel: "Thêm model",
     noAnsweringModel: "Chưa có model trả lời nào. Tạo một model trước khi tạo agent.",
+    builtinsHeading: "Provider có sẵn của tenant",
+    builtinsIntro:
+      "Các provider tenant này phát hành cho mọi tài khoản trong tenant. Provider có sẵn của nền tảng do operator seed và chỉ đọc.",
+    defaultLabel: "Mặc định cho loại này",
+    publish: "Phát hành",
   },
 
   agentForm: {
