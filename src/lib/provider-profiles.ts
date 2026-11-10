@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import { agents, providerProfiles, users } from "@/lib/db/schema";
@@ -221,6 +221,108 @@ export async function listProviderProfiles(userId: string): Promise<ProviderProf
         and(eq(providerProfiles.builtin, true), isNull(providerProfiles.tenantId))
       )
     );
+}
+
+/** This tenant's own built-ins, in name order. */
+export async function listTenantBuiltins(tenantId: string): Promise<ProviderProfileRow[]> {
+  return getDb()
+    .select()
+    .from(providerProfiles)
+    .where(
+      and(eq(providerProfiles.tenantId, tenantId), eq(providerProfiles.builtin, true))
+    )
+    .orderBy(asc(providerProfiles.name));
+}
+
+export async function findTenantBuiltin(
+  tenantId: string,
+  id: string
+): Promise<ProviderProfileRow | undefined> {
+  const rows = await getDb()
+    .select()
+    .from(providerProfiles)
+    .where(
+      and(
+        eq(providerProfiles.id, id),
+        eq(providerProfiles.tenantId, tenantId),
+        eq(providerProfiles.builtin, true)
+      )
+    )
+    .limit(1);
+  return rows[0];
+}
+
+export type PublishTenantBuiltinResult =
+  | { ok: true; profile: PublicProviderProfile }
+  | { ok: false; errors: string[] };
+
+/**
+ * A tenant admin publishes a provider every account in its tenant may select.
+ * Names are unique per tenant and kind; a new default clears the previous one
+ * for that kind in the same tenant.
+ */
+export async function publishTenantBuiltin(
+  tenantId: string,
+  input: unknown
+): Promise<PublishTenantBuiltinResult> {
+  const validation = validateProviderDraft(input, { requireKey: true });
+  if (!validation.ok) return validation;
+  const draft = validation.draft;
+  const isDefault =
+    typeof input === "object" &&
+    input !== null &&
+    (input as { default?: unknown }).default === true;
+
+  const duplicate = await getDb()
+    .select({ id: providerProfiles.id })
+    .from(providerProfiles)
+    .where(
+      and(
+        eq(providerProfiles.tenantId, tenantId),
+        eq(providerProfiles.builtin, true),
+        eq(providerProfiles.kind, draft.kind),
+        eq(providerProfiles.name, draft.name)
+      )
+    )
+    .limit(1);
+  if (duplicate[0] !== undefined) {
+    return { ok: false, errors: ["a built-in with that name already exists"] };
+  }
+
+  const rows = await getDb().transaction(async (tx) => {
+    if (isDefault) {
+      await tx
+        .update(providerProfiles)
+        .set({ isDefault: false })
+        .where(
+          and(
+            eq(providerProfiles.tenantId, tenantId),
+            eq(providerProfiles.builtin, true),
+            eq(providerProfiles.kind, draft.kind),
+            eq(providerProfiles.isDefault, true)
+          )
+        );
+    }
+
+    return tx
+      .insert(providerProfiles)
+      .values({
+        tenantId,
+        userId: null,
+        builtin: true,
+        isDefault,
+        kind: draft.kind,
+        name: draft.name,
+        baseUrl: draft.baseUrl,
+        model: draft.model,
+        voice: draft.voice,
+        temperature: draft.temperature,
+        encryptedKey: draft.apiKey === undefined ? "" : storeKey(draft.apiKey),
+      })
+      .returning();
+  });
+
+  return { ok: true, profile: publicProviderProfile(rows[0]!) };
 }
 
 /** A profile this account may name: its own, its tenant built-in, or a platform built-in. */

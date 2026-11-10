@@ -79,6 +79,11 @@ describe("the provider seed", () => {
         ["tts", "second-voice", "tts-1", "other-name", false],
       ].sort()
     );
+    assert.equal(
+      seeded.every((row) => row.tenantId === null),
+      true,
+      "the deployment's built-ins carry no tenant"
+    );
   });
 
   it("refuses a malformed list rather than publishing part of it", async () => {

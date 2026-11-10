@@ -9,7 +9,9 @@ import {
   defaultProviderProfileFor,
   findProviderProfile,
   listProviderProfiles,
+  listTenantBuiltins,
   providersForAgent,
+  publishTenantBuiltin,
 } from "../src/lib/provider-profiles";
 import { providerProfiles, tenants, users } from "../src/lib/db/schema";
 
@@ -103,5 +105,76 @@ describe("provider profile scopes", () => {
     assert.equal(providers.stt, null);
     assert.equal(providers.llm, null);
     assert.ok((await getDb().select().from(users)).length >= 1);
+  });
+
+  it("lets a tenant publish a built-in that another tenant cannot see", async () => {
+    const first = await tenant("first");
+    const second = await tenant("second");
+    const ann = await account("ann@example.com", first.id);
+    const bob = await account("bob@example.com", second.id);
+
+    const published = await publishTenantBuiltin(first.id, {
+      kind: "tts",
+      name: "first-published",
+      baseUrl: "https://example.com/v1",
+      model: "m",
+      voice: "v",
+      default: true,
+    });
+    assert.equal(published.ok, true);
+    if (!published.ok) return;
+
+    assert.deepEqual(
+      (await listTenantBuiltins(first.id)).map((row) => row.name),
+      ["first-published"]
+    );
+    assert.deepEqual((await listTenantBuiltins(second.id)).map((row) => row.name), []);
+
+    assert.ok(
+      (await listProviderProfiles(ann.id)).some((row) => row.id === published.profile.id)
+    );
+    assert.equal(
+      (await listProviderProfiles(bob.id)).some((row) => row.id === published.profile.id),
+      false
+    );
+    assert.equal(await findProviderProfile(bob.id, published.profile.id), undefined);
+    assert.equal((await defaultProviderProfile("tts", first.id))?.id, published.profile.id);
+    assert.equal(await defaultProviderProfile("tts", second.id), undefined);
+  });
+
+  it("refuses a duplicate name and moves the tenant default", async () => {
+    const first = await tenant("first");
+    const one = await publishTenantBuiltin(first.id, {
+      kind: "tts",
+      name: "voice",
+      baseUrl: "https://example.com/v1",
+      model: "m",
+      voice: "v",
+      default: true,
+    });
+    assert.equal(one.ok, true);
+
+    const duplicate = await publishTenantBuiltin(first.id, {
+      kind: "tts",
+      name: "voice",
+      baseUrl: "https://example.com/v1",
+      model: "m",
+      voice: "v",
+    });
+    assert.equal(duplicate.ok, false);
+
+    const two = await publishTenantBuiltin(first.id, {
+      kind: "tts",
+      name: "voice-2",
+      baseUrl: "https://example.com/v1",
+      model: "m",
+      voice: "v",
+      default: true,
+    });
+    assert.equal(two.ok, true);
+
+    const defaults = (await listTenantBuiltins(first.id)).filter((row) => row.isDefault);
+    assert.equal(defaults.length, 1);
+    assert.equal(defaults[0]?.name, "voice-2");
   });
 });
