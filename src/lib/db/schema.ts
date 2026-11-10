@@ -345,6 +345,31 @@ export const turns = pgTable(
 );
 
 /**
+ * One metered event for a tenant: a speech call's seconds, a model's bytes, or a
+ * turn. The console records against the tenant, and the usage report reads only
+ * its own rows.
+ */
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    /** `speech`, `llm`, `turn` or `device`; checked by the usage module. */
+    kind: text("kind").notNull(),
+    /** The provider or adapter the usage belongs to, when known. */
+    provider: text("provider"),
+    /** Audio seconds for speech, zero otherwise. */
+    seconds: integer("seconds").notNull().default(0),
+    /** Response bytes, zero when not measured. */
+    bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("usage_events_tenant_created_idx").on(table.tenantId, table.createdAt)]
+);
+
+/**
  * A device's calibration pair, and the deployment default underneath it.
  *
  * A measurement describes a room and a microphone, so it belongs to the device that took it;
