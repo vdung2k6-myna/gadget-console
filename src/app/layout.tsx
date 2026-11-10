@@ -4,9 +4,12 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { SignOutButton } from "@/components/SignOutButton";
+import { TenantBrandMark, TenantSupportFooter } from "@/components/TenantBranding";
 import { optionalUser } from "@/lib/auth/require-user";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
+import { tenantBranding } from "@/lib/tenancy/branding";
+import { currentTenant } from "@/lib/tenancy/context";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,13 +35,23 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The admin area's own words, read only for an account that may open it.
   const adminStrings = user?.role === "admin" ? adminStringsFor(locale) : null;
 
+  const resolved = await currentTenant();
+  const tenant = resolved.kind === "tenant" ? resolved.tenant : undefined;
+  const branding = tenant === undefined ? undefined : tenantBranding(tenant.branding);
+  const brandName = tenant?.name ?? strings.appName;
+
   return (
     <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <LocaleProvider strings={strings}>
-          <header className="border-b border-zinc-200 dark:border-zinc-800">
+          <header
+            className="border-b border-zinc-200 dark:border-zinc-800"
+            style={
+              branding === undefined ? undefined : { borderBottomColor: branding.primaryColor }
+            }
+          >
             <nav className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
-              <span className="font-semibold">{strings.appName}</span>
+              <TenantBrandMark branding={branding} fallbackName={brandName} />
               {user !== undefined && (
                 <>
                   <Link href="/devices" className="hover:underline">
@@ -75,6 +88,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </nav>
           </header>
           <div className="flex-1">{children}</div>
+          <TenantSupportFooter branding={branding} label={strings.support.label} />
         </LocaleProvider>
       </body>
     </html>

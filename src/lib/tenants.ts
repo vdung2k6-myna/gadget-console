@@ -2,6 +2,7 @@ import { eq, asc } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import { tenants } from "@/lib/db/schema";
+import { validateBranding, type TenantBranding } from "@/lib/tenancy/branding";
 
 /**
  * The tenant catalog the platform admin manages.
@@ -22,7 +23,7 @@ export interface TenantDraft {
   speechAllowanceSeconds: number | null;
   plan: string | null;
   quotas: Record<string, number> | null;
-  branding: Record<string, unknown> | null;
+  branding: TenantBranding | null;
 }
 
 export type TenantValidation =
@@ -95,10 +96,11 @@ export function validateTenantDraft(input: unknown): TenantValidation {
     }
   }
 
-  let branding: Record<string, unknown> | null = null;
+  let branding: TenantBranding | null = null;
   if (input.branding !== undefined && input.branding !== null) {
-    if (!isRecord(input.branding)) errors.push("branding must be an object");
-    else branding = input.branding;
+    const validation = validateBranding(input.branding);
+    if (!validation.ok) errors.push(...validation.errors);
+    else branding = validation.branding;
   }
 
   if (errors.length > 0) return { ok: false, errors };
@@ -132,7 +134,7 @@ export async function createTenant(draft: TenantDraft): Promise<CreateTenantResu
       speechAllowanceSeconds: draft.speechAllowanceSeconds,
       plan: draft.plan,
       quotas: draft.quotas,
-      branding: draft.branding,
+      branding: draft.branding as Record<string, unknown> | null,
     })
     .onConflictDoNothing({ target: tenants.slug })
     .returning();

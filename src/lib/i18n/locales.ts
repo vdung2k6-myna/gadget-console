@@ -16,3 +16,16 @@ export function isLocale(value: unknown): value is Locale {
 export function localeFrom(value: string | undefined): Locale {
   return isLocale(value) ? value : DEFAULT_LOCALE;
 }
+
+/**
+ * The language this request renders in.
+ *
+ * A cookie is a person's explicit choice and wins; otherwise the tenant's locale
+ * is the default, and a platform page with neither falls back to Vietnamese.
+ */
+export function effectiveLocale(
+  chosen: string | undefined,
+  tenantDefault: string | undefined
+): Locale {
+  return isLocale(chosen) ? chosen : localeFrom(tenantDefault);
+}

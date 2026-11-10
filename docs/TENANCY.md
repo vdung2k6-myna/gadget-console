@@ -159,6 +159,22 @@ still qualifies so its console and export remain reachable), and 404 otherwise.
 and gateway hosts, with `/xiaozhi/ota*` to the bridge's OTA port and
 `/xiaozhi/v1*` to its socket port.
 
+## Branding
+
+A tenant's `branding` JSON carries `logoUrl`, `primaryColor`, `accentColor`,
+`supportEmail`, `supportUrl` and `supportPhone`. `validateTenantDraft` refuses an
+unknown field, a non-hex colour, an unsafe logo (anything but an http(s) URL or a
+same-origin path) and a malformed contact. `tenantBranding` re-reads the stored
+object for rendering and falls back field by field, so a row written before
+validation existed cannot inject a URL or a colour.
+
+The root layout applies it: the logo replaces the console name (or the tenant's
+name takes the primary colour), the header rule and support links take the
+tenant's colours, and the footer lists the contacts the tenant states. The
+tenant's `locale` is the default language for its host; a person's language
+cookie still wins. `test/tenancy-branding.test.ts` covers validation, read-time
+sanitizing, the locale precedence and the rendered markup.
+
 ## Tests
 
 | layer | test |
@@ -166,5 +182,8 @@ and gateway hosts, with `/xiaozhi/ota*` to the bridge's OTA port and
 | repository context and two-tenant matrix | `test/tenancy-isolation.test.ts` |
 | host and path resolution | `test/tenancy-resolve.test.ts` |
 | domain registration and uniqueness | `test/tenancy-domains.test.ts` |
+| certificate authorization | `test/tenancy-domain-check.test.ts` |
+| tenant routing | `test/tenancy-routing.test.ts` |
+| branding and locale | `test/tenancy-branding.test.ts` |
 | bridge resolution scoping | `test/bridge-api.test.ts` |
 | role and tenant management | `test/roles.test.ts`, `test/administration.test.ts`, `test/tenants.test.ts` |

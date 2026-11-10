@@ -24,6 +24,10 @@ export const vi = {
     en: "English",
   },
 
+  support: {
+    label: "Hỗ trợ",
+  },
+
   signIn: {
     heading: "Đăng nhập",
     subtitle: "Quản lý thiết bị XiaoZhi của bạn và những gì chúng nói.",

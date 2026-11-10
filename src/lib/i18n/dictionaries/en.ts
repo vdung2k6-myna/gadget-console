@@ -23,6 +23,10 @@ export const en: Strings = {
     en: "English",
   },
 
+  support: {
+    label: "Support",
+  },
+
   signIn: {
     heading: "Sign in",
     subtitle: "Manage your XiaoZhi gadgets and what they say.",
