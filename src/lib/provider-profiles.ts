@@ -2,7 +2,7 @@ import { and, asc, count, desc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import { agents, providerProfiles, users } from "@/lib/db/schema";
-import { encryptionKey, storeKey } from "@/lib/crypto/profiles";
+import { encryptionKeyForTenant, storeKeyForTenant } from "@/lib/crypto/profiles";
 import { decryptSecret } from "@/lib/crypto/secret-box";
 
 /**
@@ -96,7 +96,9 @@ export function runtimeProvider(row: ProviderProfileRow): RuntimeProvider {
   // `readKey` is typed for the LLM table's non-null owner; a built-in here has
   // no owner at all, so the same box is opened directly.
   const apiKey =
-    row.encryptedKey === "" ? undefined : decryptSecret(row.encryptedKey, encryptionKey());
+    row.encryptedKey === ""
+      ? undefined
+      : decryptSecret(row.encryptedKey, encryptionKeyForTenant(row.tenantId));
   return {
     kind: row.kind as ProviderKind,
     name: row.name,
@@ -317,7 +319,8 @@ export async function publishTenantBuiltin(
         model: draft.model,
         voice: draft.voice,
         temperature: draft.temperature,
-        encryptedKey: draft.apiKey === undefined ? "" : storeKey(draft.apiKey),
+        encryptedKey:
+          draft.apiKey === undefined ? "" : storeKeyForTenant(tenantId, draft.apiKey),
       })
       .returning();
   });
@@ -388,7 +391,8 @@ export async function createProviderProfile(
       temperature: draft.temperature,
       // A provider with no key stores nothing: encrypting an empty string would
       // make every local service report a key as set and send an empty bearer.
-      encryptedKey: draft.apiKey === undefined ? "" : storeKey(draft.apiKey),
+      encryptedKey:
+        draft.apiKey === undefined ? "" : storeKeyForTenant(tenantId, draft.apiKey),
     })
     .returning();
   return rows[0]!;
@@ -413,7 +417,9 @@ export async function updateProviderProfile(
       voice: draft.voice,
       temperature: draft.temperature,
       // A blank key on edit is "keep what is stored", not "store nothing".
-      ...(draft.apiKey === undefined ? {} : { encryptedKey: storeKey(draft.apiKey) }),
+      ...(draft.apiKey === undefined
+        ? {}
+        : { encryptedKey: storeKeyForTenant(tenantId, draft.apiKey) }),
     })
     .where(
       and(

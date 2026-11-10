@@ -52,6 +52,26 @@ The pooling caveat is why this is a separate step: a session-level `SET` on a
 pooled connection would leak the tenant to the next borrower. The repository's
 throw-without-context rule is what keeps the application safe until RLS lands.
 
+## Keys
+
+`LLM_KEY_SECRET` is the deployment's master key. A platform built-in is encrypted
+with it; every tenant-scoped provider key is encrypted with a data key derived
+for that tenant with HKDF. A wrong tenant's key fails GCM authentication, so one
+tenant's key cannot read another's secret; destroying a tenant's data key leaves
+the rest of the deployment untouched.
+
+A row written before tenancy is encrypted with the master key. After the pilot
+backfill has assigned tenants, move those rows with:
+
+```bash
+npm run migrate:tenancy-keys -- --dry-run
+npm run migrate:tenancy-keys
+```
+
+The pass skips a row already under its tenant key, re-encrypts a master-key row,
+and reports a row that neither key opens as failed. The key derivation and the
+migration are covered by `test/tenancy-keys.test.ts`.
+
 ## Writes and NOT NULL
 
 The write paths set `tenant_id` from the resolved tenant. The columns stay
