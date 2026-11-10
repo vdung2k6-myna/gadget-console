@@ -8,7 +8,8 @@ import { activationState, resolveDevice, recordTurn } from "../src/lib/bridge/re
 import { approveClaim, claimDevice, issueClaim, releaseDevice, resetClaimRateLimit } from "../src/lib/claims";
 import { ownDevice as own } from "./helpers/own";
 import { createRuntime } from "../src/lib/runtimes";
-import { agents, claims, devices, firmwareReleases, turns } from "../src/lib/db/schema";
+import { agents, claims, devices, firmwareReleases, tenantDomains, tenants, turns } from "../src/lib/db/schema";
+import { POST as resolveRoute } from "../src/app/api/bridge/resolve/route";
 
 before(() => requireTestDatabase());
 beforeEach(async () => {
@@ -317,5 +318,81 @@ describe("the firmware target in a resolution", () => {
     } finally {
       process.env.CONSOLE_PUBLIC_URL = "https://console.example.com";
     }
+  });
+});
+
+describe("tenant-scoped bridge resolution", () => {
+  async function twoTenants() {
+    const [first] = await getDb()
+      .insert(tenants)
+      .values({ name: "First", slug: "first" })
+      .returning();
+    const [second] = await getDb()
+      .insert(tenants)
+      .values({ name: "Second", slug: "second" })
+      .returning();
+    return { first, second };
+  }
+
+  it("creates an unknown device in the host's tenant and refuses another tenant", async () => {
+    const { first, second } = await twoTenants();
+
+    const resolved = await resolveDevice(MAC, first.id);
+    assert.equal(resolved.kind, "unowned");
+
+    const rows = await getDb()
+      .select()
+      .from(devices)
+      .where(eq(devices.deviceId, "b81f3f4a9b01"));
+    assert.equal(rows[0]?.tenantId, first.id);
+
+    const wrong = await resolveDevice(MAC, second.id);
+    assert.equal(wrong.kind, "wrong-tenant");
+  });
+
+  it("serves an owned device only on its tenant", async () => {
+    const ann = await account("ann@example.com");
+    const device = await ownedDevice(ann.id);
+    const { first, second } = await twoTenants();
+    await getDb().update(devices).set({ tenantId: first.id }).where(eq(devices.id, device.id));
+
+    const ok = await resolveDevice(MAC, first.id);
+    assert.equal(ok.kind, "owned");
+
+    const wrong = await resolveDevice(MAC, second.id);
+    assert.equal(wrong.kind, "wrong-tenant");
+
+    assert.equal(await activationState(MAC, first.id), "owned");
+    assert.equal(await activationState(MAC, second.id), "unknown");
+  });
+
+  it("resolves the tenant from the forwarded host at the route", async () => {
+    const { first } = await twoTenants();
+    await getDb().insert(tenantDomains).values({
+      tenantId: first.id,
+      domain: "console.first.example",
+      kind: "console",
+    });
+
+    const request = new Request("http://console.test/api/bridge/resolve", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${process.env.BRIDGE_TOKEN}`,
+        "content-type": "application/json",
+        "x-forwarded-host": "console.first.example",
+      },
+      body: JSON.stringify({ deviceId: MAC }),
+    });
+
+    const response = await resolveRoute(request);
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { owned?: boolean };
+    assert.equal(body.owned, false);
+
+    const rows = await getDb()
+      .select()
+      .from(devices)
+      .where(eq(devices.deviceId, "b81f3f4a9b01"));
+    assert.equal(rows[0]?.tenantId, first.id);
   });
 });

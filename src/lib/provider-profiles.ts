@@ -20,6 +20,22 @@ export type ProviderKind = (typeof PROVIDER_KINDS)[number];
 
 export type ProviderProfileRow = typeof providerProfiles.$inferSelect;
 
+/**
+ * Who may see and select a profile.
+ *
+ * A platform built-in has no tenant and no owner; every tenant may select it. A
+ * tenant built-in belongs to one tenant; its users may select it. An account
+ * profile belongs to one account in one tenant.
+ */
+export type ProviderScope = "platform" | "tenant" | "account";
+
+export function providerScope(
+  row: Pick<ProviderProfileRow, "builtin" | "tenantId">
+): ProviderScope {
+  if (row.builtin) return row.tenantId === null ? "platform" : "tenant";
+  return "account";
+}
+
 export interface ProviderProfileDraft {
   kind: ProviderKind;
   name: string;

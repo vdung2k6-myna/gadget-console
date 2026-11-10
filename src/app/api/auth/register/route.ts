@@ -3,6 +3,7 @@ import { registerAccount } from "@/lib/auth/accounts";
 import { setSessionCookie } from "@/lib/auth/cookies";
 import { createSession } from "@/lib/auth/session";
 import { readCredentials } from "@/lib/http/credentials";
+import { currentTenant } from "@/lib/tenancy/context";
 
 export async function POST(request: Request) {
   const credentials = await readCredentials(request);
@@ -10,7 +11,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "email and password are required" }, { status: 400 });
   }
 
-  const result = await registerAccount(credentials.email, credentials.password);
+  const resolved = await currentTenant();
+  if (resolved.kind === "unknown") {
+    return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+  if (resolved.kind === "platform") {
+    // Platform admins are created by the deployment, never by self-service.
+    return NextResponse.json({ error: "not available on this host" }, { status: 404 });
+  }
+
+  const result = await registerAccount(
+    credentials.email,
+    credentials.password,
+    resolved.tenant.id
+  );
   if (!result.ok) {
     const status = result.reason === "taken" ? 409 : 400;
     const error =

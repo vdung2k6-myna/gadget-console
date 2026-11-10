@@ -11,6 +11,8 @@
  * how long a turn is kept.
  */
 
+import { normalizeHost } from "@/lib/tenancy/request";
+
 export interface ConsoleConfig {
   databaseUrl: string;
   bridgeToken: string;
@@ -55,6 +57,11 @@ export interface ConsoleConfig {
    * deployment that has not set it keeps behaving as it did.
    */
   consolePublicUrl: string | null;
+  /**
+   * The host that serves the platform admin area, or null when the deployment
+   * has not named one. It never resolves to a tenant.
+   */
+  platformHost: string | null;
   /** The largest image the console will store. A board image is a few megabytes. */
   firmwareMaxBytes: number;
 }
@@ -112,8 +119,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConsoleConfig 
     pruneBatch: readInt(env, "PRUNE_BATCH", CONFIG_DEFAULTS.pruneBatch),
     firmwareDir: readOptionalPath(env, "FIRMWARE_DIR"),
     consolePublicUrl: readPublicUrl(env),
+    platformHost: readOptionalHost(env, "PLATFORM_HOST"),
     firmwareMaxBytes: readInt(env, "FIRMWARE_MAX_BYTES", CONFIG_DEFAULTS.firmwareMaxBytes),
   };
+}
+
+/** A hostname the deployment names, normalized, or null for one it did not. */
+function readOptionalHost(env: NodeJS.ProcessEnv, name: string): string | null {
+  const raw = env[name]?.trim();
+  if (raw === undefined || raw === "") return null;
+  const host = normalizeHost(raw);
+  if (host === undefined) {
+    throw new Error(`${name} must be a hostname, got ${JSON.stringify(raw)}`);
+  }
+  return host;
 }
 
 /** A directory the deployment names, or null for one it did not. */

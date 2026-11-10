@@ -26,16 +26,35 @@ export const HISTORY_TURNS = 20;
 export type Resolution =
   | { kind: "owned"; body: Record<string, unknown> }
   | { kind: "unowned"; body: Record<string, unknown> }
-  | { kind: "rate-limited" };
+  | { kind: "rate-limited" }
+  | { kind: "wrong-tenant" };
 
-export async function resolveDevice(rawDeviceId: string): Promise<Resolution> {
+export async function resolveDevice(
+  rawDeviceId: string,
+  tenantId?: string
+): Promise<Resolution> {
   const deviceId = normalizeDeviceId(rawDeviceId);
   const rows = await getDb().select().from(devices).where(eq(devices.deviceId, deviceId)).limit(1);
-  const device = rows[0];
+  let device = rows[0];
+
+  // A device belongs to the tenant it was created in. A request on another
+  // tenant's host is refused before a claim could be issued or a secret read.
+  if (
+    device !== undefined &&
+    tenantId !== undefined &&
+    device.tenantId !== null &&
+    device.tenantId !== tenantId
+  ) {
+    return { kind: "wrong-tenant" };
+  }
+  if (device !== undefined && tenantId !== undefined && device.tenantId === null) {
+    await getDb().update(devices).set({ tenantId }).where(eq(devices.id, device.id));
+    device = { ...device, tenantId };
+  }
 
   if (device === undefined || device.userId === null) {
     if (!allowClaimIssue(deviceId)) return { kind: "rate-limited" };
-    const claim = await issueClaim(deviceId);
+    const claim = await issueClaim(deviceId, tenantId);
     const secret = await currentSecret(deviceId);
     return {
       kind: "unowned",
@@ -193,11 +212,15 @@ async function partnerDeviceId(rowId: string): Promise<string | null> {
 export type ActivationState = "owned" | "pending" | "unknown" | "rate-limited";
 
 /** What `POST /activate` answers the gadget's polling with. */
-export async function activationState(rawDeviceId: string): Promise<ActivationState> {
+export async function activationState(
+  rawDeviceId: string,
+  tenantId?: string
+): Promise<ActivationState> {
   const deviceId = normalizeDeviceId(rawDeviceId);
   const rows = await getDb().select().from(devices).where(eq(devices.deviceId, deviceId)).limit(1);
   const device = rows[0];
   if (device === undefined) return "unknown";
+  if (tenantId !== undefined && device.tenantId !== tenantId) return "unknown";
   if (device.userId !== null) return "owned";
   // A code shown, or a code entered and waiting for an admin: both mean "keep
   // waiting" to the gadget, which polls `/activate` until it hears 200.
@@ -256,7 +279,7 @@ export async function recordTurn(input: unknown): Promise<RecordResult> {
   }
 
   const rows = await getDb()
-    .select({ id: devices.id, userId: devices.userId })
+    .select({ id: devices.id, userId: devices.userId, tenantId: devices.tenantId })
     .from(devices)
     .where(eq(devices.deviceId, deviceId))
     .limit(1);
@@ -268,6 +291,7 @@ export async function recordTurn(input: unknown): Promise<RecordResult> {
     .insert(turns)
     .values({
       deviceId: device.id,
+      tenantId: device.tenantId,
       userText,
       assistantText,
       language,

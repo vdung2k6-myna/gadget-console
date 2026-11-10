@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { bridgeAuthorized } from "@/lib/bridge/auth";
 import { activationState } from "@/lib/bridge/registry";
 import { deviceIdFrom } from "@/lib/http/device-id";
+import { tenantForBridgeRequest } from "@/lib/tenancy/bridge";
 
 /**
  * The answer the firmware reads off `POST /activate`: `202` while the claim is
@@ -18,7 +19,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "deviceId is required" }, { status: 400 });
   }
 
-  const state = await activationState(deviceId);
+  const tenant = await tenantForBridgeRequest(request);
+  if (tenant === undefined) {
+    return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+
+  const state = await activationState(deviceId, tenant.id);
   if (state === "owned") return NextResponse.json({ activated: true });
   if (state === "pending") return NextResponse.json({ activated: false }, { status: 202 });
   return NextResponse.json({ activated: false, error: "no claim for this device" }, { status: 404 });

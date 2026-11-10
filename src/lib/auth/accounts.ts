@@ -26,7 +26,8 @@ export function normalizeEmail(email: string): string {
 
 export async function registerAccount(
   rawEmail: string,
-  password: string
+  password: string,
+  tenantId?: string | null
 ): Promise<RegisterResult> {
   const email = normalizeEmail(rawEmail);
   if (!EMAIL.test(email)) return { ok: false, reason: "invalid-email" };
@@ -35,7 +36,7 @@ export async function registerAccount(
   const passwordHash = await hashPassword(password);
   const inserted = await getDb()
     .insert(users)
-    .values({ email, passwordHash })
+    .values({ email, passwordHash, tenantId: tenantId ?? null })
     .onConflictDoNothing({ target: users.email })
     .returning();
 
@@ -51,12 +52,22 @@ export async function registerAccount(
  */
 export async function authenticate(
   rawEmail: string,
-  password: string
+  password: string,
+  tenantScope?: string | null
 ): Promise<SessionUser | undefined> {
   const email = normalizeEmail(rawEmail);
   const rows = await getDb().select().from(users).where(eq(users.email, email)).limit(1);
   const user = rows[0];
   if (user === undefined || user.disabledAt !== null) return undefined;
+
+  // A tenant console signs in only its own accounts; the platform host signs in
+  // only the platform admins (whose tenant is null). Omitting the scope keeps the
+  // single-deployment behaviour the existing tests and callers use.
+  if (tenantScope !== undefined) {
+    if (tenantScope === null ? user.tenantId !== null : user.tenantId !== tenantScope) {
+      return undefined;
+    }
+  }
 
   return (await verifyPassword(password, user.passwordHash)) ? user : undefined;
 }

@@ -3,6 +3,7 @@ import { authenticate } from "@/lib/auth/accounts";
 import { setSessionCookie } from "@/lib/auth/cookies";
 import { createSession } from "@/lib/auth/session";
 import { readCredentials } from "@/lib/http/credentials";
+import { currentTenant } from "@/lib/tenancy/context";
 
 /**
  * One answer for a wrong password and for an address nobody holds. The status
@@ -15,7 +16,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
   }
 
-  const user = await authenticate(credentials.email, credentials.password);
+  const resolved = await currentTenant();
+  if (resolved.kind === "unknown") {
+    return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+  const scope = resolved.kind === "platform" ? null : resolved.tenant.id;
+
+  const user = await authenticate(credentials.email, credentials.password, scope);
   if (user === undefined) {
     return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
   }

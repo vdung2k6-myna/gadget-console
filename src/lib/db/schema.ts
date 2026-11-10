@@ -25,10 +25,61 @@ import type { AgentVoiceConversion } from "@/lib/agent-voice-conversion";
  * account and at most one agent, while an agent may serve several devices.
  */
 
+/**
+ * A tenant is a reseller's slice of the deployment: its own users, devices,
+ * agents, provider profiles, firmware and records. Platform built-ins are the
+ * only rows without a tenant.
+ */
+export const tenants = pgTable(
+  "tenants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    /** `active`, `suspended` or `deleted`. Checked by the tenant module. */
+    status: text("status").notNull().default("active"),
+    locale: text("locale").notNull().default("vi"),
+    /** Null inherits the deployment's retention. */
+    retentionDays: integer("retention_days"),
+    plan: text("plan"),
+    quotas: jsonb("quotas").$type<Record<string, number>>(),
+    branding: jsonb("branding").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("tenants_slug_unique").on(table.slug)]
+);
+
+/**
+ * A host that resolves to one tenant. A host belongs to one tenant; a tenant
+ * has at most one console host and one gateway host.
+ */
+export const tenantDomains = pgTable(
+  "tenant_domains",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    /** Lowercased, without a scheme. */
+    domain: text("domain").notNull(),
+    /** `console` or `gateway`; checked by the tenant module. */
+    kind: text("kind").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("tenant_domains_domain_unique").on(table.domain),
+    uniqueIndex("tenant_domains_tenant_kind_unique").on(table.tenantId, table.kind),
+    index("tenant_domains_tenant_idx").on(table.tenantId),
+  ]
+);
+
 export const users = pgTable(
   "users",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    /** The tenant this account belongs to; null only for a platform admin. */
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     /** `user` or `admin`. Set only by the deployment's command, never by a route. */
@@ -55,6 +106,7 @@ export const sessions = pgTable(
 
 export const runtimes = pgTable("runtimes", {
   id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   baseUrl: text("base_url").notNull(),
   /** Never returned to a browser route; only the bridge sees it. */
@@ -76,7 +128,9 @@ export const providerProfiles = pgTable(
   "provider_profiles",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    /** Null for a built-in a deployment seeded; never owned by an account. */
+    /** Null for a platform built-in; set for a tenant built-in or account profile. */
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    /** Null for a built-in a deployment or tenant seeded; never owned by an account. */
     userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     /** `llm`, `stt` or `tts`; checked by the profile module, not by the column. */
     kind: text("kind").notNull(),
@@ -105,6 +159,7 @@ export const agents = pgTable(
   "agents",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -160,6 +215,7 @@ export const devices = pgTable(
   "devices",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
     /** The `Device-Id` header, normalized. Unique across the console. */
     deviceId: text("device_id").notNull(),
     /** Null while nobody owns the gadget. */
@@ -193,6 +249,7 @@ export const claims = pgTable(
   "claims",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
     deviceId: text("device_id").notNull(),
     code: text("code").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -215,6 +272,7 @@ export const conversations = pgTable(
   "conversations",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
     deviceId: uuid("device_id")
       .notNull()
       .references(() => devices.id, { onDelete: "cascade" }),
@@ -238,6 +296,8 @@ export const firmwareReleases = pgTable(
   "firmware_releases",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    /** Null for a platform-wide image; set for a tenant's image. */
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
     /** The firmware's own board identity, for example `esp-box-3`. */
     boardType: text("board_type").notNull(),
     /** The version the image itself reports. */
@@ -260,6 +320,7 @@ export const turns = pgTable(
   "turns",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
     deviceId: uuid("device_id")
       .notNull()
       .references(() => devices.id, { onDelete: "cascade" }),
@@ -294,6 +355,7 @@ export const deviceCalibration = pgTable("device_calibration", {
   deviceId: uuid("device_id")
     .primaryKey()
     .references(() => devices.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   threshold: doublePrecision("threshold").notNull(),
   minFrames: integer("min_frames").notNull(),
   appliedAt: timestamp("applied_at", { withTimezone: true }).defaultNow().notNull(),
@@ -305,6 +367,7 @@ export const deviceCalibration = pgTable("device_calibration", {
 /** The one row a deployment has: the pair a device without its own entry uses. */
 export const calibrationDefault = pgTable("calibration_default", {
   id: text("id").primaryKey(),
+  tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   threshold: doublePrecision("threshold").notNull(),
   minFrames: integer("min_frames").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -315,6 +378,7 @@ export const calibrationAudit = pgTable(
   "calibration_audit",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
     deviceId: uuid("device_id").references(() => devices.id, { onDelete: "cascade" }),
     threshold: doublePrecision("threshold"),
     minFrames: integer("min_frames"),

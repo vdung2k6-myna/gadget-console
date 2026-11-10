@@ -133,6 +133,15 @@ describe("the console's configuration", () => {
     );
   });
 
+  it("reads a platform host and normalizes it", () => {
+    const base = { DATABASE_URL: DB, BRIDGE_TOKEN: TOKEN };
+    assert.equal(
+      loadConfig(env({ ...base, PLATFORM_HOST: "Admin.Example.com:443" })).platformHost,
+      "admin.example.com"
+    );
+    assert.equal(loadConfig(env(base)).platformHost, null);
+  });
+
   it("lets the prune interval be zero, which means no timer", () => {
     const off = loadConfig(env({ DATABASE_URL: DB, BRIDGE_TOKEN: TOKEN, PRUNE_INTERVAL_MS: "0" }));
     assert.equal(off.pruneIntervalMs, 0);

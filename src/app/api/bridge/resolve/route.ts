@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { bridgeAuthorized } from "@/lib/bridge/auth";
 import { resolveDevice } from "@/lib/bridge/registry";
 import { deviceIdFrom } from "@/lib/http/device-id";
+import { tenantForBridgeRequest } from "@/lib/tenancy/bridge";
 
 export async function POST(request: Request) {
   if (!bridgeAuthorized(request)) {
@@ -13,7 +14,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "deviceId is required" }, { status: 400 });
   }
 
-  const resolution = await resolveDevice(deviceId);
+  const tenant = await tenantForBridgeRequest(request);
+  if (tenant === undefined) {
+    return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+
+  const resolution = await resolveDevice(deviceId, tenant.id);
+  if (resolution.kind === "wrong-tenant") {
+    return NextResponse.json({ error: "wrong tenant for this device" }, { status: 403 });
+  }
   if (resolution.kind === "rate-limited") {
     return NextResponse.json({ error: "too many claim requests for this device" }, { status: 429 });
   }

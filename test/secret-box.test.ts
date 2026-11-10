@@ -54,6 +54,7 @@ describe("a provider profile as anything but the bridge sees it", () => {
     const shown = JSON.stringify(
       publicProviderProfile({
         id: "id-1",
+        tenantId: null,
         userId: "user-1",
         kind: "llm",
         name: "OpenAI",
