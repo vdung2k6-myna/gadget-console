@@ -183,6 +183,55 @@ export const viGuide: Guide = {
       ],
     },
     {
+      id: "adapters",
+      title: "Adapter của reseller: tự mang nhà cung cấp",
+      blocks: [
+        {
+          kind: "p",
+          text: "Quản trị viên tenant có thể đăng ký một adapter do reseller tự vận hành — dịch vụ HTTPS theo hợp đồng của nền tảng — và dùng nó làm nhà cung cấp. Console lưu endpoint, nhãn riêng tư và bản mã hoá của token mà adapter trình ra; adapter giữ key thật của nhà cung cấp.",
+        },
+        {
+          kind: "steps",
+          items: [
+            "Mở Adapter của tenant (/admin/adapters). Adapter thuộc tenant này; tenant khác không thấy và không dùng được.",
+            "Đăng ký endpoint: HTTPS cổng 443, các loại nó phục vụ (model trả lời, nhận giọng nói, giọng đọc) và nhãn riêng tư — đơn vị vận hành, khu vực, nhận và lưu gì, và có từ xa hay không.",
+            "Sao chép token ngay. Token chỉ hiện một lần và không bao giờ hiện lại; xoay token thay nó với một khoảng chồng lấn, vô hiệu hoá thu hồi ngay lập tức.",
+            "Cài manifest và hợp đồng tại endpoint đó. Manifest khai báo các loại, khả năng, schema cấu hình và giới hạn mà console đọc.",
+            "Adapter chỉ phục vụ lượt nói khi đã xác minh và khoẻ. Trang hiện trạng thái, sức khoẻ, phiên bản manifest và kết quả xác minh; đổi phiên bản manifest đưa nó về chờ xác minh.",
+          ],
+        },
+        {
+          kind: "p",
+          text: "Để dùng, tạo hồ sơ nhà cung cấp tại Nhà cung cấp (/provider-profiles), chọn “Adapter đã đăng ký” làm kiểu nhà cung cấp, chọn adapter đúng loại và nhập cấu hình của nó dưới dạng đối tượng JSON. Không cần base URL, model hay key: adapter tự quyết. Hồ sơ giọng đọc vẫn cần giọng.",
+        },
+        {
+          kind: "p",
+          text: "Chính sách định tuyến (/admin/adapters) đặt chế độ chỉ nội bộ, thứ tự fallback (id adapter, cách nhau bằng dấu phẩy) và ngân sách tháng. Thứ tự được thử trước, rồi adapter của tenant, rồi adapter của nền tảng, theo chất lượng và độ trễ. Ngân sách là đầu vào định tuyến tham khảo, không phải hạn mức thanh toán.",
+        },
+        {
+          kind: "p",
+          text: "Mỗi lần gọi adapter đều được ghi: loại, adapter, trạng thái, độ trễ, byte và số giây âm thanh. Giọng của reseller được ghi là giọng reseller và nền tảng không tính tiền; giọng của chính nền tảng thì có.",
+        },
+        {
+          kind: "note",
+          text: "Hồ sơ OpenAI-compatible hiện có không đổi. Hồ sơ trực tiếp vẫn gửi endpoint, model và (với model trả lời) key đã mã hoá; hồ sơ dùng adapter không lưu key nào trên nền tảng.",
+        },
+        {
+          kind: "error",
+          symptom: "Adapter không hiện trong danh sách adapter của hồ sơ.",
+          cause: "Nó phục vụ loại khác, hoặc thuộc tenant khác.",
+          fix: "Kiểm tra các loại tại Adapter của tenant; danh sách chỉ hiện adapter của tenant này và của nền tảng, đúng loại đang chọn.",
+        },
+        {
+          kind: "error",
+          symptom: "Lượt nói trả lời bằng model hay giọng của hệ thống thay vì adapter.",
+          cause:
+            "Adapter chưa xác minh, sức khoẻ không phải ok, hoặc điểm giọng tiếng Việt dưới mức sàn.",
+          fix: "Kiểm tra trạng thái và sức khoẻ tại Adapter của tenant. Adapter giọng dưới sàn vẫn phục vụ ngôn ngữ khác; tiếng Việt vẫn do giọng của nền tảng trả lời.",
+        },
+      ],
+    },
+    {
       id: "talk",
       title: "Nói chuyện với gadget",
       blocks: [

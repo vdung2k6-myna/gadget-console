@@ -177,6 +177,55 @@ export const enGuide: Guide = {
       ],
     },
     {
+      id: "adapters",
+      title: "Reseller adapters: bringing your own provider",
+      blocks: [
+        {
+          kind: "p",
+          text: "A tenant administrator can register a reseller-hosted adapter — an HTTPS service that implements the platform's contract — and use it as a provider. The console stores the endpoint, the privacy label and an encrypted copy of the token the adapter presents; the adapter keeps the real provider key.",
+        },
+        {
+          kind: "steps",
+          items: [
+            "Open Tenant adapters (/admin/adapters). An adapter belongs to this tenant; another tenant cannot see or use it.",
+            "Register the endpoint: HTTPS on port 443, the kinds it serves (answering model, transcriber, voice), and its privacy label — operator, region, what it receives and retains, and whether it is remote.",
+            "Copy the token now. It is shown once and never returned again; rotating replaces it with an overlap, disabling revokes it immediately.",
+            "Implement the manifest and the contract at that endpoint. The manifest declares the kinds, capabilities, config schema and limits the console reads.",
+            "An adapter serves turns only when it is verified and healthy. The page shows status, health, manifest version and verification; a manifest version change returns it to pending.",
+          ],
+        },
+        {
+          kind: "p",
+          text: "To use it, create a provider profile at Providers (/provider-profiles), choose “Registered adapter” as the provider type, pick the adapter for that kind, and enter its config as a JSON object. No base URL, model or key is asked for: the adapter resolves those. A voice profile still needs a voice.",
+        },
+        {
+          kind: "p",
+          text: "Routing policy (/admin/adapters) sets local-only, the fallback order (adapter ids, comma-separated) and a monthly budget. The order is tried first, then the tenant's adapters, then platform adapters, by quality and latency. The budget is an advisory routing input, not a billing limit.",
+        },
+        {
+          kind: "p",
+          text: "Every adapter call is recorded: kind, adapter, status, latency, bytes and audio seconds. A reseller's speech is recorded as reseller speech and is not billed by the platform; the platform's own speech is.",
+        },
+        {
+          kind: "note",
+          text: "Existing OpenAI-compatible profiles are unchanged. A direct profile still sends an endpoint, a model and (for an answering model) an encrypted key; an adapter-backed profile carries no platform-stored key.",
+        },
+        {
+          kind: "error",
+          symptom: "The adapter does not appear in a profile's adapter list.",
+          cause: "It serves another kind, or it belongs to another tenant.",
+          fix: "Check the kinds on Tenant adapters; the picker offers only this tenant's and the platform's adapters, for the selected kind.",
+        },
+        {
+          kind: "error",
+          symptom: "A turn answers through the deployment's model or speech instead of the adapter.",
+          cause:
+            "The adapter is not verified, its health is not ok, or its Vietnamese speech score is below the hard floor.",
+          fix: "Check status and health on Tenant adapters. A below-floor speech adapter may serve other languages; platform speech remains the Vietnamese path.",
+        },
+      ],
+    },
+    {
       id: "talk",
       title: "Talking to the gadget",
       blocks: [
