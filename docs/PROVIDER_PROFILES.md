@@ -19,8 +19,8 @@ both, names neither, or breaks a kind's rule:
 - A direct `llm` profile needs a key; an adapter-backed one does not.
 - An adapter must be registered to this tenant or be a platform adapter, and
   must declare the profile's kind. A tenant speech built-in must name an adapter
-  of its tenant: a platform adapter cannot travel the chain the runtime executes.
-  A config that is not a JSON object is refused.
+  of its tenant; a platform adapter may still be selected by an account profile
+  or a tenant `llm` built-in. A config that is not a JSON object is refused.
 
 Existing direct profiles keep working unchanged: an adapterless profile is the
 OpenAI-compatible path the deployment has always used.
@@ -67,7 +67,9 @@ its agents.
 - **adapter-backed** → `{ path: "adapter", adapterId, endpoint, token, tenantId,
   config, voice? }`, the fields an adapter client needs. The token is decrypted
   from the adapter registry with the adapter's tenant key; the profile itself
-  stores no key.
+  stores no key. A platform-owned adapter's token is decrypted under the
+  platform key, and the chain carries it with the requesting tenant's id — the
+  call belongs to that tenant even though the adapter does not.
 
 `providersForAgent` uses that resolution for the three providers in the bridge
 resolve payload. A profile whose adapter is no longer visible resolves to

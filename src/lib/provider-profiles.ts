@@ -1000,14 +1000,6 @@ const CHAIN_TIMEOUT_MS: Record<ProviderKind, number> = {
   tts: 30_000,
 };
 
-/**
- * The ordered adapter chain an agent's kinds may use.
- *
- * A profile that names an adapter puts that adapter first, with the profile's
- * own config; the rest keep the tenant's policy order. Only verified, healthy
- * adapters that belong to this tenant are candidates. A direct profile has no
- * chain — it travels the OpenAI-compatible provider path instead.
- */
 /** The Vietnamese hard floor for reseller speech. */
 const VI_STT_WER_FLOOR = 0.15;
 const VI_TTS_NATURALNESS_FLOOR = 3.0;
@@ -1030,6 +1022,16 @@ function meetsSpeechFloor(
   return true;
 }
 
+/**
+ * The ordered adapter chain an agent's kinds may use.
+ *
+ * A profile that names an adapter puts that adapter first, with the profile's
+ * own config; the rest keep the tenant's policy order. Only verified, healthy
+ * adapters that belong to this tenant or the platform are candidates. A
+ * platform adapter is carried with the requesting tenant's id, because the call
+ * it serves belongs to that tenant. A direct profile has no chain — it travels
+ * the OpenAI-compatible provider path instead.
+ */
 export async function providerChainForAgent(
   userId: string,
   ids: { stt: string | null; tts: string | null; llm: string | null },
@@ -1085,15 +1087,21 @@ export async function providerChainForAgent(
     const chain: ProviderChainCandidate[] = [];
     for (const candidate of ordered) {
       const adapter = byId.get(candidate.id);
-      if (adapter === undefined || adapter.tenantId === null) continue;
+      if (adapter === undefined) continue;
+      const token =
+        adapter.tokenEncrypted === ""
+          ? ""
+          : decryptSecret(adapter.tokenEncrypted, encryptionKeyForTenant(adapter.tenantId));
+      // A platform-owned adapter has no tenant of its own. The turn it serves
+      // belongs to this tenant, which is what the runtime reports; its token is
+      // encrypted under the platform key. A tokenless row cannot be called, so
+      // it is left out rather than sent as half a candidate.
+      if (token === "") continue;
       chain.push({
         adapterId: candidate.id,
         endpoint: candidate.endpoint,
-        token:
-          adapter.tokenEncrypted === ""
-            ? ""
-            : decryptSecret(adapter.tokenEncrypted, encryptionKeyForTenant(adapter.tenantId)),
-        tenantId: adapter.tenantId,
+        token,
+        tenantId: adapter.tenantId ?? tenant,
         config: candidate.id === namedId ? (profileRow.config ?? null) : null,
         capabilities: candidate.capabilities,
         ...(kind === "tts" && profileRow.voice !== null ? { voice: profileRow.voice } : {}),

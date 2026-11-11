@@ -5,6 +5,7 @@ import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
 import { accountWithTenant, tenantOfUser, testTenant } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { createAdapter } from "../src/lib/adapters";
+import { storeKey } from "../src/lib/crypto/profiles";
 import { validateAgentDraft, createAgent } from "../src/lib/agents";
 import { resolveDevice } from "../src/lib/bridge/registry";
 import { resetClaimRateLimit } from "../src/lib/claims";
@@ -849,5 +850,72 @@ describe("tenant speech built-ins", () => {
     if (providers.tts === null || providers.tts.path !== "openai-compatible") return;
     assert.equal(providers.tts.name, "platform voice");
     assert.equal(providers.tts.baseUrl, "http://platform.test");
+  });
+});
+
+describe("platform adapters in a chain", () => {
+  it("carries a platform adapter with the requesting tenant's id and the platform key", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const [platform] = await getDb()
+      .insert(providerAdapters)
+      .values({
+        tenantId: null,
+        name: "platform-llm",
+        endpoint: "https://platform.example/v1",
+        kinds: ["llm"],
+        status: "verified",
+        health: "ok",
+        tokenEncrypted: storeKey("adp_platform"),
+      })
+      .returning();
+    const validation = await validateProviderDraftForUser(
+      ann.id,
+      {
+        kind: "llm",
+        name: "Platform model",
+        adapterId: platform!.id,
+        config: { model: "m" },
+      },
+      { requireKey: true }
+    );
+    if (!validation.ok) throw new Error(validation.errors.join("; "));
+    const profile = await createProviderProfile(ann.id, validation.draft);
+
+    const chain = await providerChainForAgent(ann.id, { stt: null, tts: null, llm: profile.id });
+    assert.equal(chain.llm.length, 1);
+    assert.equal(chain.llm[0]?.adapterId, platform!.id);
+    assert.equal(chain.llm[0]?.tenantId, tenantId, "the call belongs to the requesting tenant");
+    assert.equal(chain.llm[0]?.token, "adp_platform", "the platform key opens the platform token");
+  });
+
+  it("leaves a tokenless platform adapter out of the chain", async () => {
+    const ann = await account("ann@example.com");
+    const [platform] = await getDb()
+      .insert(providerAdapters)
+      .values({
+        tenantId: null,
+        name: "tokenless",
+        endpoint: "https://tokenless.example/v1",
+        kinds: ["llm"],
+        status: "verified",
+        health: "ok",
+      })
+      .returning();
+    const validation = await validateProviderDraftForUser(
+      ann.id,
+      {
+        kind: "llm",
+        name: "Tokenless model",
+        adapterId: platform!.id,
+        config: { model: "m" },
+      },
+      { requireKey: true }
+    );
+    if (!validation.ok) throw new Error(validation.errors.join("; "));
+    const profile = await createProviderProfile(ann.id, validation.draft);
+
+    const chain = await providerChainForAgent(ann.id, { stt: null, tts: null, llm: profile.id });
+    assert.deepEqual(chain.llm, [], "a tokenless adapter cannot be called");
   });
 });
