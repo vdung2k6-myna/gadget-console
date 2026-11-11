@@ -2,7 +2,7 @@
 
 How to deploy, update and repair the pilot described in `DEPLOYMENT.md`. That file says what the
 deployment is; this one is the day-to-day. To build it from nothing, `PROVISIONING.md` has the
-commands and the three files verbatim.
+commands and the three files verbatim. Adding a reseller is `docs/ONBOARDING.md`.
 
 ## Where everything is
 

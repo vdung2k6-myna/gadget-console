@@ -142,6 +142,8 @@ what a replacement host mounts.
 
 ## First run
 
+Adding another reseller is the tenant onboarding flow in `docs/ONBOARDING.md`.
+
 1. Create an account at `https://console.<domain>`, then grant it the admin role:
    `npm run role -- <email> admin` from `/srv/gadget-console`.
 2. Seed the runtime and the deployment's built-ins from `/srv/gadget-console`:
