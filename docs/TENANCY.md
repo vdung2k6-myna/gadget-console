@@ -176,6 +176,19 @@ tenant's `locale` is the default language for its host; a person's language
 cookie still wins. `test/tenancy-branding.test.ts` covers validation, read-time
 sanitizing, the locale precedence and the rendered markup.
 
+## Lifecycle
+
+`suspendTenant` keeps every row and only changes the serving decision; OTA and
+turn refusal is the bridge task. `exportTenant` returns the tenant's users,
+devices, agents, claims, firmware, profiles, turns and usage with password
+hashes, device secrets, provider keys and claim codes removed. `deleteTenant`
+removes the tenant row, every owned row follows its cascade, and the firmware
+files are removed separately because the database cannot reach them. The delete
+audit is written in the same transaction with a null tenant, so it survives the
+cascade. Provider keys are derived from the tenant id, so removing the ciphertext
+is what makes the key useless; there is no separate key row. `test/tenant-lifecycle.test.ts`
+covers the export, the cascade and the surviving audit.
+
 ## Tenant settings
 
 `/admin/settings` lets a tenant admin change branding, its default locale and

@@ -143,7 +143,7 @@ account may still configure its own speech settings for its own agents.
 | `/admin/devices`, `/admin/users`, `/admin/claims` | The tenant admin area: every device, every account, and the requests waiting for a decision in this tenant. Visible in the header only to an admin. |
 | `/admin/agents` | Every personality in the tenant, with its owner, language and voice. |
 | `/admin/platform`, `/admin/platform/users` | **Platform admin only, on the platform host.** Every tenant with its status, hosts and 30-day usage, plus every account grouped by tenant with its role. A tenant host answers not-found. |
-| `/admin/platform/tenants/[id]`, `/admin/support/[deviceId]` | A tenant's metadata and devices, then one device's conversation behind the audited support action. The device page shows metadata only until the action is taken. |
+| `/admin/platform/tenants/[id]`, `/admin/support/[deviceId]` | A tenant's metadata, devices, settings and lifecycle — suspend, export, delete. The support path shows one device's conversation only behind the audited support action. |
 | `/admin/audit` | **Tenant admin.** The tenant's view of platform support access rows: actor, action, device and time. |
 | `/admin/settings` | **Tenant admin.** Branding, default locale and retention, with the platform's quotas and domains shown read-only. |
 | `/admin/firmware` | The firmware releases, with an upload form, the target for each board type, and the controls that move or clear it. |
@@ -224,6 +224,8 @@ not-found answer.
 | `POST /api/admin/support/access` | support, tenant admin or platform admin | Record a support action for one device and return its 15-minute grant. |
 | `PATCH /api/admin/settings` | tenant admin | Branding, locale and retention for its own tenant. |
 | `PATCH /api/admin/tenants/:id` | platform admin | Suspend/resume, or plan, quotas, allowance, retention, locale and branding. |
+| `GET /api/admin/tenants/:id/export` | platform admin | Download the tenant's rows with secrets removed; writes an audit row. |
+| `DELETE /api/admin/tenants/:id` | platform admin | Delete the tenant and its owned rows; the body must repeat the slug. |
 | `POST /api/bridge/resolve` | bridge | Ownership, the agent (language, voice, providers and conversion), secret, partner, and recorded turns — or a claim code. |
 | `POST /api/bridge/activate` | bridge | `200` when claimed, `202` while pending, `404` if unknown. |
 | `POST /api/bridge/turns` | bridge | Record one served turn. |

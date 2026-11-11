@@ -261,6 +261,11 @@ export interface TenantSettingsStrings {
   addDomain: string;
   domainTaken: string;
   domainFailed: string;
+  export: string;
+  deleteTenant: string;
+  deleteHint: string;
+  deleteConflict: string;
+  deleteFailed: string;
   plan: string;
   speechAllowance: string;
   quotaDevices: string;
@@ -393,6 +398,11 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
       addDomain: "Thêm tên miền",
       domainTaken: "Tên miền này đã được dùng.",
       domainFailed: "Không thêm được tên miền.",
+      export: "Xuất dữ liệu",
+      deleteTenant: "Xoá tenant",
+      deleteHint: "Nhập slug {slug} để xác nhận.",
+      deleteConflict: "Slug không khớp; tenant chưa bị xoá.",
+      deleteFailed: "Không xoá được tenant.",
       plan: "Gói",
       speechAllowance: "Hạn mức giọng nói (giây)",
       quotaDevices: "Thiết bị",
@@ -646,6 +656,11 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
       addDomain: "Add domain",
       domainTaken: "That host is already registered.",
       domainFailed: "The host could not be added.",
+      export: "Export data",
+      deleteTenant: "Delete tenant",
+      deleteHint: "Type {slug} to confirm.",
+      deleteConflict: "The slug did not match; nothing was deleted.",
+      deleteFailed: "The tenant could not be deleted.",
       plan: "Plan",
       speechAllowance: "Speech allowance (seconds)",
       quotaDevices: "Devices",

@@ -5,6 +5,8 @@ import { listAllDevices } from "@/lib/admin";
 import { requirePlatformSurface } from "@/lib/auth/admin";
 import { PlatformTenantSettingsForm } from "@/components/PlatformTenantSettingsForm";
 import { TenantDomainForm } from "@/components/TenantDomainForm";
+import { TenantLifecycleActions } from "@/components/TenantLifecycleActions";
+import { TenantStatusControl } from "@/components/TenantStatusControl";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
 import { findTenant } from "@/lib/tenants";
@@ -61,6 +63,16 @@ export default async function PlatformTenantPage({ params }: Params) {
           </dd>
         </div>
       </dl>
+
+      <div className="mt-4">
+        <TenantStatusControl
+          tenantId={tenant.id}
+          name={tenant.name}
+          status={tenant.status === "active" ? "active" : "suspended"}
+          labels={labels}
+        />
+      </div>
+      <TenantLifecycleActions tenantId={tenant.id} slug={tenant.slug} labels={settingsLabels} />
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold">{settingsLabels.heading}</h2>
