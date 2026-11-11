@@ -395,4 +395,35 @@ describe("tenant-scoped bridge resolution", () => {
       .where(eq(devices.deviceId, "b81f3f4a9b01"));
     assert.equal(rows[0]?.tenantId, first.id);
   });
+
+  it("refuses an owned device on another tenant's gateway host", async () => {
+    const { first, second } = await twoTenants();
+    const ann = await registerAccount("ann@example.com", "a good password", first.id);
+    if (!ann.ok) throw new Error("account failed");
+    const device = await own(ann.user.id, MAC);
+    await getDb()
+      .update(devices)
+      .set({ tenantId: first.id })
+      .where(eq(devices.id, device.id));
+    await getDb().insert(tenantDomains).values({
+      tenantId: second.id,
+      domain: "gateway.second.example",
+      kind: "gateway",
+    });
+
+    const request = new Request("http://gateway.second.example/api/bridge/resolve", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${process.env.BRIDGE_TOKEN}`,
+        "content-type": "application/json",
+        "x-forwarded-host": "gateway.second.example",
+      },
+      body: JSON.stringify({ deviceId: MAC }),
+    });
+
+    const response = await resolveRoute(request);
+    assert.equal(response.status, 403);
+    const body = (await response.json()) as { error?: string };
+    assert.match(body.error ?? "", /wrong tenant/i);
+  });
 });
