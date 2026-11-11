@@ -46,6 +46,15 @@ export const tenants = pgTable(
     plan: text("plan"),
     quotas: jsonb("quotas").$type<Record<string, number>>(),
     branding: jsonb("branding").$type<Record<string, unknown>>(),
+    /**
+     * How the adapter chain is ordered and filtered: `{localOnly, order}`.
+     * The resolver reads it on every session; absent means the tenant's own
+     * verified adapters first, then the platform's.
+     */
+    adapterPolicy: jsonb("adapter_policy").$type<{
+      localOnly?: boolean;
+      order?: string[];
+    }>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex("tenants_slug_unique").on(table.slug)]
@@ -155,6 +164,61 @@ export const providerProfiles = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("provider_profiles_user_kind_idx").on(table.userId, table.kind)]
+);
+
+/**
+ * A reseller-hosted provider adapter, or a platform-owned one that every tenant
+ * may select.
+ *
+ * The chain resolver reads this registry: a row is a candidate only for its own
+ * tenant and the platform rows, never another tenant's. `status` gates use
+ * (`verified`), `health` gates the current chain, and `privacy.remote` is what a
+ * local-only policy excludes. The endpoint, token, manifest and scores are the
+ * remote-adapter contract's; the console only stores them.
+ */
+export const providerAdapters = pgTable(
+  "provider_adapters",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /** Null for a platform-owned adapter. */
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    endpoint: text("endpoint").notNull(),
+    /** `llm`, `stt` and/or `tts`; checked by the adapter module. */
+    kinds: text("kinds").array().notNull().default([]),
+    /** `pending`, `verified` or `disabled`. */
+    status: text("status").notNull().default("pending"),
+    /** `ok`, `degraded`, `down` or `unknown`. */
+    health: text("health").notNull().default("unknown"),
+    /** Operator, region, what it receives, retention and whether it is remote. */
+    privacy: jsonb("privacy").$type<{
+      operator?: string;
+      region?: string;
+      receives?: string[];
+      retentionDays?: number | null;
+      remote?: boolean;
+    }>(),
+    capabilities: jsonb("capabilities").$type<{
+      tools?: boolean;
+      languages?: string[];
+      streaming?: boolean;
+    }>(),
+    quality: jsonb("quality").$type<{
+      wer?: number;
+      ttsNaturalness?: number;
+      latencyP50Ms?: number;
+      score?: number;
+    }>(),
+    manifestVersion: text("manifest_version"),
+    /** The platform-issued adapter token, encrypted under the tenant key. */
+    tokenEncrypted: text("token_encrypted").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("provider_adapters_tenant_idx").on(table.tenantId),
+    index("provider_adapters_status_idx").on(table.status),
+  ]
 );
 
 export const agents = pgTable(

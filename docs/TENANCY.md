@@ -176,6 +176,18 @@ tenant's `locale` is the default language for its host; a person's language
 cookie still wins. `test/tenancy-branding.test.ts` covers validation, read-time
 sanitizing, the locale precedence and the rendered markup.
 
+## Adapters
+
+`provider_adapters` is the private registry: a row belongs to one tenant, or to
+the platform when its `tenant_id` is null. `resolveAdapterChain(tenantId, kind)`
+reads only those two scopes, keeps rows that are `verified` and `ok`, whose
+`kinds` include the request, and whose privacy label the tenant's policy admits.
+A `localOnly` policy keeps only adapters declaring `remote: false`; `order` names
+the first candidates, then the tenant's own adapters precede the platform's,
+then quality and latency decide. The chain carries the endpoint, privacy label
+and scores — never a token. `test/tenant-adapters.test.ts` covers the scope, the
+filters and the ordering.
+
 ## Lifecycle
 
 `suspendTenant` keeps every row and only changes the serving decision; OTA and
@@ -214,6 +226,7 @@ scope, the row and the expiry.
 | --- | --- |
 | repository context and two-tenant matrix | `test/tenancy-isolation.test.ts` |
 | tenant admin reads, claims, firmware and profiles | `test/tenant-admin.test.ts` |
+| adapter registry chain | `test/tenant-adapters.test.ts` |
 | support access scope, audit and expiry | `test/support-access.test.ts` |
 | host and path resolution | `test/tenancy-resolve.test.ts` |
 | domain registration and uniqueness | `test/tenancy-domains.test.ts` |

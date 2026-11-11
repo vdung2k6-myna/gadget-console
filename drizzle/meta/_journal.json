@@ -141,6 +141,13 @@
       "when": 1794361495982,
       "tag": "0019_fair_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794364796131,
+      "tag": "0020_loose_captain_stacy",
+      "breakpoints": true
     }
   ]
 }
