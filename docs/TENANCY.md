@@ -176,6 +176,15 @@ tenant's `locale` is the default language for its host; a person's language
 cookie still wins. `test/tenancy-branding.test.ts` covers validation, read-time
 sanitizing, the locale precedence and the rendered markup.
 
+## Tenant settings
+
+`/admin/settings` lets a tenant admin change branding, its default locale and
+retention. The platform's `/admin/platform/tenants/<id>` changes the plan,
+speech allowance, quotas, retention and locale, and registers domains. Quotas
+and domains are read-only to the tenant admin; a settings save cannot raise a
+quota. `test/tenant-settings.test.ts` covers validation, the merge that leaves
+quotas and plan alone, and the applied quota.
+
 ## Support access
 
 A platform admin sees a tenant device's metadata but not its conversation.

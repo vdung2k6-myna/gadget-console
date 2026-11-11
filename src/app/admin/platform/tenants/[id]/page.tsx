@@ -3,9 +3,12 @@ import { notFound } from "next/navigation";
 
 import { listAllDevices } from "@/lib/admin";
 import { requirePlatformSurface } from "@/lib/auth/admin";
+import { PlatformTenantSettingsForm } from "@/components/PlatformTenantSettingsForm";
+import { TenantDomainForm } from "@/components/TenantDomainForm";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
 import { findTenant } from "@/lib/tenants";
+import { tenantBranding } from "@/lib/tenancy/branding";
 import { listTenantDomains } from "@/lib/tenancy/domains";
 
 export const instant = false;
@@ -25,6 +28,7 @@ export default async function PlatformTenantPage({ params }: Params) {
   const { locale } = await getStrings();
   const adminStrings = adminStringsFor(locale);
   const labels = adminStrings.platform;
+  const settingsLabels = adminStrings.settings;
 
   const [devices, domains] = await Promise.all([
     listAllDevices(tenant.id),
@@ -57,6 +61,29 @@ export default async function PlatformTenantPage({ params }: Params) {
           </dd>
         </div>
       </dl>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold">{settingsLabels.heading}</h2>
+        <PlatformTenantSettingsForm
+          tenantId={tenant.id}
+          initialLocale={tenant.locale === "en" ? "en" : "vi"}
+          initialRetentionDays={tenant.retentionDays}
+          initialPlan={tenant.plan}
+          initialAllowance={tenant.speechAllowanceSeconds}
+          initialQuotas={tenant.quotas}
+          branding={tenant.branding === null ? null : tenantBranding(tenant.branding)}
+          labels={settingsLabels}
+          platformLabels={labels}
+        />
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold">{settingsLabels.domains}</h2>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          {settingsLabels.domainsHelp}
+        </p>
+        <TenantDomainForm tenantId={tenant.id} labels={settingsLabels} />
+      </section>
 
       <h2 className="mt-8 text-lg font-semibold">{adminStrings.devices}</h2>
       {devices.length === 0 ? (

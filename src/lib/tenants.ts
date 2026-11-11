@@ -123,6 +123,178 @@ export type CreateTenantResult =
   | { ok: true; tenant: TenantRow }
   | { ok: false; reason: "taken" };
 
+export interface TenantSettingsDraft {
+  locale: "vi" | "en";
+  retentionDays: number | null;
+  speechAllowanceSeconds: number | null;
+  plan: string | null;
+  quotas: Record<string, number> | null;
+  branding: TenantBranding | null;
+}
+
+export type TenantSettingsValidation =
+  | { ok: true; settings: TenantSettingsDraft }
+  | { ok: false; errors: string[] };
+
+export interface TenantAdminSettingsDraft {
+  locale: "vi" | "en";
+  retentionDays: number | null;
+  branding: TenantBranding | null;
+}
+
+export type TenantAdminSettingsValidation =
+  | { ok: true; settings: TenantAdminSettingsDraft }
+  | { ok: false; errors: string[] };
+
+function readRetention(input: Record<string, unknown>): number | null | string {
+  if (
+    input.retentionDays === undefined ||
+    input.retentionDays === null ||
+    input.retentionDays === ""
+  ) {
+    return null;
+  }
+  const value = Number(input.retentionDays);
+  return Number.isInteger(value) && value > 0
+    ? value
+    : "retentionDays must be a positive integer";
+}
+
+function readAllowance(input: Record<string, unknown>): number | null | string {
+  if (
+    input.speechAllowanceSeconds === undefined ||
+    input.speechAllowanceSeconds === null ||
+    input.speechAllowanceSeconds === ""
+  ) {
+    return null;
+  }
+  const value = Number(input.speechAllowanceSeconds);
+  return Number.isInteger(value) && value >= 0
+    ? value
+    : "speechAllowanceSeconds must be a non-negative integer";
+}
+
+function readQuotas(
+  input: Record<string, unknown>
+): Record<string, number> | null | string {
+  if (input.quotas === undefined || input.quotas === null) return null;
+  if (!isRecord(input.quotas)) return "quotas must be an object of non-negative numbers";
+
+  const quotas: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(input.quotas)) {
+    if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
+      return `quota ${JSON.stringify(key)} must be a non-negative number`;
+    }
+    quotas[key] = raw;
+  }
+  return quotas;
+}
+
+/** The platform admin's settings form: every tenant setting. */
+export function validateTenantSettings(input: unknown): TenantSettingsValidation {
+  if (!isRecord(input)) return { ok: false, errors: ["the body must be an object"] };
+  const errors: string[] = [];
+
+  const locale = input.locale === undefined ? "vi" : text(input.locale);
+  if (locale !== "vi" && locale !== "en") errors.push("locale must be vi or en");
+
+  const retentionDays = readRetention(input);
+  if (typeof retentionDays === "string") errors.push(retentionDays);
+
+  const speechAllowanceSeconds = readAllowance(input);
+  if (typeof speechAllowanceSeconds === "string") errors.push(speechAllowanceSeconds);
+
+  const quotas = readQuotas(input);
+  if (typeof quotas === "string") errors.push(quotas);
+
+  let branding: TenantBranding | null = null;
+  if (input.branding !== undefined && input.branding !== null) {
+    const validation = validateBranding(input.branding);
+    if (!validation.ok) errors.push(...validation.errors);
+    else branding = validation.branding;
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    settings: {
+      locale: locale as "vi" | "en",
+      retentionDays: typeof retentionDays === "string" ? null : retentionDays,
+      speechAllowanceSeconds:
+        typeof speechAllowanceSeconds === "string" ? null : speechAllowanceSeconds,
+      plan: text(input.plan) || null,
+      quotas: typeof quotas === "string" ? null : quotas,
+      branding,
+    },
+  };
+}
+
+/** The tenant admin's settings form: presentation and retention only. */
+export function validateTenantAdminSettings(
+  input: unknown
+): TenantAdminSettingsValidation {
+  if (!isRecord(input)) return { ok: false, errors: ["the body must be an object"] };
+  const errors: string[] = [];
+
+  const locale = input.locale === undefined ? "vi" : text(input.locale);
+  if (locale !== "vi" && locale !== "en") errors.push("locale must be vi or en");
+
+  const retentionDays = readRetention(input);
+  if (typeof retentionDays === "string") errors.push(retentionDays);
+
+  let branding: TenantBranding | null = null;
+  if (input.branding !== undefined && input.branding !== null) {
+    const validation = validateBranding(input.branding);
+    if (!validation.ok) errors.push(...validation.errors);
+    else branding = validation.branding;
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    settings: {
+      locale: locale as "vi" | "en",
+      retentionDays: typeof retentionDays === "string" ? null : retentionDays,
+      branding,
+    },
+  };
+}
+
+export async function updateTenantSettings(
+  id: string,
+  settings: TenantSettingsDraft
+): Promise<TenantRow | undefined> {
+  const rows = await getDb()
+    .update(tenants)
+    .set({
+      locale: settings.locale,
+      retentionDays: settings.retentionDays,
+      speechAllowanceSeconds: settings.speechAllowanceSeconds,
+      plan: settings.plan,
+      quotas: settings.quotas,
+      branding: settings.branding as Record<string, unknown> | null,
+    })
+    .where(eq(tenants.id, id))
+    .returning();
+  return rows[0];
+}
+
+export async function updateTenantAdminSettings(
+  id: string,
+  settings: TenantAdminSettingsDraft
+): Promise<TenantRow | undefined> {
+  const rows = await getDb()
+    .update(tenants)
+    .set({
+      locale: settings.locale,
+      retentionDays: settings.retentionDays,
+      branding: settings.branding as Record<string, unknown> | null,
+    })
+    .where(eq(tenants.id, id))
+    .returning();
+  return rows[0];
+}
+
 export async function createTenant(draft: TenantDraft): Promise<CreateTenantResult> {
   const inserted = await getDb()
     .insert(tenants)

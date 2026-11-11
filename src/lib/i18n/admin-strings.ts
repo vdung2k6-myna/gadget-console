@@ -135,6 +135,7 @@ export interface AdminStrings {
   platform: PlatformStrings;
   supportAccess: SupportAccessStrings;
   audit: AuditStrings;
+  settings: TenantSettingsStrings;
 }
 
 /** The calibration section's words, kept with the rest of the admin area's. */
@@ -233,6 +234,47 @@ export interface AuditStrings {
   empty: string;
 }
 
+/** A tenant's presentation, retention, quota and domain settings. */
+export interface TenantSettingsStrings {
+  heading: string;
+  intro: string;
+  brandingHeading: string;
+  brandingHelp: string;
+  logoUrl: string;
+  primaryColor: string;
+  accentColor: string;
+  supportEmail: string;
+  supportUrl: string;
+  supportPhone: string;
+  locale: string;
+  localeVi: string;
+  localeEn: string;
+  retentionDays: string;
+  retentionHelp: string;
+  quotas: string;
+  quotasHelp: string;
+  domains: string;
+  domainsHelp: string;
+  domain: string;
+  consoleHost: string;
+  gatewayHost: string;
+  addDomain: string;
+  domainTaken: string;
+  domainFailed: string;
+  plan: string;
+  speechAllowance: string;
+  quotaDevices: string;
+  quotaTurns: string;
+  quotaConcurrency: string;
+  quotaSpeechSeconds: string;
+  quotaProviderSpend: string;
+  save: string;
+  saving: string;
+  saved: string;
+  failed: string;
+  none: string;
+}
+
 const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
   vi: {
     nav: "Quản trị",
@@ -323,6 +365,46 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
       action: "Hành động",
       target: "Đối tượng",
       empty: "Chưa có lần truy cập hỗ trợ nào.",
+    },
+    settings: {
+      heading: "Cài đặt tenant",
+      intro: "Thương hiệu, ngôn ngữ và thời hạn lưu dữ liệu của tenant này.",
+      brandingHeading: "Thương hiệu",
+      brandingHelp:
+        "Logo thay tên console; màu chính tô tên và đường kẻ đầu trang; màu nhấn dùng cho liên hệ hỗ trợ.",
+      logoUrl: "Logo (URL http(s) hoặc đường dẫn /...)",
+      primaryColor: "Màu chính",
+      accentColor: "Màu nhấn",
+      supportEmail: "Email hỗ trợ",
+      supportUrl: "Trang hỗ trợ",
+      supportPhone: "Điện thoại hỗ trợ",
+      locale: "Ngôn ngữ mặc định",
+      localeVi: "Tiếng Việt",
+      localeEn: "English",
+      retentionDays: "Giữ lượt nói (ngày)",
+      retentionHelp: "Để trống dùng giá trị của deployment.",
+      quotas: "Hạn mức",
+      quotasHelp: "Nền tảng đặt hạn mức; tenant không tự nâng.",
+      domains: "Tên miền",
+      domainsHelp: "Nền tảng đăng ký và cấp chứng chỉ cho tên miền của tenant.",
+      domain: "Tên miền",
+      consoleHost: "Console",
+      gatewayHost: "Gateway",
+      addDomain: "Thêm tên miền",
+      domainTaken: "Tên miền này đã được dùng.",
+      domainFailed: "Không thêm được tên miền.",
+      plan: "Gói",
+      speechAllowance: "Hạn mức giọng nói (giây)",
+      quotaDevices: "Thiết bị",
+      quotaTurns: "Lượt nói / 24 giờ",
+      quotaConcurrency: "Đồng thời",
+      quotaSpeechSeconds: "Giây giọng nói",
+      quotaProviderSpend: "Chi phí provider",
+      save: "Lưu",
+      saving: "Đang lưu…",
+      saved: "Đã lưu.",
+      failed: "Không lưu được cài đặt.",
+      none: "chưa có",
     },
     devices: "Tất cả thiết bị",
     users: "Tài khoản",
@@ -536,6 +618,46 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
       action: "Action",
       target: "Target",
       empty: "No support access yet.",
+    },
+    settings: {
+      heading: "Tenant settings",
+      intro: "Branding, language and data retention for this tenant.",
+      brandingHeading: "Branding",
+      brandingHelp:
+        "The logo replaces the console name; the primary colour tints the name and header rule; the accent colour marks support links.",
+      logoUrl: "Logo (http(s) URL or a /path)",
+      primaryColor: "Primary colour",
+      accentColor: "Accent colour",
+      supportEmail: "Support email",
+      supportUrl: "Support page",
+      supportPhone: "Support phone",
+      locale: "Default language",
+      localeVi: "Tiếng Việt",
+      localeEn: "English",
+      retentionDays: "Keep turns (days)",
+      retentionHelp: "Leave blank to use the deployment's value.",
+      quotas: "Quotas",
+      quotasHelp: "The platform sets quotas; a tenant cannot raise its own.",
+      domains: "Domains",
+      domainsHelp: "The platform registers and certifies the tenant's hosts.",
+      domain: "Domain",
+      consoleHost: "Console",
+      gatewayHost: "Gateway",
+      addDomain: "Add domain",
+      domainTaken: "That host is already registered.",
+      domainFailed: "The host could not be added.",
+      plan: "Plan",
+      speechAllowance: "Speech allowance (seconds)",
+      quotaDevices: "Devices",
+      quotaTurns: "Turns / 24 hours",
+      quotaConcurrency: "Concurrency",
+      quotaSpeechSeconds: "Speech seconds",
+      quotaProviderSpend: "Provider spend",
+      save: "Save",
+      saving: "Saving…",
+      saved: "Saved.",
+      failed: "The settings could not be saved.",
+      none: "none",
     },
     devices: "All devices",
     users: "Accounts",
