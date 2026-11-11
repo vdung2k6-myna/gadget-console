@@ -2,6 +2,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { agents, devices, users } from "@/lib/db/schema";
 import {
+  defaultProviderProfile,
   defaultProviderProfileFor,
   findProviderProfile,
   type ProviderKind,
@@ -138,8 +139,10 @@ export async function validateAgentDraft(
 
   if (!allowCustomProfiles) {
     llmProfileId ??= (await defaultProviderProfileFor(userId, "llm"))?.id ?? null;
-    sttProfileId ??= (await defaultProviderProfileFor(userId, "stt"))?.id ?? null;
-    ttsProfileId ??= (await defaultProviderProfileFor(userId, "tts"))?.id ?? null;
+    // Platform speech is the default and the only speech fallback; a reseller
+    // speech built-in is used only when the owner names it explicitly.
+    sttProfileId ??= (await defaultProviderProfile("stt", null))?.id ?? null;
+    ttsProfileId ??= (await defaultProviderProfile("tts", null))?.id ?? null;
   }
 
   // The answering model is required: an agent without one cannot speak.

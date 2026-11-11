@@ -17,8 +17,10 @@ both, names neither, or breaks a kind's rule:
 - `tts` always needs a non-empty voice, in either shape.
 - `llm` may carry a temperature from 0 to 2.
 - A direct `llm` profile needs a key; an adapter-backed one does not.
-- An adapter must be registered to this tenant (or be a platform adapter) and
-  must declare the profile's kind. A config that is not a JSON object is refused.
+- An adapter must be registered to this tenant or be a platform adapter, and
+  must declare the profile's kind. A tenant speech built-in must name an adapter
+  of its tenant: a platform adapter cannot travel the chain the runtime executes.
+  A config that is not a JSON object is refused.
 
 Existing direct profiles keep working unchanged: an adapterless profile is the
 OpenAI-compatible path the deployment has always used.
@@ -33,9 +35,11 @@ OpenAI-compatible path the deployment has always used.
 
 A platform built-in has no tenant and is the deployment's provider. A tenant
 built-in is a reseller's provider, published by its tenant admin. An
-account-owned profile belongs to one account in one tenant. Either shape may be
-built in: `publishTenantBuiltin` accepts the same adapter and config fields as an
-account save.
+account-owned profile belongs to one account in one tenant. A platform built-in
+is direct and is the platform's speech default. A tenant `llm` built-in may be
+direct or adapter-backed; a tenant `stt`/`tts` built-in must name an adapter of
+its tenant, so every reseller speech call travels the chain where verification,
+the Vietnamese floor, local-only and usage attribution apply.
 
 ## Visibility and selection
 
@@ -49,9 +53,10 @@ another tenant's.
 
 `defaultProviderProfile(kind, tenantId)` prefers the tenant's default for the
 kind, then the platform default. `defaultProviderProfileFor(userId, kind)` does
-the same for the account's tenant. An account that names no profile falls to
-that default; the account's own speech setting is stored by
-`saveAccountProvider` and named by its agents.
+the same for the account's tenant. For `stt` and `tts` the default is always the
+platform built-in: a tenant speech built-in is used only when an agent names it.
+An account's own speech setting is stored by `saveAccountProvider` and named by
+its agents.
 
 ## Resolution
 
@@ -68,6 +73,12 @@ that default; the account's own speech setting is stored by
 resolve payload. A profile whose adapter is no longer visible resolves to
 nothing rather than to a different provider.
 
+For `stt` and `tts`, a named reseller adapter that is unhealthy, below the
+Vietnamese floor or excluded by a local-only policy falls back to the platform
+built-in; `providersForAgent` never substitutes another reseller endpoint. Under
+local-only, an account-owned direct speech profile is also replaced by the
+platform built-in.
+
 ## Publishing
 
 - **Platform built-ins** come from `PROVIDER_SEED` through
@@ -76,7 +87,9 @@ nothing rather than to a different provider.
 - **Tenant built-ins** are listed with `listTenantBuiltins` and published by a
   tenant admin with `POST /api/admin/provider-profiles` (`publishTenantBuiltin`). Names are unique
   per tenant and kind; a new default clears the previous default for that kind in
-  the same tenant. `GET` lists them.
+  the same tenant. `GET` lists them. A tenant `stt`/`tts` built-in must name an
+  adapter registered to the tenant; a direct speech draft is refused. A tenant
+  `llm` built-in may be direct or adapter-backed.
 - A direct key is encrypted at rest and never returned to a browser. A tenant
   admin's built-ins are visible only through `/admin/provider-profiles`.
 
@@ -87,7 +100,8 @@ nothing rather than to a different provider.
 | `/provider-profiles` | the account's speech settings and answering-model list; built-ins are read-only |
 | `/admin/provider-profiles` | the tenant admin's built-ins: list and publish |
 
-Both provider forms offer a **Provider type**:
+The account form offers a **Provider type**; the tenant built-in form offers it
+for `llm` only, because a speech built-in always names an adapter.
 
 - **OpenAI-compatible endpoint** shows the base URL, model, a temperature for
   `llm`, and the write-only key.

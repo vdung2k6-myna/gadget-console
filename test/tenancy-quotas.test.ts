@@ -97,18 +97,23 @@ describe("quota enforcement", () => {
     assert.equal((await enforceTurnQuota(tenant))?.kind, "turns");
   });
 
-  it("sums a tenant's speech seconds", async () => {
+  it("sums only a tenant's platform speech seconds", async () => {
     const [tenant] = await getDb()
       .insert(tenants)
       .values({ name: "First", slug: "first" })
       .returning();
     const now = new Date();
     await getDb().insert(usageEvents).values([
-      { tenantId: tenant.id, kind: "speech", seconds: 2, createdAt: now },
-      { tenantId: tenant.id, kind: "speech", seconds: 3, createdAt: now },
+      { tenantId: tenant.id, kind: "speech", source: "platform", seconds: 2, createdAt: now },
+      { tenantId: tenant.id, kind: "speech", source: "platform", seconds: 3, createdAt: now },
+      { tenantId: tenant.id, kind: "speech", source: "reseller", seconds: 7, createdAt: now },
     ]);
 
-    assert.equal(await speechSecondsUsed(tenant.id, new Date(now.getTime() - 3_600_000)), 5);
+    assert.equal(
+      await speechSecondsUsed(tenant.id, new Date(now.getTime() - 3_600_000)),
+      5,
+      "reseller speech does not draw from the platform quota"
+    );
   });
 
   it("refuses a new device when the tenant's device quota is reached", async () => {

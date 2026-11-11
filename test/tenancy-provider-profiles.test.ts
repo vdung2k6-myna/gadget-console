@@ -82,7 +82,7 @@ describe("provider profile scopes", () => {
     assert.equal(await findProviderProfile(bob.id, own.id), undefined);
   });
 
-  it("prefers a tenant default and falls back to the platform default", async () => {
+  it("answers speech on the platform default and the model on the tenant default", async () => {
     const first = await tenant("first");
     const second = await tenant("second");
     const ann = await account("ann@example.com", first.id);
@@ -101,7 +101,9 @@ describe("provider profile scopes", () => {
       undefined,
       { allowCustom: false }
     );
-    assert.equal(providers.tts?.name, "first-voice");
+    // Platform speech is the speech default; a tenant speech default answers
+    // only when an agent names it explicitly.
+    assert.equal(providers.tts?.name, "platform-voice");
     assert.equal(providers.stt, null);
     assert.equal(providers.llm, null);
     assert.ok((await getDb().select().from(users)).length >= 1);
@@ -114,11 +116,11 @@ describe("provider profile scopes", () => {
     const bob = await account("bob@example.com", second.id);
 
     const published = await publishTenantBuiltin(first.id, {
-      kind: "tts",
+      kind: "llm",
       name: "first-published",
       baseUrl: "https://example.com/v1",
       model: "m",
-      voice: "v",
+      apiKey: "sk-test",
       default: true,
     });
     assert.equal(published.ok, true);
@@ -138,13 +140,13 @@ describe("provider profile scopes", () => {
       false
     );
     assert.equal(await findProviderProfile(bob.id, published.profile.id), undefined);
-    assert.equal((await defaultProviderProfile("tts", first.id))?.id, published.profile.id);
-    assert.equal(await defaultProviderProfile("tts", second.id), undefined);
+    assert.equal((await defaultProviderProfile("llm", first.id))?.id, published.profile.id);
+    assert.equal(await defaultProviderProfile("llm", second.id), undefined);
   });
 
-  it("refuses a duplicate name and moves the tenant default", async () => {
+  it("refuses a direct speech built-in and a duplicate name, and moves the tenant default", async () => {
     const first = await tenant("first");
-    const one = await publishTenantBuiltin(first.id, {
+    const refused = await publishTenantBuiltin(first.id, {
       kind: "tts",
       name: "voice",
       baseUrl: "https://example.com/v1",
@@ -152,29 +154,42 @@ describe("provider profile scopes", () => {
       voice: "v",
       default: true,
     });
+    assert.equal(refused.ok, false);
+    if (!refused.ok) {
+      assert.ok(refused.errors.some((error) => error.includes("must name a registered adapter")));
+    }
+
+    const one = await publishTenantBuiltin(first.id, {
+      kind: "llm",
+      name: "model",
+      baseUrl: "https://example.com/v1",
+      model: "m",
+      apiKey: "sk-test",
+      default: true,
+    });
     assert.equal(one.ok, true);
 
     const duplicate = await publishTenantBuiltin(first.id, {
-      kind: "tts",
-      name: "voice",
+      kind: "llm",
+      name: "model",
       baseUrl: "https://example.com/v1",
       model: "m",
-      voice: "v",
+      apiKey: "sk-test",
     });
     assert.equal(duplicate.ok, false);
 
     const two = await publishTenantBuiltin(first.id, {
-      kind: "tts",
-      name: "voice-2",
+      kind: "llm",
+      name: "model-2",
       baseUrl: "https://example.com/v1",
       model: "m",
-      voice: "v",
+      apiKey: "sk-test",
       default: true,
     });
     assert.equal(two.ok, true);
 
     const defaults = (await listTenantBuiltins(first.id)).filter((row) => row.isDefault);
     assert.equal(defaults.length, 1);
-    assert.equal(defaults[0]?.name, "voice-2");
+    assert.equal(defaults[0]?.name, "model-2");
   });
 });

@@ -27,7 +27,7 @@ export function TenantBuiltinForm({ adapters }: { adapters: SelectableAdapter[] 
   const strings = useStrings();
   const router = useRouter();
   const [kind, setKind] = useState<Kind>("tts");
-  const [shape, setShape] = useState<Shape>("direct");
+  const [shape, setShape] = useState<Shape>("adapter");
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
@@ -44,6 +44,9 @@ export function TenantBuiltinForm({ adapters }: { adapters: SelectableAdapter[] 
   const selectedAdapter = adaptersForKind.some((adapter) => adapter.id === adapterId)
     ? adapterId
     : "";
+  // Speech is reseller-hosted through an adapter; there is no direct speech
+  // shape for a tenant built-in. An llm built-in may still be direct.
+  const effectiveShape: Shape = kind === "llm" ? shape : "adapter";
 
   async function publish(event: React.FormEvent) {
     event.preventDefault();
@@ -51,7 +54,7 @@ export function TenantBuiltinForm({ adapters }: { adapters: SelectableAdapter[] 
     setMessage(null);
 
     let config: Record<string, unknown> | null = null;
-    if (shape === "adapter") {
+    if (effectiveShape === "adapter") {
       if (selectedAdapter === "") {
         setPending(false);
         setMessage({ tone: "error", text: strings.providerProfiles.adapterRequired });
@@ -73,16 +76,16 @@ export function TenantBuiltinForm({ adapters }: { adapters: SelectableAdapter[] 
     const answer = await sendJson("/api/admin/provider-profiles", {
       kind,
       name,
-      baseUrl: shape === "direct" ? baseUrl : "",
-      model: shape === "direct" ? model : "",
-      adapterId: shape === "adapter" ? selectedAdapter : "",
-      config: shape === "adapter" ? config : null,
+      baseUrl: effectiveShape === "direct" ? baseUrl : "",
+      model: effectiveShape === "direct" ? model : "",
+      adapterId: effectiveShape === "adapter" ? selectedAdapter : "",
+      config: effectiveShape === "adapter" ? config : null,
       voice: kind === "tts" ? voice : "",
       temperature:
-        shape === "direct" && kind === "llm" && temperature !== ""
+        effectiveShape === "direct" && kind === "llm" && temperature !== ""
           ? Number(temperature)
           : null,
-      apiKey: shape === "direct" ? apiKey : "",
+      apiKey: effectiveShape === "direct" ? apiKey : "",
       default: isDefault,
     });
 
@@ -96,7 +99,7 @@ export function TenantBuiltinForm({ adapters }: { adapters: SelectableAdapter[] 
     }
 
     setName("");
-    setShape("direct");
+    setShape("adapter");
     setBaseUrl("");
     setModel("");
     setAdapterId("");
@@ -116,7 +119,11 @@ export function TenantBuiltinForm({ adapters }: { adapters: SelectableAdapter[] 
         <select
           className={field}
           value={kind}
-          onChange={(event) => setKind(event.target.value as Kind)}
+          onChange={(event) => {
+            const next = event.target.value as Kind;
+            setKind(next);
+            if (next !== "llm") setShape("adapter");
+          }}
         >
           <option value="llm">{strings.providerProfiles.kindLlm}</option>
           <option value="stt">{strings.providerProfiles.kindStt}</option>
@@ -134,22 +141,28 @@ export function TenantBuiltinForm({ adapters }: { adapters: SelectableAdapter[] 
         />
       </label>
 
-      <label className="mt-3 block text-sm">
-        {strings.providerProfiles.shape}
-        <select
-          className={field}
-          value={shape}
-          onChange={(event) => setShape(event.target.value as Shape)}
-        >
-          <option value="direct">{strings.providerProfiles.shapeDirect}</option>
-          <option value="adapter">{strings.providerProfiles.shapeAdapter}</option>
-        </select>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {strings.providerProfiles.shapeHint}
-        </span>
-      </label>
+      {kind === "llm" ? (
+        <label className="mt-3 block text-sm">
+          {strings.providerProfiles.shape}
+          <select
+            className={field}
+            value={shape}
+            onChange={(event) => setShape(event.target.value as Shape)}
+          >
+            <option value="direct">{strings.providerProfiles.shapeDirect}</option>
+            <option value="adapter">{strings.providerProfiles.shapeAdapter}</option>
+          </select>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            {strings.providerProfiles.shapeHint}
+          </span>
+        </label>
+      ) : (
+        <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+          {strings.providerProfiles.speechAdapterOnly}
+        </p>
+      )}
 
-      {shape === "direct" ? (
+      {effectiveShape === "direct" ? (
         <>
           <label className="mt-3 block text-sm">
             {strings.providerProfiles.baseUrl}

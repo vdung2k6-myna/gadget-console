@@ -11,7 +11,8 @@ import { findTenant } from "@/lib/tenants";
  * platform's, never another tenant's. A row is a candidate only after it is
  * verified and healthy, its declared kinds include the requested one, and the
  * tenant's policy admits it. A local-only policy keeps only adapters that declare
- * themselves local.
+ * themselves local for `llm`; for `stt` and `tts` it keeps none, because
+ * local-only means platform speech only.
  *
  * Ordering is the tenant's policy first (`order` names adapters from first to
  * last), then the tenant's own adapters before the platform's, then quality and
@@ -180,7 +181,13 @@ export async function resolveAdapterChain(
 
   return rows
     .filter((row) => row.kinds.includes(kind))
-    .filter((row) => !policy.localOnly || row.privacy?.remote === false)
+    .filter((row) => {
+      if (!policy.localOnly) return true;
+      // Local-only speech is platform speech only: no reseller speech adapter,
+      // even one that declares itself local. The llm path keeps local adapters.
+      if (kind === "stt" || kind === "tts") return false;
+      return row.privacy?.remote === false;
+    })
     .filter((row) => servesRequirements(row, options.requires ?? {}))
     .map((row) => ({
       id: row.id,

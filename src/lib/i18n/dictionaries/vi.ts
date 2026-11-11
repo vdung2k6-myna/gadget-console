@@ -197,6 +197,8 @@ export const vi = {
     shapeAdapter: "Adapter đã đăng ký",
     shapeHint:
       "Endpoint trực tiếp được gọi theo API OpenAI-compatible; adapter đã đăng ký được gọi theo hợp đồng riêng của nó.",
+    speechAdapterOnly:
+      "Built-in giọng nói là adapter của reseller. Hãy chọn adapter đã đăng ký; giọng nói của nền tảng trả lời khi dự phòng.",
     adapter: "Adapter",
     adapterChoose: "Chọn adapter",
     adapterHint: "Chỉ hiện adapter của tenant này và của nền tảng, đúng loại đang chọn.",

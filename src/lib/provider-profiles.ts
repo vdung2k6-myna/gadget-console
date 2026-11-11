@@ -4,7 +4,8 @@ import { getDb } from "@/lib/db/client";
 import { agents, providerAdapters, providerProfiles, users } from "@/lib/db/schema";
 import { encryptionKeyForTenant, storeKeyForTenant } from "@/lib/crypto/profiles";
 import { decryptSecret } from "@/lib/crypto/secret-box";
-import { resolveAdapterChain } from "@/lib/tenancy/adapters";
+import { readAdapterPolicy, resolveAdapterChain } from "@/lib/tenancy/adapters";
+import { findTenant } from "@/lib/tenants";
 
 /**
  * The endpoints that hear, speak and answer for a gadget.
@@ -18,6 +19,11 @@ import { resolveAdapterChain } from "@/lib/tenancy/adapters";
 export const PROVIDER_KINDS = ["llm", "stt", "tts"] as const;
 
 export type ProviderKind = (typeof PROVIDER_KINDS)[number];
+
+/** The kinds a reseller may host: speech has a hard floor and a billing split. */
+export function isSpeechKind(kind: ProviderKind): kind is "stt" | "tts" {
+  return kind === "stt" || kind === "tts";
+}
 
 export type ProviderProfileRow = typeof providerProfiles.$inferSelect;
 
@@ -642,6 +648,25 @@ export async function publishTenantBuiltin(
   });
   if (!validation.ok) return validation;
   const draft = validation.draft;
+  if (isSpeechKind(draft.kind)) {
+    const adapterId = draft.adapterId;
+    if (adapterId === undefined || adapterId === null) {
+      return { ok: false, errors: ["a tenant speech built-in must name a registered adapter"] };
+    }
+    // A platform-owned adapter carries no tenant id, and the chain the runtime
+    // executes requires one: a speech built-in names an adapter of its tenant.
+    const adapter = await getDb()
+      .select({ tenantId: providerAdapters.tenantId })
+      .from(providerAdapters)
+      .where(eq(providerAdapters.id, adapterId))
+      .limit(1);
+    if (adapter[0]?.tenantId !== tenantId) {
+      return {
+        ok: false,
+        errors: ["a tenant speech built-in must name an adapter registered to this tenant"],
+      };
+    }
+  }
   const isDefault =
     typeof input === "object" &&
     input !== null &&
@@ -886,6 +911,15 @@ export async function providersForAgent(
   options: { allowCustom?: boolean } = {}
 ): Promise<{ stt: TurnProvider | null; tts: TurnProvider | null; llm: TurnProvider | null }> {
   const tenantId = await tenantForUser(userId);
+  const tenant = tenantId === null ? undefined : await findTenant(tenantId);
+  const policy = readAdapterPolicy(tenant?.adapterPolicy);
+
+  /** The profile that answers a kind when the named one cannot. */
+  async function fallbackProfile(kind: ProviderKind): Promise<ProviderProfileRow | undefined> {
+    // Platform speech is the default and the only speech fallback; the
+    // answering model keeps the tenant's default.
+    return defaultProviderProfile(kind, isSpeechKind(kind) ? null : tenantId);
+  }
 
   async function one(
     kind: ProviderKind,
@@ -897,18 +931,27 @@ export async function providersForAgent(
     // An owner answers from the deployment's built-ins, whatever an older agent
     // row still names; an administrator may keep using an account profile.
     if (options.allowCustom === false && (row === undefined || !row.builtin)) {
-      row = await defaultProviderProfile(kind, tenantId);
+      row = await fallbackProfile(kind);
+    }
+    // Local-only speech is platform speech only. A named account profile or
+    // tenant built-in cannot speak for a local-only tenant; the platform
+    // built-in does.
+    if (isSpeechKind(kind) && policy.localOnly) {
+      row =
+        row !== undefined && row.builtin && row.tenantId === null
+          ? row
+          : await fallbackProfile(kind);
     }
     if (row === undefined) return null;
     const provider = await resolveTurnProvider(row);
     // An adapter-backed profile travels in the adapter chain, not as an
-    // OpenAI-compatible provider. Beside it, the platform's speech provider is
-    // the fallback: a Vietnamese turn keeps platform speech when the adapter is
-    // below the hard floor, and a failed chain still has somewhere to go.
+    // OpenAI-compatible provider. Beside it, platform speech is the fallback:
+    // a Vietnamese turn keeps platform speech when the adapter is below the
+    // hard floor, and a failed chain still has somewhere to go.
     if (provider === null || provider.path === "adapter") {
-      const fallbackProfile = await defaultProviderProfile(kind, tenantId);
-      if (fallbackProfile === undefined) return null;
-      const fallback = await resolveTurnProvider(fallbackProfile);
+      const fallbackProfileRow = await fallbackProfile(kind);
+      if (fallbackProfileRow === undefined) return null;
+      const fallback = await resolveTurnProvider(fallbackProfileRow);
       if (fallback === null || fallback.path === "adapter") return null;
       return voiceOverride !== undefined && voiceOverride !== null && voiceOverride !== ""
         ? { ...fallback, voice: voiceOverride }
@@ -1007,7 +1050,7 @@ export async function providerChainForAgent(
     const named = id === null ? undefined : await findProviderProfile(userId, id);
     let row = named !== undefined && named.kind === kind ? named : undefined;
     if (options.allowCustom === false && (row === undefined || !row.builtin)) {
-      row = await defaultProviderProfile(kind, tenantId);
+      row = await defaultProviderProfile(kind, isSpeechKind(kind) ? null : tenantId);
     }
     if (row === undefined || row.adapterId === null) return [];
     const profileRow = row;

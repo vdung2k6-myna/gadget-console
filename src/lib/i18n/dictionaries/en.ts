@@ -196,6 +196,8 @@ export const en: Strings = {
     shapeAdapter: "Registered adapter",
     shapeHint:
       "A direct endpoint is called as an OpenAI-compatible API; a registered adapter is called through its own contract.",
+    speechAdapterOnly:
+      "A speech built-in is a reseller adapter. Choose a registered adapter; the platform's own speech answers as the fallback.",
     adapter: "Adapter",
     adapterChoose: "Choose an adapter",
     adapterHint: "Only this tenant's adapters and the platform's are offered, for the selected kind.",

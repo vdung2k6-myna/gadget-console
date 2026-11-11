@@ -36,6 +36,13 @@ exception: `listBuiltInProfiles` returns them alongside the calling tenant's own
 built-ins, and never another tenant's built-ins. The matrix covers this in its
 third case.
 
+Platform built-ins are the platform's speech: the default and the only fallback
+for `stt` and `tts`. A tenant speech built-in must name an adapter registered to
+the tenant; a direct speech built-in is refused at publication. That keeps every
+reseller speech call inside the chain, where verification, health, the Vietnamese
+hard floor and local-only policy apply. Under local-only, `stt` and `tts` use the
+platform built-in only, even when a reseller adapter declares itself local.
+
 ## 4. Row-level security (planned)
 
 The repository is the application layer. Postgres RLS is the defense-in-depth
@@ -68,8 +75,12 @@ billableSeconds   overageSeconds
 
 The report returns seconds; the commercial rate turns the overage into money.
 `test/tenancy-usage.test.ts` covers the allowance, the overage, an explicit
-override and the unbilled reseller path. The runtime that reports the seconds on
-a live turn is the adapter/speech integration (`10.x`).
+override and the unbilled reseller path. The bridge's usage report
+(`POST /api/bridge/usage`) writes both ledgers: the egress row for audit and a
+`usage_events` row for the meter, attributed from the device's tenant. A call
+with no adapter id is `platform`; one naming an adapter is `reseller`. The
+runtime reports fractional audio seconds, and the meter records whole seconds,
+rounded per call.
 
 ## Quotas
 
@@ -80,9 +91,10 @@ sentence the console or bridge answers with.
 
 - A new device is checked against the device quota before its row is created;
   an owned device's connection is checked against the 24-hour turn quota.
-- Speech seconds are summed from `usage_events`; provider spend and concurrency
-  are checked against a caller-supplied used value. The runtime that would report
-  those values is the metering task (6.4).
+- Speech seconds are summed from the `platform` rows of `usage_events`; reseller
+  speech is recorded for the tenant view but does not draw the allowance.
+  Provider spend and concurrency are checked against a caller-supplied used
+  value.
 - `test/tenancy-quotas.test.ts` covers the checks, the device and turn
   enforcement, and the speech-second sum.
 

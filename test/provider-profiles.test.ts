@@ -663,17 +663,24 @@ describe("Vietnamese speech preference", () => {
     const profile = await createProviderProfile(ann.id, validation.draft);
 
     // The platform's speech provider, which the floor keeps answering.
-    const builtin = await publishTenantBuiltin(tenantId, {
-      kind: options.kind,
-      name: "platform speech",
-      baseUrl: "http://platform.test",
-      model: "engine-a",
-      ...(options.kind === "tts" ? { voice: "platform_voice" } : {}),
-      default: true,
-    });
-    if (!builtin.ok) throw new Error(builtin.errors.join("; "));
+    const [builtin] = await getDb()
+      .insert(providerProfiles)
+      .values({
+        tenantId: null,
+        userId: null,
+        builtin: true,
+        isDefault: true,
+        kind: options.kind,
+        name: "platform speech",
+        baseUrl: "http://platform.test",
+        model: "engine-a",
+        voice: options.kind === "tts" ? "platform_voice" : null,
+        encryptedKey: "",
+      })
+      .returning();
+    if (builtin === undefined) throw new Error("the platform speech built-in was not stored");
 
-    return { ann, tenantId, profile, issued, builtin: builtin.profile };
+    return { ann, tenantId, profile, issued, builtin };
   }
 
   it("keeps a below-floor STT adapter off the Vietnamese path, and platform speech answers", async () => {
@@ -730,5 +737,117 @@ describe("Vietnamese speech preference", () => {
       { language: "vietnamese" }
     );
     assert.deepEqual(chain.tts, []);
+  });
+});
+
+describe("tenant speech built-ins", () => {
+  it("refuses a direct speech built-in", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+
+    const direct = await publishTenantBuiltin(tenantId, {
+      kind: "tts",
+      name: "direct",
+      baseUrl: "http://platform.test",
+      model: "engine-a",
+      voice: "v",
+      default: true,
+    });
+    assert.equal(direct.ok, false);
+    if (!direct.ok) {
+      assert.ok(direct.errors.some((error) => error.includes("must name a registered adapter")));
+    }
+  });
+
+  it("refuses a speech built-in naming an adapter of another tenant or the platform", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const [platformAdapter] = await getDb()
+      .insert(providerAdapters)
+      .values({
+        tenantId: null,
+        name: "platform-tts",
+        endpoint: "https://platform.example/v1",
+        kinds: ["tts"],
+        status: "verified",
+        health: "ok",
+      })
+      .returning();
+
+    const foreign = await publishTenantBuiltin(tenantId, {
+      kind: "tts",
+      name: "foreign",
+      adapterId: platformAdapter!.id,
+      voice: "v",
+      default: true,
+    });
+    assert.equal(foreign.ok, false);
+    if (!foreign.ok) {
+      assert.ok(foreign.errors.some((error) => error.includes("registered to this tenant")));
+    }
+  });
+
+  it("accepts a speech built-in naming an adapter of its tenant", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const own = await adapter(tenantId, { kinds: ["tts"], name: "own-tts" });
+
+    const published = await publishTenantBuiltin(tenantId, {
+      kind: "tts",
+      name: "reseller voice",
+      adapterId: own.id,
+      voice: "v",
+      default: true,
+    });
+    assert.equal(published.ok, true);
+    if (!published.ok) return;
+    assert.equal((await findProviderProfile(ann.id, published.profile.id))?.adapterId, own.id);
+  });
+
+  it("answers local-only speech on the platform built-in even when an account names a direct profile", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    await getDb()
+      .insert(providerProfiles)
+      .values({
+        tenantId: null,
+        userId: null,
+        builtin: true,
+        isDefault: true,
+        kind: "tts",
+        name: "platform voice",
+        baseUrl: "http://platform.test",
+        model: "engine-a",
+        voice: "pv",
+        encryptedKey: "",
+      });
+    const validation = validateProviderDraft(
+      {
+        kind: "tts",
+        name: "own voice",
+        baseUrl: "https://own.example/v1",
+        model: "m",
+        voice: "ov",
+        apiKey: "",
+      },
+      { requireKey: true }
+    );
+    if (!validation.ok) throw new Error(validation.errors.join("; "));
+    const own = await createProviderProfile(ann.id, validation.draft);
+    await getDb()
+      .update(tenants)
+      .set({ adapterPolicy: { localOnly: true } })
+      .where(eq(tenants.id, tenantId));
+
+    const providers = await providersForAgent(
+      ann.id,
+      { stt: null, tts: own.id, llm: null },
+      undefined,
+      { allowCustom: true }
+    );
+    assert.ok(providers.tts !== null && providers.tts.path === "openai-compatible");
+    if (providers.tts === null || providers.tts.path !== "openai-compatible") return;
+    assert.equal(providers.tts.name, "platform voice");
+    assert.equal(providers.tts.baseUrl, "http://platform.test");
   });
 });

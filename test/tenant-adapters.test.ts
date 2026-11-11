@@ -444,7 +444,7 @@ describe("adapter chain resolution", () => {
     );
   });
 
-  it("keeps only local adapters when the policy is local-only", async () => {
+  it("keeps no speech adapter and only local llm adapters when the policy is local-only", async () => {
     const first = await tenant("first");
     const remote = await adapter({
       tenantId: first.id,
@@ -458,15 +458,33 @@ describe("adapter chain resolution", () => {
       kinds: ["stt"],
       remote: false,
     });
+    const remoteLlm = await adapter({
+      tenantId: first.id,
+      name: "remote-llm",
+      kinds: ["llm"],
+      remote: true,
+    });
+    const localLlm = await adapter({
+      tenantId: first.id,
+      name: "local-llm",
+      kinds: ["llm"],
+      remote: false,
+    });
 
     await getDb()
       .update(tenants)
       .set({ adapterPolicy: { localOnly: true } })
       .where(eq(tenants.id, first.id));
 
-    const chain = await resolveAdapterChain(first.id, "stt");
-    assert.deepEqual(chain.map((entry) => entry.id), [local.id]);
-    assert.ok(!chain.some((entry) => entry.id === remote.id));
+    // Local-only speech is platform speech only: even a speech adapter that
+    // declares itself local is excluded.
+    const speechIds = (await resolveAdapterChain(first.id, "stt")).map((entry) => entry.id);
+    assert.equal(speechIds.length, 0, "local-only speech keeps no adapter");
+    assert.ok(!speechIds.includes(remote.id) && !speechIds.includes(local.id));
+
+    const llm = await resolveAdapterChain(first.id, "llm");
+    assert.deepEqual(llm.map((entry) => entry.id), [localLlm.id]);
+    assert.ok(!llm.some((entry) => entry.id === remoteLlm.id));
   });
 
   it("answers an empty chain for a tenant that does not exist", async () => {

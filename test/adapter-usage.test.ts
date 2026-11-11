@@ -7,6 +7,7 @@ import { ownDevice } from "./helpers/own";
 import { listTenantEgress, tenantUsageReport } from "../src/lib/adapter-egress";
 import { createAdapter } from "../src/lib/adapters";
 import { tenants } from "../src/lib/db/schema";
+import { usageReport } from "../src/lib/tenancy/usage";
 import { POST as usageRoute } from "../src/app/api/bridge/usage/route";
 
 before(() => requireTestDatabase());
@@ -111,6 +112,34 @@ describe("the bridge's adapter usage report", () => {
     assert.equal(aggregate.audioSeconds, 5);
     assert.equal(aggregate.platformSpeechSeconds, 2, "the platform's own speech is billed");
     assert.equal(aggregate.resellerSpeechSeconds, 3, "reseller speech is recorded, not billed");
+
+    // The billing meter reads the same observation: no adapter id is platform
+    // speech, an adapter id is reseller speech.
+    const meter = await usageReport(tenantId, { since: new Date(Date.now() - 3_600_000) });
+    assert.equal(meter.platformSeconds, 2);
+    assert.equal(meter.resellerSeconds, 3);
+    assert.equal(meter.billableSeconds, 2, "with no allowance, platform speech is overage");
+  });
+
+  it("records fractional audio observations as whole seconds per call", async () => {
+    const ann = await accountWithTenant("ann@example.com");
+    const device = await ownDevice(ann.id, MAC);
+    const tenantId = await tenantOfUser(ann.id);
+
+    const response = await usageRoute(
+      report(
+        device.deviceId,
+        [
+          { kind: "tts", adapterId: null, status: "ok", audioSeconds: 1.4 },
+          { kind: "tts", adapterId: null, status: "ok", audioSeconds: 1.6 },
+        ],
+        `Bearer ${process.env.BRIDGE_TOKEN}`
+      )
+    );
+    assert.equal(response.status, 204);
+
+    const meter = await usageReport(tenantId, { since: new Date(Date.now() - 3_600_000) });
+    assert.equal(meter.platformSeconds, 3, "1.4 rounds to 1 and 1.6 rounds to 2");
   });
 
   it("files nothing for another tenant", async () => {

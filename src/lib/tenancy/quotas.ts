@@ -84,13 +84,19 @@ export async function enforceTurnQuota(
 }
 
 export async function speechSecondsUsed(tenantId: string, since: Date): Promise<number> {
+  // The quota bounds the platform's own speech: reseller speech is recorded
+  // for the tenant view but is neither billed nor drawn from the allowance.
   const rows = await getDb()
     .select({
       value: sql<number>`coalesce(sum(${usageEvents.seconds}), 0)::int`,
     })
     .from(usageEvents)
     .where(
-      and(eq(usageEvents.tenantId, tenantId), gte(usageEvents.createdAt, since))
+      and(
+        eq(usageEvents.tenantId, tenantId),
+        eq(usageEvents.source, "platform"),
+        gte(usageEvents.createdAt, since)
+      )
     );
   return Number(rows[0]?.value ?? 0);
 }
