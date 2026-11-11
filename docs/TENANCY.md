@@ -176,12 +176,23 @@ tenant's `locale` is the default language for its host; a person's language
 cookie still wins. `test/tenancy-branding.test.ts` covers validation, read-time
 sanitizing, the locale precedence and the rendered markup.
 
+## Support access
+
+A platform admin sees a tenant device's metadata but not its conversation.
+`/admin/support/<device>` offers one explicit action; taking it inserts an
+`audit_events` row with action `support.conversation.open`, the actor, the tenant
+and the device, and returns a fifteen-minute grant. The page serves turns only
+when the grant names the same actor and device and has not expired. A tenant
+admin reads the rows at `/admin/audit`; `test/support-access.test.ts` covers the
+scope, the row and the expiry.
+
 ## Tests
 
 | layer | test |
 | --- | --- |
 | repository context and two-tenant matrix | `test/tenancy-isolation.test.ts` |
 | tenant admin reads, claims, firmware and profiles | `test/tenant-admin.test.ts` |
+| support access scope, audit and expiry | `test/support-access.test.ts` |
 | host and path resolution | `test/tenancy-resolve.test.ts` |
 | domain registration and uniqueness | `test/tenancy-domains.test.ts` |
 | certificate authorization | `test/tenancy-domain-check.test.ts` |

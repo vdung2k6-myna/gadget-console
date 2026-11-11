@@ -21,7 +21,7 @@ export function requireTestDatabase(): void {
 
 export async function resetDb(): Promise<void> {
   await getDb().execute(
-    sql`truncate table usage_events, tenant_domains, tenants, firmware_releases, turns, conversations, claims, devices, agents, runtimes, sessions, users cascade`
+    sql`truncate table audit_events, usage_events, tenant_domains, tenants, firmware_releases, turns, conversations, claims, devices, agents, runtimes, sessions, users cascade`
   );
 }
 

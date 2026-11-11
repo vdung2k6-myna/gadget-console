@@ -43,6 +43,10 @@ restart.
   `platform_admin`.
 - A platform admin changes roles across tenants; a platform admin has no tenant,
   so a demotion would need a tenant assignment the area does not provide.
+- A platform admin reads no conversation text from the tenant admin pages; the
+  `/admin/support/<device>` path shows metadata, records a `support.conversation.open`
+  audit row, and only then serves turns. The tenant admin sees those rows at
+  `/admin/audit`.
 - Neither admin can remove the last tenant admin of a tenant or the last platform
   admin of the platform.
 - A protected admin cannot be demoted from `platform_admin`, by the area or by

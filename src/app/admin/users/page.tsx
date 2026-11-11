@@ -27,6 +27,9 @@ export default async function AdminUsersPage() {
           <Link href="/admin/claims" className="hover:underline">
             {adminStrings.claims}
           </Link>
+          <Link href="/admin/audit" className="hover:underline">
+            {adminStrings.audit.heading}
+          </Link>
           <Link href="/admin/firmware" className="hover:underline">
             {adminStrings.firmware}
           </Link>

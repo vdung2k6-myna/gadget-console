@@ -133,6 +133,8 @@ export interface AdminStrings {
   patchResign: string;
   calibration: CalibrationStrings;
   platform: PlatformStrings;
+  supportAccess: SupportAccessStrings;
+  audit: AuditStrings;
 }
 
 /** The calibration section's words, kept with the rest of the admin area's. */
@@ -204,6 +206,33 @@ export interface PlatformStrings {
   role: string;
 }
 
+/** The platform support path to one tenant device's conversation. */
+export interface SupportAccessStrings {
+  heading: string;
+  intro: string;
+  open: string;
+  opening: string;
+  failed: string;
+  conversation: string;
+  expires: string;
+  metadataOnly: string;
+  device: string;
+  tenant: string;
+  owner: string;
+  turnsEmpty: string;
+}
+
+/** The tenant's view of platform support access rows. */
+export interface AuditStrings {
+  heading: string;
+  intro: string;
+  time: string;
+  actor: string;
+  action: string;
+  target: string;
+  empty: string;
+}
+
 const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
   vi: {
     nav: "Quản trị",
@@ -269,6 +298,31 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
       platformAdmins: "Quản trị nền tảng",
       tenant: "Tenant",
       role: "Quyền",
+    },
+    supportAccess: {
+      heading: "Hỗ trợ có ghi nhận",
+      intro:
+        "Xem đoạn hội thoại của thiết bị này sẽ ghi lại người mở, tenant, thiết bị và thời điểm. Quản trị tenant nhìn thấy bản ghi này.",
+      open: "Mở hội thoại",
+      opening: "Đang mở…",
+      failed: "Không mở được hội thoại.",
+      conversation: "Hội thoại",
+      expires: "Quyền xem hết hạn lúc",
+      metadataOnly:
+        "Chỉ thông tin thiết bị. Nội dung hội thoại chỉ hiện sau khi bạn mở nó bằng hành động hỗ trợ.",
+      device: "Thiết bị",
+      tenant: "Tenant",
+      owner: "Chủ",
+      turnsEmpty: "Thiết bị này chưa có lượt nói nào.",
+    },
+    audit: {
+      heading: "Nhật ký hỗ trợ",
+      intro: "Những lần nền tảng mở hội thoại của tenant này.",
+      time: "Lúc",
+      actor: "Người thực hiện",
+      action: "Hành động",
+      target: "Đối tượng",
+      empty: "Chưa có lần truy cập hỗ trợ nào.",
     },
     devices: "Tất cả thiết bị",
     users: "Tài khoản",
@@ -457,6 +511,31 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
       platformAdmins: "Platform admins",
       tenant: "Tenant",
       role: "Role",
+    },
+    supportAccess: {
+      heading: "Audited support access",
+      intro:
+        "Opening this device's conversation records who opened it, the tenant, the device and the time. The tenant admin sees that record.",
+      open: "Open conversation",
+      opening: "Opening…",
+      failed: "The conversation could not be opened.",
+      conversation: "Conversation",
+      expires: "Access expires",
+      metadataOnly:
+        "Device metadata only. Conversation text appears only after you open it through a support action.",
+      device: "Device",
+      tenant: "Tenant",
+      owner: "Owner",
+      turnsEmpty: "This device has no turns yet.",
+    },
+    audit: {
+      heading: "Support audit",
+      intro: "Occasions the platform opened a conversation for this tenant.",
+      time: "When",
+      actor: "Actor",
+      action: "Action",
+      target: "Target",
+      empty: "No support access yet.",
     },
     devices: "All devices",
     users: "Accounts",

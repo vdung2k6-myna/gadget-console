@@ -6,6 +6,7 @@ import { adminDevice, adminTurns, listAllDevices } from "@/lib/admin";
 import { getCalibration } from "@/lib/device-calibration";
 import { listAgents } from "@/lib/agents";
 import { requireTenantAdminSurface } from "@/lib/auth/admin";
+import { isPlatformAdmin } from "@/lib/auth/roles";
 import { boardView, firmwareView } from "@/lib/device-board";
 import { targetFor } from "@/lib/firmware";
 import { deviceLabel, elapsed, elapsedText, turnTimeText } from "@/lib/ui/format";
@@ -27,7 +28,8 @@ export default async function AdminDevicePage({ params }: Params) {
   const { locale, strings } = await getStrings();
   const now = await requestNow();
   const adminStrings = adminStringsFor(locale);
-  const { tenantId } = await requireTenantAdminSurface();
+  const { user: admin, tenantId } = await requireTenantAdminSurface();
+  const supportOnly = isPlatformAdmin(admin.role);
 
   const device = await adminDevice(id, tenantId);
   if (device === undefined) notFound();
@@ -39,7 +41,7 @@ export default async function AdminDevicePage({ params }: Params) {
   );
   const agent = ownerAgents.find((entry) => entry.id === device.agentId);
   const partner = ownerDevices.find((entry) => entry.id === device.partnerDeviceId);
-  const turns = await adminTurns(device.id, 50, tenantId);
+  const turns = supportOnly ? [] : await adminTurns(device.id, 50, tenantId);
   const calibration = await getCalibration({ id });
   const board = boardView(device.hardware, strings);
   const target =
@@ -148,7 +150,17 @@ export default async function AdminDevicePage({ params }: Params) {
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold">{strings.device.turnsHeading}</h2>
-        {turns.length === 0 ? (
+        {supportOnly ? (
+          <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+            <p>{adminStrings.supportAccess.metadataOnly}</p>
+            <Link
+              href={`/admin/support/${device.id}`}
+              className="mt-1 inline-block underline"
+            >
+              {adminStrings.supportAccess.open}
+            </Link>
+          </div>
+        ) : turns.length === 0 ? (
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{strings.device.turnsEmpty}</p>
         ) : (
           <>

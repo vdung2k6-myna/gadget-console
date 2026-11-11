@@ -45,6 +45,9 @@ export default async function AdminDevicesPage() {
           <Link href="/admin/provider-profiles" className="hover:underline">
             {adminStrings.providerBuiltins}
           </Link>
+          <Link href="/admin/audit" className="hover:underline">
+            {adminStrings.audit.heading}
+          </Link>
         </nav>
       </div>
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">

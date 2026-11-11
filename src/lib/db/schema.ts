@@ -380,6 +380,34 @@ export const usageEvents = pgTable(
 );
 
 /**
+ * A durable, append-only record of an action taken on somebody's data.
+ *
+ * Support access is the first writer: opening a tenant device's conversation
+ * names the actor, the tenant, the device and the time. The module that writes it
+ * exports no update or delete, so an application path cannot rewrite history.
+ */
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /** Null for a platform-level action that belongs to no tenant. */
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    /** Kept when the account is gone, because the audit names who acted. */
+    actorEmail: text("actor_email").notNull(),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id").notNull(),
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  },
+  (table) => [
+    index("audit_events_tenant_at_idx").on(table.tenantId, table.at),
+    index("audit_events_target_idx").on(table.targetType, table.targetId),
+  ]
+);
+
+/**
  * A device's calibration pair, and the deployment default underneath it.
  *
  * A measurement describes a room and a microphone, so it belongs to the device that took it;

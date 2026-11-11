@@ -143,6 +143,8 @@ account may still configure its own speech settings for its own agents.
 | `/admin/devices`, `/admin/users`, `/admin/claims` | The tenant admin area: every device, every account, and the requests waiting for a decision in this tenant. Visible in the header only to an admin. |
 | `/admin/agents` | Every personality in the tenant, with its owner, language and voice. |
 | `/admin/platform`, `/admin/platform/users` | **Platform admin only, on the platform host.** Every tenant with its status, hosts and 30-day usage, plus every account grouped by tenant with its role. A tenant host answers not-found. |
+| `/admin/platform/tenants/[id]`, `/admin/support/[deviceId]` | A tenant's metadata and devices, then one device's conversation behind the audited support action. The device page shows metadata only until the action is taken. |
+| `/admin/audit` | **Tenant admin.** The tenant's view of platform support access rows: actor, action, device and time. |
 | `/admin/firmware` | The firmware releases, with an upload form, the target for each board type, and the controls that move or clear it. |
 | `/admin/devices/[id]` | Any gadget, with its speech calibration: the pair it uses, whether it comes from the device or the default, and an edit and reset-to-default. A change applies when the gadget next connects. |
 | `/admin/calibration` | The deployment's default speech-gate pair, for devices that have not calibrated their own. |
@@ -218,6 +220,7 @@ not-found answer.
 | `PATCH/DELETE /api/admin/devices/:id` | admin | Act on any account's gadget. |
 | `PATCH /api/admin/users/:id/role` | admin | Grant or take away the admin role. |
 | `POST /api/admin/claims/:id` | admin | Approve or refuse a claim request. |
+| `POST /api/admin/support/access` | support, tenant admin or platform admin | Record a support action for one device and return its 15-minute grant. |
 | `POST /api/bridge/resolve` | bridge | Ownership, the agent (language, voice, providers and conversion), secret, partner, and recorded turns — or a claim code. |
 | `POST /api/bridge/activate` | bridge | `200` when claimed, `202` while pending, `404` if unknown. |
 | `POST /api/bridge/turns` | bridge | Record one served turn. |

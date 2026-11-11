@@ -104,7 +104,7 @@ export default async function PlatformPage() {
                 className="rounded border border-zinc-200 p-3 dark:border-zinc-800"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">{view.tenant.name}</p>
+                  <Link href={`/admin/platform/tenants/${view.tenant.id}`} className="font-medium hover:underline">{view.tenant.name}</Link>
                   <StatusBadge
                     status={view.tenant.status}
                     active={labels.active}
@@ -160,7 +160,7 @@ export default async function PlatformPage() {
                   className="border-b border-zinc-100 dark:border-zinc-900"
                 >
                   <td className="py-3 pr-4">
-                    <p className="font-medium">{view.tenant.name}</p>
+                    <Link href={`/admin/platform/tenants/${view.tenant.id}`} className="font-medium hover:underline">{view.tenant.name}</Link>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">{view.tenant.slug}</p>
                   </td>
                   <td className="py-3 pr-4">
