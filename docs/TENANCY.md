@@ -157,7 +157,8 @@ answers 200 only for a registered host of a tenant that is not deleted (suspende
 still qualifies so its console and export remain reachable), and 404 otherwise.
 `deploy/Caddyfile.example` is the listener: one HTTPS front for console, platform
 and gateway hosts, with `/xiaozhi/ota*` to the bridge's OTA port and
-`/xiaozhi/v1*` to its socket port.
+`/xiaozhi/v1*` to its socket port. `docs/DOMAINS.md` is the operator procedure for
+registering hosts, DNS, installing the listener and verifying a tenant host.
 
 ## Branding
 

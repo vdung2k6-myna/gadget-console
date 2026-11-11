@@ -214,18 +214,22 @@ is skipped.
 
 ## Changing the public surface
 
-`/etc/caddy/Caddyfile` carries both hostnames. Console changes are a `reverse_proxy 127.0.0.1:3001`;
-the `gw` block proxies `/xiaozhi/ota*` to 8003 and `/xiaozhi/v1*` to 8001 — the WebSocket upgrade
-goes through the second. After an edit:
+`/etc/caddy/Caddyfile` is the shared listener from `deploy/Caddyfile.example`: the platform host,
+every registered tenant console, and every registered gateway. It issues certificates on demand
+and sends `/xiaozhi/ota*` to 8003 and `/xiaozhi/v1*` to 8001. Adding a tenant host is a
+`tenant_domains` registration plus DNS, not a Caddy edit; `docs/DOMAINS.md` has the procedure.
+
+After changing the listener itself:
 
 ```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 sudo journalctl -u caddy -n 30 --no-pager
 ```
 
-DNS lives in Cloudflare. **`gw` must stay DNS-only** (grey cloud): a proxied record terminates the
-raw WebSocket the bridge advertises. Firewall rules open 80 and 443 only; 8001 and 8003 are not
-reachable from the internet.
+DNS lives in Cloudflare. Tenant hosts must stay **DNS-only** (grey cloud): a proxied gateway record
+terminates the raw WebSocket the bridge advertises. Firewall rules open 80 and 443 only; 8001 and
+8003 are not reachable from the internet.
 
 ## Speech providers
 
@@ -291,8 +295,10 @@ ops -- session start|stop` covers only the database and the app host.
 | Turn rejected `STT failed (404)` | the provider's base URL already ends in `/v1`; the runtime appends `/v1/audio/…` itself |
 | Turn converts to nothing / unchanged voice | `curl -s http://<speech-node>:8085/api/models/active`; if `"active":false`, check the activation sidecar (`docker logs --tail 20 interview-ovc-activate-1`) — it re-activates on its next poll |
 | Device page lists no tools | the bridge's warning carries the console's reason; see `TOOL_LIMITS` in `src/lib/device-tools.ts` |
-| `wss` handshake fails from outside | the `gw` block in the Caddyfile, then `journalctl -u caddy` |
-| Certificate warning on `console` | `journalctl -u caddy`; Caddy renews automatically |
+| `wss` handshake fails from outside | the host is registered as `gateway`, the record is DNS-only, then `journalctl -u caddy` |
+| Certificate warning on a tenant host | is the host in `tenant_domains` and the tenant not deleted? check the ask endpoint from the host, then `journalctl -u caddy` |
+| Tenant host answers 404 | registered as the wrong kind (console vs gateway), or the tenant is deleted |
+| Certificate warning on the platform host | `PLATFORM_HOST` names the host and `journalctl -u caddy` |
 | Device connects, no turn ever | the endpointer line: `floor` and `peak` say whether the gate was ever crossed |
 
 The built-ins live in the console's database, seeded by `seed:providers`; an owner cannot change

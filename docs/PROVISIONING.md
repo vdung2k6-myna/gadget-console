@@ -193,6 +193,7 @@ BRIDGE_TOKEN=$(secret bridge-token)
 LLM_KEY_SECRET=$(secret console-llm-key-secret)
 FIRMWARE_DIR=/var/lib/firmware
 CONSOLE_PUBLIC_URL=https://<console-host>
+PLATFORM_HOST=<platform-host>
 ENV
 
 cat > /etc/gadget/api.env <<ENV
@@ -313,20 +314,20 @@ journald receives is `npm[pid]` and the three services are indistinguishable.
 
 ### `/etc/caddy/Caddyfile`
 
-```bash
-sudo tee /etc/caddy/Caddyfile >/dev/null <<'EOF'
-<console-host> {
-	reverse_proxy 127.0.0.1:3001
-}
+The listener is `deploy/Caddyfile.example` in the console repository. It serves
+the platform host and every registered tenant console and gateway host, issuing
+certificates on demand only for hosts the console authorizes. Install it after
+the console is deployed (the ask endpoint must answer):
 
-<bridge-host> {
-	reverse_proxy /xiaozhi/ota* 127.0.0.1:8003
-	reverse_proxy /xiaozhi/v1* 127.0.0.1:8001
-}
-EOF
+```bash
+sudo install -m 644 /srv/gadget-console/current/deploy/Caddyfile.example /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
 ```
 
-Both certificates are issued automatically over HTTP-01; port 80 must stay open.
+Ports 80 and 443 must stay open. The first tenant host is registered through the
+platform admin API after the console is running; `docs/DOMAINS.md` has the
+registration, DNS and verification steps.
 
 ## 8. The service trees
 

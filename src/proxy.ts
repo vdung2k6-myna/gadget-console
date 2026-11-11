@@ -1,10 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { loadConfig } from "@/lib/config";
+import { isLoopbackRequest } from "@/lib/http/loopback";
 import { normalizeHost, parseTenantRequest } from "@/lib/tenancy/request";
 import { findTenantByConsoleHost } from "@/lib/tenancy/resolve";
-
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
 /**
  * The console's tenant routing.
@@ -51,6 +50,13 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next({ request: { headers } });
   }
 
+  // Caddy's certificate ask and the health check are reached over loopback on a
+  // host that is not a tenant name. The forwarded chain must be loopback too, so
+  // a public request cannot claim loopback with a host header alone.
+  if (isLoopbackRequest(host, request.headers)) {
+    return NextResponse.next({ request: { headers } });
+  }
+
   if (parsed.kind === "tenant" && parsed.source === "host") {
     const tenant =
       parsed.host === undefined ? undefined : await findTenantByConsoleHost(parsed.host);
@@ -58,11 +64,7 @@ export default async function proxy(request: NextRequest) {
     return new NextResponse(null, { status: 404 });
   }
 
-  const local =
-    host !== undefined &&
-    LOCAL_HOSTS.has(host) &&
-    !request.headers.has("x-forwarded-for");
-  if (deployment.platformHost === null || local) {
+  if (deployment.platformHost === null) {
     return NextResponse.next({ request: { headers } });
   }
 

@@ -29,7 +29,12 @@ describe("the certificate authorization route", () => {
   it("allows a registered host over loopback", async () => {
     await tenant("console.first.example");
 
-    const response = await GET(ask("console.first.example", { host: "127.0.0.1:3001" }));
+    const response = await GET(
+      ask("console.first.example", {
+        host: "127.0.0.1:3001",
+        "x-forwarded-for": "::ffff:127.0.0.1",
+      })
+    );
 
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { allowed: true });

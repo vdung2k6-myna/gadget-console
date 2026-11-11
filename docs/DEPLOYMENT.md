@@ -25,13 +25,14 @@ and never configures a provider.
 | voice conversion (`interview-ovc`) | the operator's machine | `http://<speech-node>:8085` | the app host, over the private tailnet |
 | Cloud SQL Postgres | managed | `<db-private-ip>:5432` | the host's subnet |
 
-Only 80 and 443 are opened to the internet. Caddy terminates TLS for both hostnames and proxies
-`gw.<domain>/xiaozhi/ota*` to 8003 and `gw.<domain>/xiaozhi/v1*` to 8001, so a gadget speaks
-`https` and `wss`. The bridge's raw ports, the console's internal API and the runtime have no
-firewall rule at all, and the runtime's socket is bound to loopback as well. The speech tier is
-reachable only over the private tailnet; its services have no authentication of their own, so
-tailnet membership and its ACL are the boundary. Nothing exposes the speech tier on a public
-hostname.
+Only 80 and 443 are opened to the internet. Caddy serves the platform host and each registered
+tenant console and gateway host, issuing certificates on demand only for hosts in
+`tenant_domains`. It proxies `/xiaozhi/ota*` to 8003 and `/xiaozhi/v1*` to 8001, so a gadget speaks
+`https` and `wss`; every other path goes to the console. The bridge's raw ports, the console's
+internal API and the runtime have no firewall rule at all, and the runtime's socket is bound to
+loopback as well. The speech tier is reachable only over the private tailnet; its services have no
+authentication of their own, so tailnet membership and its ACL are the boundary. Nothing exposes
+the speech tier on a public hostname.
 
 The speech tier runs on the operator's machine: `audiocpp` with the CUDA backend, the STT proxy,
 the TTS gateway and engines, and OpenVoiceChanger with its GPU override. The card is 4 GB:
@@ -56,8 +57,9 @@ the unconverted audio and reports it rather than failing the turn.
   `app`, service account `gadget-vm@<project>.iam.gserviceaccount.com` with the `cloud-platform`
   scope (needed to read Secret Manager).
 - 20 GB boot disk, plus a 20 GB `pd-balanced` data disk mounted at `/var/lib/firmware`.
-- Static address `gadget-app-ip`. DNS: `console.<domain>` and `gw.<domain>`, both **DNS
-  only** in Cloudflare — a proxied `gw` breaks the WebSocket the bridge advertises.
+- Static address `gadget-app-ip`. DNS: the platform host plus each tenant's console and gateway
+  hosts point here. Keep tenant hosts **DNS only** in Cloudflare — a proxied `gw` breaks the
+  WebSocket the bridge advertises. `docs/DOMAINS.md` covers registration and verification.
 
 The speech tier runs on the operator's machine, not on a cloud instance: Docker with the NVIDIA
 container toolkit, the audio compose project (models in its own directory), the conversion compose
@@ -71,7 +73,7 @@ Conversion models live on the machine's native filesystem.
 | Port | Source | Purpose |
 | --- | --- | --- |
 | 80 | `0.0.0.0/0` | ACME challenge and the redirect to HTTPS |
-| 443 | `0.0.0.0/0` | the console, and `gw` for OTA and the socket |
+| 443 | `0.0.0.0/0` | the platform and tenant consoles, and each gateway's OTA and socket |
 | 22 | `35.235.240.0/20` | SSH through IAP only |
 
 Everything else is denied by the implied ingress rule, including the bridge's 8001 and 8003. The
@@ -101,7 +103,7 @@ route creates, edits or deletes a built-in.
 
 | Service | Environment |
 | --- | --- |
-| console | `NODE_ENV`, `DATABASE_URL`, `BRIDGE_TOKEN`, `LLM_KEY_SECRET`, `FIRMWARE_DIR=/var/lib/firmware`, `CONSOLE_PUBLIC_URL` |
+| console | `NODE_ENV`, `DATABASE_URL`, `BRIDGE_TOKEN`, `LLM_KEY_SECRET`, `FIRMWARE_DIR=/var/lib/firmware`, `CONSOLE_PUBLIC_URL`, `PLATFORM_HOST` |
 | runtime | `NODE_ENV=production`, `HOST=127.0.0.1`, `PORT=4000`, `API_AUTH_TOKEN`, `VOICE_AGENT_MAX_HISTORY=8`, `OVC_URL`, `OVC_MODEL`, `OVC_TIMEOUT_MS`, `OVC_REQUIRED`, `VOICE_AGENT_OVC_PITCH_SHIFT`, `VOICE_AGENT_OVC_FORMANT_SHIFT`, `VOICE_AGENT_OVC_F0_METHOD` |
 | bridge | `BRIDGE_CONSOLE_URL=http://127.0.0.1:3001`, `BRIDGE_CONSOLE_TOKEN`, `BRIDGE_PUBLIC_HOST=gw.<domain>`, `BRIDGE_PUBLIC_URL=https://gw.<domain>`, `BRIDGE_VAD_MIN_RMS=2500`, `BRIDGE_VAD_FLOOR_RATIO=2.0`, `BRIDGE_HISTORY_TURNS=8`, `BRIDGE_MUSIC_DIR=/srv/music`, `BRIDGE_MUSIC_GAIN_DB=-3`, `BRIDGE_SPEECH_PROB_MIN=0.5`, `BRIDGE_SPEECH_MIN_FRAMES=3`; `OTA_PORT` and `WS_PORT` keep their defaults (8003 and 8001) |
 
@@ -117,6 +119,7 @@ therefore answer 500; this deployment serves the gadget path only.
 - `RUNTIME_URL` in that row is `http://127.0.0.1:4000`;
 - `BRIDGE_PUBLIC_HOST` is `gw.<domain>`, `BRIDGE_PUBLIC_URL` is `https://gw.<domain>` — the
   front the bridge advertises — and `CONSOLE_PUBLIC_URL` is `https://console.<domain>`;
+- `PLATFORM_HOST` is the platform host and is not registered in `tenant_domains`;
 - the built-in `stt` endpoint is `http://<speech-node>:8080`, the built-in `tts` endpoint is
   `http://<speech-node>:8082`, and the runtime's `OVC_URL` is `http://<speech-node>:8085`.
 
