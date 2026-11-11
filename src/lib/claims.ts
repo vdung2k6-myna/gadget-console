@@ -78,7 +78,7 @@ export async function isPendingClaim(deviceId: string): Promise<boolean> {
  */
 export async function issueClaim(
   deviceId: string,
-  tenantId?: string
+  tenantId: string
 ): Promise<IssuedClaim | undefined> {
   const normalized = normalizeDeviceId(deviceId);
 
@@ -90,12 +90,7 @@ export async function issueClaim(
   const device = deviceRows[0];
 
   if (device !== undefined && device.userId !== null) return undefined;
-  if (
-    device !== undefined &&
-    tenantId !== undefined &&
-    device.tenantId !== null &&
-    device.tenantId !== tenantId
-  ) {
+  if (device !== undefined && device.tenantId !== tenantId) {
     return undefined;
   }
 
@@ -104,12 +99,10 @@ export async function issueClaim(
       .insert(devices)
       .values({
         deviceId: normalized,
+        tenantId,
         secret: newDeviceSecret(),
-        ...(tenantId === undefined ? {} : { tenantId }),
       })
       .onConflictDoNothing({ target: devices.deviceId });
-  } else if (tenantId !== undefined && device.tenantId === null) {
-    await getDb().update(devices).set({ tenantId }).where(eq(devices.id, device.id));
   }
 
   // A gadget whose code has been entered is waiting for an admin, not for another
@@ -122,10 +115,10 @@ export async function issueClaim(
   const code = await unusedCode();
   const expiresAt = new Date(Date.now() + loadConfig().claimTtlMs);
   await getDb().insert(claims).values({
+    tenantId,
     deviceId: normalized,
     code,
     expiresAt,
-    ...(tenantId === undefined ? {} : { tenantId }),
   });
   return { code, expiresAt };
 }

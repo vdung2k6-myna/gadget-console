@@ -2,7 +2,14 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 
-import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import {
+  closeDb,
+  getDb,
+  relaxTenantNotNull,
+  requireTestDatabase,
+  resetDb,
+  restoreTenantNotNull,
+} from "./helpers/db";
 import { backfillPilotTenant } from "../src/lib/tenancy/backfill";
 import {
   agents,
@@ -16,8 +23,15 @@ import {
 } from "../src/lib/db/schema";
 
 before(() => requireTestDatabase());
-beforeEach(resetDb);
-after(closeDb);
+beforeEach(async () => {
+  await resetDb();
+  await relaxTenantNotNull();
+});
+after(async () => {
+  await resetDb();
+  await restoreTenantNotNull();
+  await closeDb();
+});
 
 async function seed() {
   const [admin] = await getDb()
@@ -41,6 +55,7 @@ async function seed() {
   const [agent] = await getDb()
     .insert(agents)
     .values({
+      tenantId: null as never,
       userId: person.id,
       runtimeId: runtime.id,
       name: "Agent",
@@ -50,14 +65,22 @@ async function seed() {
     .returning();
   const [device] = await getDb()
     .insert(devices)
-    .values({ deviceId: "device-1", userId: person.id, agentId: agent.id, secret: "secret" })
+    .values({
+      tenantId: null as never,
+      deviceId: "device-1",
+      userId: person.id,
+      agentId: agent.id,
+      secret: "secret",
+    })
     .returning();
   await getDb().insert(claims).values({
+    tenantId: null as never,
     deviceId: "device-1",
     code: "123456",
     expiresAt: new Date(Date.now() + 60_000),
   });
   await getDb().insert(turns).values({
+    tenantId: null as never,
     deviceId: device.id,
     userText: "xin chào",
     assistantText: "chào",

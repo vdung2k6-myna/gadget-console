@@ -148,6 +148,13 @@
       "when": 1794364796131,
       "tag": "0020_loose_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794367880792,
+      "tag": "0021_opposite_pandemic",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, tenantOfUser } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { createRuntime } from "../src/lib/runtimes";
 import { agents, providerProfiles } from "../src/lib/db/schema";
@@ -19,9 +20,7 @@ beforeEach(resetDb);
 after(closeDb);
 
 async function account(email = "ann@example.com") {
-  const result = await registerAccount(email, "a good password");
-  if (!result.ok) throw new Error(`could not register ${email}`);
-  return result.user;
+  return accountWithTenant(email);
 }
 
 async function agentFor(userId: string) {
@@ -35,6 +34,7 @@ async function agentFor(userId: string) {
   const rows = await getDb()
     .insert(agents)
     .values({
+      tenantId: await tenantOfUser(userId),
       userId,
       runtimeId: runtime.id,
       name: "assistant",

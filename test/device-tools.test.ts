@@ -2,6 +2,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, tenantOfUser } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { TOOL_LIMITS, recordDeviceTools, validateToolReport } from "../src/lib/device-tools";
 import { devices } from "../src/lib/db/schema";
@@ -15,11 +16,15 @@ const MAC = "b8:1f:3f:4a:9b:01";
 const STORED = "b81f3f4a9b01";
 
 async function device() {
-  const account = await registerAccount("ann@example.com", "a good password");
-  if (!account.ok) throw new Error("could not register");
+  const account = await accountWithTenant("ann@example.com");
   const rows = await getDb()
     .insert(devices)
-    .values({ deviceId: STORED, userId: account.user.id, secret: "s".repeat(32) })
+    .values({
+      tenantId: await tenantOfUser(account.id),
+      deviceId: STORED,
+      userId: account.id,
+      secret: "s".repeat(32),
+    })
     .returning();
   return rows[0]!;
 }

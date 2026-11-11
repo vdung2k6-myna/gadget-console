@@ -107,15 +107,14 @@ describe("support access", () => {
   });
 
   it("refuses a device with no tenant", async () => {
-    const [orphan] = await getDb()
-      .insert(devices)
-      .values({ deviceId: "cdevice", secret: "s".repeat(32), name: "" })
-      .returning();
-
     assert.equal(
       await openSupportConversation(
         { id: "root", email: "root@example.com", role: "platform_admin", tenantId: null },
-        orphan!
+        {
+          id: "00000000-0000-4000-8000-000000000000",
+          tenantId: null,
+          deviceId: "cdevice",
+        } as never
       ),
       undefined
     );

@@ -98,7 +98,10 @@ export const users = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
   },
-  (table) => [uniqueIndex("users_email_unique").on(table.email)]
+  (table) => [
+    uniqueIndex("users_email_unique").on(table.email),
+    index("users_tenant_idx").on(table.tenantId),
+  ]
 );
 
 export const sessions = pgTable(
@@ -115,7 +118,9 @@ export const sessions = pgTable(
   (table) => [index("sessions_expires_idx").on(table.expiresAt)]
 );
 
-export const runtimes = pgTable("runtimes", {
+export const runtimes = pgTable(
+  "runtimes",
+  {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
@@ -125,7 +130,9 @@ export const runtimes = pgTable("runtimes", {
   engines: text("engines").array().notNull(),
   languages: text("languages").array().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+  },
+  (table) => [index("runtimes_tenant_idx").on(table.tenantId)]
+);
 
 /**
  * The endpoints that hear, speak and answer for a gadget's agent.
@@ -163,7 +170,10 @@ export const providerProfiles = pgTable(
     isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("provider_profiles_user_kind_idx").on(table.userId, table.kind)]
+  (table) => [
+    index("provider_profiles_user_kind_idx").on(table.userId, table.kind),
+    index("provider_profiles_tenant_idx").on(table.tenantId),
+  ]
 );
 
 /**
@@ -225,7 +235,9 @@ export const agents = pgTable(
   "agents",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -274,14 +286,19 @@ export const agents = pgTable(
     ovcConfig: jsonb("ovc_config").$type<AgentVoiceConversion | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("agents_user_idx").on(table.userId)]
+  (table) => [
+    index("agents_user_idx").on(table.userId),
+    index("agents_tenant_idx").on(table.tenantId),
+  ]
 );
 
 export const devices = pgTable(
   "devices",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
     /** The `Device-Id` header, normalized. Unique across the console. */
     deviceId: text("device_id").notNull(),
     /** Null while nobody owns the gadget. */
@@ -308,6 +325,7 @@ export const devices = pgTable(
   (table) => [
     uniqueIndex("devices_device_id_unique").on(table.deviceId),
     index("devices_user_idx").on(table.userId),
+    index("devices_tenant_idx").on(table.tenantId),
   ]
 );
 
@@ -315,7 +333,9 @@ export const claims = pgTable(
   "claims",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
     deviceId: text("device_id").notNull(),
     code: text("code").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -329,6 +349,7 @@ export const claims = pgTable(
   },
   (table) => [
     index("claims_device_idx").on(table.deviceId),
+    index("claims_tenant_idx").on(table.tenantId),
     index("claims_code_idx").on(table.code),
     index("claims_expires_idx").on(table.expiresAt),
   ]
@@ -338,14 +359,19 @@ export const conversations = pgTable(
   "conversations",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
     deviceId: uuid("device_id")
       .notNull()
       .references(() => devices.id, { onDelete: "cascade" }),
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
   },
-  (table) => [index("conversations_device_idx").on(table.deviceId)]
+  (table) => [
+    index("conversations_device_idx").on(table.deviceId),
+    index("conversations_tenant_idx").on(table.tenantId),
+  ]
 );
 
 /**
@@ -385,6 +411,7 @@ export const firmwareReleases = pgTable(
       .on(table.tenantId, table.boardType)
       .where(sql`${table.targeted}`),
     index("firmware_board_idx").on(table.boardType),
+    index("firmware_tenant_idx").on(table.tenantId),
   ]
 );
 
@@ -392,7 +419,9 @@ export const turns = pgTable(
   "turns",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
     deviceId: uuid("device_id")
       .notNull()
       .references(() => devices.id, { onDelete: "cascade" }),
@@ -413,7 +442,10 @@ export const turns = pgTable(
     endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("turns_device_started_idx").on(table.deviceId, table.startedAt)]
+  (table) => [
+    index("turns_device_started_idx").on(table.deviceId, table.startedAt),
+    index("turns_tenant_idx").on(table.tenantId),
+  ]
 );
 
 /**
@@ -482,14 +514,18 @@ export const deviceCalibration = pgTable("device_calibration", {
   deviceId: uuid("device_id")
     .primaryKey()
     .references(() => devices.id, { onDelete: "cascade" }),
-  tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
   threshold: doublePrecision("threshold").notNull(),
   minFrames: integer("min_frames").notNull(),
   appliedAt: timestamp("applied_at", { withTimezone: true }).defaultNow().notNull(),
   /** `operator:<email>` for an administrator, `session` for the device's own calibration. */
   appliedBy: text("applied_by").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+  },
+  (table) => [index("device_calibration_tenant_idx").on(table.tenantId)]
+);
 
 /** The one row a deployment has: the pair a device without its own entry uses. */
 export const calibrationDefault = pgTable("calibration_default", {
@@ -498,7 +534,9 @@ export const calibrationDefault = pgTable("calibration_default", {
   threshold: doublePrecision("threshold").notNull(),
   minFrames: integer("min_frames").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+  },
+  (table) => [index("calibration_default_tenant_idx").on(table.tenantId)]
+);
 
 /** One row per change, with the pair that was in effect before it. */
 export const calibrationAudit = pgTable(
@@ -514,5 +552,8 @@ export const calibrationAudit = pgTable(
     actor: text("actor").notNull(),
     at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("calibration_audit_device_idx").on(table.deviceId, table.at)]
+  (table) => [
+    index("calibration_audit_device_idx").on(table.deviceId, table.at),
+    index("calibration_audit_tenant_idx").on(table.tenantId),
+  ]
 );

@@ -2,7 +2,14 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 
-import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import {
+  closeDb,
+  getDb,
+  relaxTenantNotNull,
+  requireTestDatabase,
+  resetDb,
+  restoreTenantNotNull,
+} from "./helpers/db";
 import { backfillPilotTenant } from "../src/lib/tenancy/backfill";
 import { resolveDevice } from "../src/lib/bridge/registry";
 import { listAgents, listDevices, listTurns } from "../src/lib/tenancy/repository";
@@ -20,8 +27,15 @@ import {
 } from "../src/lib/db/schema";
 
 before(() => requireTestDatabase());
-beforeEach(resetDb);
-after(closeDb);
+beforeEach(async () => {
+  await resetDb();
+  await relaxTenantNotNull();
+});
+after(async () => {
+  await resetDb();
+  await restoreTenantNotNull();
+  await closeDb();
+});
 
 const DEVICE_ID = "b81f3f4a9b01";
 
@@ -47,6 +61,7 @@ async function legacyDeployment() {
   const [agent] = await getDb()
     .insert(agents)
     .values({
+      tenantId: null as never,
       userId: person!.id,
       runtimeId: runtime!.id,
       name: "Pilot persona",
@@ -57,6 +72,7 @@ async function legacyDeployment() {
   const [device] = await getDb()
     .insert(devices)
     .values({
+      tenantId: null as never,
       deviceId: DEVICE_ID,
       userId: person!.id,
       agentId: agent!.id,
@@ -64,11 +80,13 @@ async function legacyDeployment() {
     })
     .returning();
   await getDb().insert(claims).values({
+    tenantId: null as never,
     deviceId: DEVICE_ID,
     code: "123456",
     expiresAt: new Date(Date.now() + 60_000),
   });
   await getDb().insert(turns).values({
+    tenantId: null as never,
     deviceId: device!.id,
     userText: "xin chào",
     assistantText: "chào",

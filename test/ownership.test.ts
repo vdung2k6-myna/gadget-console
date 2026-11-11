@@ -1,6 +1,7 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, tenantOfUser } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { ownAgent, ownDevice, ownTurns } from "../src/lib/auth/ownership";
 import { agents, devices, runtimes, turns } from "../src/lib/db/schema";
@@ -10,15 +11,13 @@ beforeEach(resetDb);
 after(closeDb);
 
 async function twoAccounts() {
-  const ann = await registerAccount("ann@example.com", "a good password");
-  const bob = await registerAccount("bob@example.com", "a good password");
-  assert.equal(ann.ok, true);
-  assert.equal(bob.ok, true);
-  if (!ann.ok || !bob.ok) throw new Error("accounts were not created");
-  return { ann: ann.user, bob: bob.user };
+  const ann = await accountWithTenant("ann@example.com");
+  const bob = await accountWithTenant("bob@example.com");
+  return { ann, bob };
 }
 
 async function everythingFor(userId: string) {
+  const tenantId = await tenantOfUser(userId);
   const runtime = (
     await getDb()
       .insert(runtimes)
@@ -36,6 +35,7 @@ async function everythingFor(userId: string) {
     await getDb()
       .insert(agents)
       .values({
+        tenantId,
         userId,
         runtimeId: runtime.id,
         name: "assistant",
@@ -49,12 +49,18 @@ async function everythingFor(userId: string) {
   const device = (
     await getDb()
       .insert(devices)
-      .values({ deviceId: "b8:1f:3f:4a:9b:01", userId, secret: "s".repeat(32) })
+      .values({
+        tenantId,
+        deviceId: "b8:1f:3f:4a:9b:01",
+        userId,
+        secret: "s".repeat(32),
+      })
       .returning()
   )[0]!;
 
   const now = new Date();
   await getDb().insert(turns).values({
+    tenantId,
     deviceId: device.id,
     userText: "xin chào",
     assistantText: "chào bạn",

@@ -38,28 +38,19 @@ export type Resolution =
 
 export async function resolveDevice(
   rawDeviceId: string,
-  tenantId?: string
+  tenantId: string
 ): Promise<Resolution> {
   const deviceId = normalizeDeviceId(rawDeviceId);
   const rows = await getDb().select().from(devices).where(eq(devices.deviceId, deviceId)).limit(1);
-  let device = rows[0];
+  const device = rows[0];
 
   // A device belongs to the tenant it was created in. A request on another
   // tenant's host is refused before a claim could be issued or a secret read.
-  if (
-    device !== undefined &&
-    tenantId !== undefined &&
-    device.tenantId !== null &&
-    device.tenantId !== tenantId
-  ) {
+  if (device !== undefined && device.tenantId !== tenantId) {
     return { kind: "wrong-tenant" };
   }
-  if (device !== undefined && tenantId !== undefined && device.tenantId === null) {
-    await getDb().update(devices).set({ tenantId }).where(eq(devices.id, device.id));
-    device = { ...device, tenantId };
-  }
 
-  const tenant = tenantId === undefined ? undefined : await findTenant(tenantId);
+  const tenant = await findTenant(tenantId);
   if (tenant !== undefined && device === undefined) {
     const refusal = await enforceDeviceQuota(tenant);
     if (refusal !== null) return { kind: "quota-exceeded", refusal };

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { approveClaim, claimDevice, issueClaim } from "../../src/lib/claims";
 import { claims, devices } from "../../src/lib/db/schema";
 import { getDb } from "./db";
+import { tenantOfUser } from "./tenant";
 
 /**
  * A gadget in an account's hands: the code issued, entered, and the request
@@ -9,7 +10,7 @@ import { getDb } from "./db";
  * describe a state the product cannot reach.
  */
 export async function ownDevice(userId: string, deviceId: string, adminEmail = "admin@example.com") {
-  const issued = await issueClaim(deviceId);
+  const issued = await issueClaim(deviceId, await tenantOfUser(userId));
   if (issued === undefined) throw new Error(`no claim was issued for ${deviceId}`);
 
   const requested = await claimDevice(userId, issued.code);

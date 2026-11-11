@@ -196,9 +196,13 @@ export async function createAgent(userId: string, draft: AgentDraft): Promise<Ag
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
+  const tenantId = owner[0]?.tenantId;
+  if (tenantId === null || tenantId === undefined) {
+    throw new Error("an agent belongs to a tenant; this account has none");
+  }
   const rows = await getDb()
     .insert(agents)
-    .values({ tenantId: owner[0]?.tenantId ?? null, userId, ...draft })
+    .values({ tenantId, userId, ...draft })
     .returning();
   return rows[0]!;
 }

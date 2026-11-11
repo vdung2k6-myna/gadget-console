@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { and, eq, like } from "drizzle-orm";
 import { closeDb, getDb } from "../src/lib/db/client";
-import { agents, devices, runtimes, users } from "../src/lib/db/schema";
+import { agents, devices, runtimes, tenants, users } from "../src/lib/db/schema";
 import { newDeviceSecret, normalizeDeviceId } from "../src/lib/claims";
 import { ensureRuntime } from "../src/lib/runtimes";
 
@@ -61,7 +61,7 @@ async function ensureUser(email: string) {
   return raced[0];
 }
 
-async function ensureAgent(userId: string, runtimeId: string) {
+async function ensureAgent(userId: string, tenantId: string, runtimeId: string) {
   const existing = await getDb()
     .select()
     .from(agents)
@@ -79,6 +79,7 @@ async function ensureAgent(userId: string, runtimeId: string) {
   const inserted = await getDb()
     .insert(agents)
     .values({
+      tenantId,
       userId,
       runtimeId,
       name: SOAK_AGENT_NAME,
@@ -143,7 +144,20 @@ async function main(): Promise<void> {
   if (runtime.baseUrl !== baseUrl || runtime.token !== runtimeToken) {
     await getDb().update(runtimes).set({ baseUrl, token: runtimeToken }).where(eq(runtimes.id, runtime.id));
   }
-  const agent = await ensureAgent(user.id, runtime.id);
+  const [tenant] = await getDb()
+    .insert(tenants)
+    .values({ name: "Soak", slug: "soak" })
+    .onConflictDoNothing({ target: tenants.slug })
+    .returning();
+  const tenantId =
+    tenant?.id ??
+    (await getDb()
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(eq(tenants.slug, "soak"))
+      .limit(1))[0]!.id;
+  await getDb().update(users).set({ tenantId }).where(eq(users.id, user.id));
+  const agent = await ensureAgent(user.id, tenantId, runtime.id);
 
   const ids: string[] = [];
   for (let index = 0; index < count; index++) {
@@ -152,10 +166,17 @@ async function main(): Promise<void> {
     ids.push(raw);
     const inserted = await getDb()
       .insert(devices)
-      .values({ deviceId, userId: user.id, agentId: agent.id, name: SOAK_DEVICE_NAME, secret: newDeviceSecret() })
+      .values({
+        tenantId,
+        deviceId,
+        userId: user.id,
+        agentId: agent.id,
+        name: SOAK_DEVICE_NAME,
+        secret: newDeviceSecret(),
+      })
       .onConflictDoUpdate({
         target: devices.deviceId,
-        set: { userId: user.id, agentId: agent.id, name: SOAK_DEVICE_NAME },
+        set: { tenantId, userId: user.id, agentId: agent.id, name: SOAK_DEVICE_NAME },
       })
       .returning({ deviceId: devices.deviceId });
     if (inserted[0] === undefined) throw new Error(`could not seed ${raw}`);

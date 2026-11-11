@@ -13,6 +13,7 @@
     "db:migrate": "drizzle-kit migrate",
     "migrate:tenancy": "tsx scripts/migrate-tenancy.ts",
     "migrate:tenancy-keys": "tsx scripts/reencrypt-tenant-keys.ts",
+    "migrate:tenancy-constraints": "tsx scripts/tighten-tenancy-constraints.ts",
     "db:studio": "drizzle-kit studio",
     "seed:runtime": "tsx scripts/seed-runtime.ts",
     "seed:providers": "tsx scripts/seed-provider-profiles.ts",

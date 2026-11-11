@@ -1,6 +1,8 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, tenantOfUser } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { ownTurns } from "../src/lib/auth/ownership";
 import { releaseDevice } from "../src/lib/claims";
@@ -12,21 +14,30 @@ beforeEach(resetDb);
 after(closeDb);
 
 async function account(email: string) {
-  const result = await registerAccount(email, "a good password");
-  if (!result.ok) throw new Error(`could not register ${email}`);
-  return result.user;
+  return accountWithTenant(email);
 }
 
 async function device(userId: string, deviceId: string) {
   const rows = await getDb()
     .insert(devices)
-    .values({ deviceId, userId, secret: "s".repeat(32) })
+    .values({
+      tenantId: await tenantOfUser(userId),
+      deviceId,
+      userId,
+      secret: "s".repeat(32),
+    })
     .returning();
   return rows[0]!;
 }
 
 async function turn(deviceRowId: string, userText: string, createdAt = new Date()) {
+  const [device] = await getDb()
+    .select({ tenantId: devices.tenantId })
+    .from(devices)
+    .where(eq(devices.id, deviceRowId))
+    .limit(1);
   await getDb().insert(turns).values({
+    tenantId: device!.tenantId,
     deviceId: deviceRowId,
     userText,
     assistantText: `answer ${userText}`,

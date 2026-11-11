@@ -1,6 +1,7 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, tenantOfUser } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import {
   HARDWARE_LIMITS,
@@ -30,11 +31,15 @@ const REPORT = {
 };
 
 async function device() {
-  const account = await registerAccount("ann@example.com", "a good password");
-  if (!account.ok) throw new Error("could not register");
+  const account = await accountWithTenant("ann@example.com");
   const rows = await getDb()
     .insert(devices)
-    .values({ deviceId: STORED, userId: account.user.id, secret: "s".repeat(32) })
+    .values({
+      tenantId: await tenantOfUser(account.id),
+      deviceId: STORED,
+      userId: account.id,
+      secret: "s".repeat(32),
+    })
     .returning();
   return rows[0]!;
 }

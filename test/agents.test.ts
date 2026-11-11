@@ -1,6 +1,7 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, tenantOfUser } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import {
   bindDevice,
@@ -32,9 +33,8 @@ after(closeDb);
 let llmProfileId: string | null = null;
 
 async function account(email: string) {
-  const result = await registerAccount(email, "a good password");
-  if (!result.ok) throw new Error(`could not register ${email}`);
-  const llm = await createProviderProfile(result.user.id, {
+  const user = await accountWithTenant(email);
+  const llm = await createProviderProfile(user.id, {
     kind: "llm",
     name: "gpt-mini",
     baseUrl: "https://api.openai.com/v1",
@@ -45,7 +45,7 @@ async function account(email: string) {
   // The first account in a test owns the draft's model; a second account exists to
   // be refused, and must not lend its profile to the first one's draft.
   if (llmProfileId === null) llmProfileId = llm.id;
-  return result.user;
+  return user;
 }
 
 async function runtime(overrides: Partial<{ engines: string[]; languages: string[] }> = {}) {
@@ -61,7 +61,12 @@ async function runtime(overrides: Partial<{ engines: string[]; languages: string
 async function device(userId: string, deviceId: string) {
   const rows = await getDb()
     .insert(devices)
-    .values({ deviceId, userId, secret: "s".repeat(32) })
+    .values({
+      tenantId: await tenantOfUser(userId),
+      deviceId,
+      userId,
+      secret: "s".repeat(32),
+    })
     .returning();
   return rows[0]!;
 }

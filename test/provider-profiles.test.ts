@@ -2,6 +2,8 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { testTenant } from "./helpers/tenant";
+import { accountWithTenant } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { validateAgentDraft, createAgent } from "../src/lib/agents";
 import { resolveDevice } from "../src/lib/bridge/registry";
@@ -31,9 +33,7 @@ after(closeDb);
 const MAC = "B8:1F:3F:4A:9B:01";
 
 async function account(email: string) {
-  const result = await registerAccount(email, "a good password");
-  if (!result.ok) throw new Error(`could not register ${email}`);
-  return result.user;
+  return accountWithTenant(email);
 }
 
 function draft(overrides: Record<string, unknown> = {}) {
@@ -270,7 +270,7 @@ describe("the resolution the bridge receives", () => {
 
   it("carries the profile and its key when the agent names one", async () => {
     await claimedAgent();
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
 
     const agent = resolution.body.agent as Record<string, unknown>;
@@ -286,7 +286,7 @@ describe("the resolution the bridge receives", () => {
 
   it("carries null for a kind the agent names none of", async () => {
     await claimedAgent();
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
 
     const providers = (resolution.body.agent as Record<string, unknown>).providers as Record<string, unknown>;
@@ -297,7 +297,7 @@ describe("the resolution the bridge receives", () => {
 
   it("carries the agent's language, voice and conversion to the bridge", async () => {
     await claimedAgent();
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
 
     const agent = resolution.body.agent as Record<string, unknown>;

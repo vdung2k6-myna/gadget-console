@@ -25,4 +25,34 @@ export async function resetDb(): Promise<void> {
   );
 }
 
+const OWNED_TABLES = [
+  "agents",
+  "devices",
+  "claims",
+  "conversations",
+  "turns",
+  "device_calibration",
+] as const;
+
+/**
+ * Migration tests must be able to write the legacy shape: owned rows with no
+ * tenant. The schema is NOT NULL after the backfill, so those two files drop the
+ * constraints for their fixtures and restore them before the next file runs.
+ */
+export async function relaxTenantNotNull(): Promise<void> {
+  for (const table of OWNED_TABLES) {
+    await getDb().execute(
+      sql.raw(`alter table ${table} alter column tenant_id drop not null`)
+    );
+  }
+}
+
+export async function restoreTenantNotNull(): Promise<void> {
+  for (const table of OWNED_TABLES) {
+    await getDb().execute(
+      sql.raw(`alter table ${table} alter column tenant_id set not null`)
+    );
+  }
+}
+
 export { closeDb, getDb };

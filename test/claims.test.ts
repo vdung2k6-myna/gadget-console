@@ -2,6 +2,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, testTenant } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import {
   allowClaimIssue,
@@ -35,14 +36,12 @@ const MAC = "B8-1F-3F-4A-9B-01";
 const NORMALIZED = "b81f3f4a9b01";
 
 async function account(email: string) {
-  const result = await registerAccount(email, "a good password");
-  if (!result.ok) throw new Error(`could not register ${email}`);
-  return result.user;
+  return accountWithTenant(email);
 }
 
 describe("issuing a claim", () => {
   it("creates an unowned device with its own secret and a short code", async () => {
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
     assert.equal(issued.code.length, 6);
     assert.ok(issued.expiresAt.getTime() > Date.now());
@@ -55,19 +54,19 @@ describe("issuing a claim", () => {
   });
 
   it("reuses the live claim rather than issuing a second code", async () => {
-    const first = await issueClaim(MAC);
-    const second = await issueClaim(MAC);
+    const first = await issueClaim(MAC, await testTenant());
+    const second = await issueClaim(MAC, await testTenant());
     assert.equal(first?.code, second?.code);
     assert.equal((await getDb().select().from(claims)).length, 1);
   });
 
   it("issues nothing for a gadget that already has an owner", async () => {
     const ann = await account("ann@example.com");
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
     await claimDevice(ann.id, issued.code);
 
-    assert.equal(await issueClaim(MAC), undefined);
+    assert.equal(await issueClaim(MAC, await testTenant()), undefined);
   });
 
   it("normalizes the identifier the bridge normalizes", () => {
@@ -79,7 +78,7 @@ describe("issuing a claim", () => {
 describe("entering a code", () => {
   it("records a request, and hands the gadget over only when it is approved", async () => {
     const ann = await account("ann@example.com");
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
 
     const result = await claimDevice(ann.id, issued.code);
@@ -99,7 +98,7 @@ describe("entering a code", () => {
   it("refuses a code a second time", async () => {
     const ann = await account("ann@example.com");
     const bob = await account("bob@example.com");
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
 
     await claimDevice(ann.id, issued.code);
@@ -109,7 +108,7 @@ describe("entering a code", () => {
   it("leaves exactly one request when two accounts race", async () => {
     const ann = await account("ann@example.com");
     const bob = await account("bob@example.com");
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
 
     const [first, second] = await Promise.all([
@@ -120,7 +119,7 @@ describe("entering a code", () => {
   });
 
   it("refuses an expired code, and a fresh request issues a new one", async () => {
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
     await getDb()
       .update(claims)
@@ -131,7 +130,7 @@ describe("entering a code", () => {
     assert.deepEqual(await claimDevice(ann.id, issued.code), { ok: false, reason: "expired" });
 
     // Released: it can be claimed again, with a code issued afresh.
-    const fresh = await issueClaim(MAC);
+    const fresh = await issueClaim(MAC, await testTenant());
     assert.ok(fresh);
     assert.match(fresh.code, /^\d{6}$/);
   });
@@ -145,7 +144,7 @@ describe("entering a code", () => {
 describe("approving a request", () => {
   it("lists it for the admin and for the account that asked", async () => {
     const ann = await account("ann@example.com");
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
     await claimDevice(ann.id, issued.code);
 
@@ -160,7 +159,7 @@ describe("approving a request", () => {
 
   it("refusing leaves the gadget unowned, and the code cannot be used again", async () => {
     const ann = await account("ann@example.com");
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
     await claimDevice(ann.id, issued.code);
     const claimId = await claimIdFor(issued.code);
@@ -173,7 +172,7 @@ describe("approving a request", () => {
 
   it("will not approve a request past its window", async () => {
     const ann = await account("ann@example.com");
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
     await claimDevice(ann.id, issued.code);
     const claimId = await claimIdFor(issued.code);
@@ -188,7 +187,7 @@ describe("approving a request", () => {
 
   it("will not approve over a device that was claimed meanwhile", async () => {
     const ann = await account("ann@example.com");
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
     await claimDevice(ann.id, issued.code);
     const claimId = await claimIdFor(issued.code);
@@ -210,6 +209,7 @@ describe("releasing a gadget", () => {
 
     const now = new Date();
     await getDb().insert(turns).values({
+      tenantId: claimed.tenantId,
       deviceId: claimed.id,
       userText: "xin chào",
       assistantText: "chào bạn",
@@ -227,7 +227,7 @@ describe("releasing a gadget", () => {
     assert.equal((await getDb().select().from(turns)).length, 0);
 
     // Released: it can be claimed again, with a code issued afresh.
-    const fresh = await issueClaim(MAC);
+    const fresh = await issueClaim(MAC, await testTenant());
     assert.ok(fresh);
     assert.match(fresh.code, /^\d{6}$/);
   });

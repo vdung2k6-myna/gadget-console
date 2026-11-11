@@ -2,6 +2,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, testTenant, tenantOfUser } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { bridgeAuthorized } from "../src/lib/bridge/auth";
 import { activationState, resolveDevice, recordTurn } from "../src/lib/bridge/registry";
@@ -22,9 +23,7 @@ after(closeDb);
 const MAC = "B8:1F:3F:4A:9B:01";
 
 async function account(email: string) {
-  const result = await registerAccount(email, "a good password");
-  if (!result.ok) throw new Error(`could not register ${email}`);
-  return result.user;
+  return accountWithTenant(email);
 }
 
 async function ownedDevice(userId: string, deviceId = MAC) {
@@ -42,6 +41,7 @@ async function agentFor(userId: string) {
   const rows = await getDb()
     .insert(agents)
     .values({
+      tenantId: await tenantOfUser(userId),
       userId,
       runtimeId: runtime.id,
       name: "assistant",
@@ -71,7 +71,7 @@ describe("the bridge's credential", () => {
 
 describe("resolving a device", () => {
   it("answers an unowned gadget with a code and a secret, and no agent", async () => {
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     assert.equal(resolution.kind, "unowned");
     const body = resolution.body as Record<string, unknown>;
     assert.equal(body.owned, false);
@@ -87,7 +87,7 @@ describe("resolving a device", () => {
     const agent = await agentFor(ann.id);
     await getDb().update(devices).set({ agentId: agent.id }).where(eq(devices.id, device.id));
 
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     assert.equal(resolution.kind, "owned");
     const body = resolution.body as Record<string, unknown>;
     assert.equal(body.owned, true);
@@ -105,7 +105,7 @@ describe("resolving a device", () => {
   it("answers an owned gadget with no agent bound with a null agent", async () => {
     const ann = await account("ann@example.com");
     await ownedDevice(ann.id);
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
     assert.equal(resolution.body.agent, null);
   });
@@ -116,6 +116,7 @@ describe("resolving a device", () => {
     const base = Date.now();
     for (const [index, text] of ["one", "two"].entries()) {
       await getDb().insert(turns).values({
+        tenantId: device.tenantId,
         deviceId: device.id,
         userText: text,
         assistantText: `answer ${text}`,
@@ -126,7 +127,7 @@ describe("resolving a device", () => {
       });
     }
 
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
     const history = (resolution.body as Record<string, unknown>).turns as { userText: string }[];
     assert.deepEqual(
@@ -140,7 +141,7 @@ describe("resolving a device", () => {
     const device = await ownedDevice(ann.id);
     await releaseDevice(ann.id, device.id);
 
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     assert.equal(resolution.kind, "unowned");
     assert.ok((resolution.body as Record<string, unknown>).activation);
   });
@@ -148,7 +149,7 @@ describe("resolving a device", () => {
   it("stops issuing codes to one identifier past the rate limit", async () => {
     let limited = false;
     for (let index = 0; index < 12; index += 1) {
-      if ((await resolveDevice(MAC)).kind === "rate-limited") limited = true;
+      if ((await resolveDevice(MAC, await testTenant())).kind === "rate-limited") limited = true;
     }
     assert.equal(limited, true);
   });
@@ -158,7 +159,7 @@ describe("activation", () => {
   it("is pending while a code waits or a request does, and owned only once approved", async () => {
     assert.equal(await activationState(MAC), "unknown");
 
-    const issued = await issueClaim(MAC);
+    const issued = await issueClaim(MAC, await testTenant());
     assert.ok(issued);
     assert.equal(await activationState(MAC), "pending", "a code is waiting to be entered");
 
@@ -235,7 +236,7 @@ describe("recording a turn", () => {
   });
 
   it("refuses a turn for a gadget nobody owns", async () => {
-    await issueClaim(MAC);
+    await issueClaim(MAC, await testTenant());
     const result = await recordTurn({
       deviceId: MAC,
       userText: "xin chào",
@@ -280,6 +281,7 @@ describe("the firmware target in a resolution", () => {
     const rows = await getDb()
       .insert(firmwareReleases)
       .values({
+        tenantId: await testTenant(),
         boardType: "esp-box-3",
         version,
         sizeBytes: 16,
@@ -298,7 +300,7 @@ describe("the firmware target in a resolution", () => {
   it("carries the target for an owned device running a different version", async () => {
     await deviceReporting(REPORT);
     const release = await targetedRelease();
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
 
     assert.deepEqual(firmwareOf(resolution.body), {
@@ -311,7 +313,7 @@ describe("the firmware target in a resolution", () => {
   it("carries the force flag only when the release says so", async () => {
     await deviceReporting(REPORT);
     await targetedRelease("1.2.2", true);
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
     assert.equal(firmwareOf(resolution.body)?.force, true);
   });
@@ -319,7 +321,7 @@ describe("the firmware target in a resolution", () => {
   it("carries nothing when the device already runs the target", async () => {
     await deviceReporting(REPORT);
     await targetedRelease("1.2.3");
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
     assert.equal("firmware" in resolution.body, false);
   });
@@ -327,14 +329,14 @@ describe("the firmware target in a resolution", () => {
   it("carries nothing when the device reported no board type", async () => {
     await deviceReporting();
     await targetedRelease();
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
     assert.equal("firmware" in resolution.body, false);
   });
 
   it("carries nothing for a device nobody owns", async () => {
     await targetedRelease();
-    const resolution = await resolveDevice(MAC);
+    const resolution = await resolveDevice(MAC, await testTenant());
     assert.equal(resolution.kind, "unowned");
     assert.equal("firmware" in resolution.body, false);
   });
@@ -344,7 +346,7 @@ describe("the firmware target in a resolution", () => {
     await targetedRelease();
     delete process.env.CONSOLE_PUBLIC_URL;
     try {
-      const resolution = await resolveDevice(MAC);
+      const resolution = await resolveDevice(MAC, await testTenant());
       if (resolution.kind !== "owned") throw new Error("expected an owned resolution");
       assert.equal("firmware" in resolution.body, false);
     } finally {

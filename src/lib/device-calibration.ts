@@ -82,10 +82,14 @@ export async function getDefaultPair(): Promise<CalibrationPair> {
 /** A device row by the console's id (a page) or by the firmware's `Device-Id` (the bridge). */
 async function findDevice(
   ref: { id: string } | { deviceId: string }
-): Promise<{ id: string } | undefined> {
+): Promise<{ id: string; tenantId: string } | undefined> {
   const column = "id" in ref ? devices.id : devices.deviceId;
   const value = "id" in ref ? ref.id : ref.deviceId;
-  const rows = await getDb().select({ id: devices.id }).from(devices).where(eq(column, value)).limit(1);
+  const rows = await getDb()
+    .select({ id: devices.id, tenantId: devices.tenantId })
+    .from(devices)
+    .where(eq(column, value))
+    .limit(1);
   return rows[0];
 }
 
@@ -138,6 +142,7 @@ export async function setDeviceCalibration(
     .insert(deviceCalibration)
     .values({
       deviceId: device.id,
+      tenantId: device.tenantId,
       threshold: pair.threshold,
       minFrames: pair.minFrames,
       appliedBy: actor,

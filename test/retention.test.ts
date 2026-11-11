@@ -1,6 +1,8 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, testTenant, tenantOfUser } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
 import { pruneAll, pruneClaims, pruneTurns, pruneUnclaimedDevices } from "../src/lib/retention";
 import { claims, devices, turns } from "../src/lib/db/schema";
@@ -17,15 +19,19 @@ const now = new Date("2026-10-25T12:00:00Z");
 const ago = (ms: number) => new Date(now.getTime() - ms);
 
 async function account(email: string) {
-  const result = await registerAccount(email, "a good password");
-  if (!result.ok) throw new Error(`could not register ${email}`);
-  return result.user;
+  return accountWithTenant(email);
 }
 
 async function gadget(deviceId: string, userId: string | null, createdAt: Date) {
   const rows = await getDb()
     .insert(devices)
-    .values({ deviceId, userId, secret: "s".repeat(32), createdAt })
+    .values({
+      tenantId: userId === null ? await testTenant() : await tenantOfUser(userId),
+      deviceId,
+      userId,
+      secret: "s".repeat(32),
+      createdAt,
+    })
     .returning();
   return rows[0]!;
 }
@@ -44,6 +50,7 @@ async function claim(seed: ClaimSeed) {
   await getDb()
     .insert(claims)
     .values({
+      tenantId: await testTenant(),
       deviceId: seed.deviceId,
       code: seed.code,
       createdAt: seed.createdAt ?? ago(DAY),
@@ -187,6 +194,7 @@ describe("one scheduled pass", () => {
     const ann = await account("ann@example.com");
     const owned = await gadget("aa:aa:aa:aa:aa:21", ann.id, ago(20 * DAY));
     await getDb().insert(turns).values({
+      tenantId: owned.tenantId,
       deviceId: owned.id,
       userText: "old",
       assistantText: "answer",

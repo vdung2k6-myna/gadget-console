@@ -2,6 +2,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
+import { accountWithTenant, testTenant, tenantOfUser } from "./helpers/tenant";
 import { adminDevice, adminTurns, listAllDevices } from "../src/lib/admin";
 import { adminBindAgent, adminPair, adminRelease } from "../src/lib/admin-actions";
 import { registerAccount } from "../src/lib/auth/accounts";
@@ -16,9 +17,7 @@ beforeEach(resetDb);
 after(closeDb);
 
 async function account(email: string) {
-  const result = await registerAccount(email, "a good password");
-  if (!result.ok) throw new Error(`could not register ${email}`);
-  return result.user;
+  return accountWithTenant(email);
 }
 
 async function tenant(slug: string) {
@@ -38,7 +37,13 @@ async function tenantAccount(email: string, tenantId: string) {
 async function device(userId: string | null, deviceId: string) {
   const rows = await getDb()
     .insert(devices)
-    .values({ deviceId, userId, secret: "s".repeat(32), name: "" })
+    .values({
+      tenantId: userId === null ? await testTenant() : await tenantOfUser(userId),
+      deviceId,
+      userId,
+      secret: "s".repeat(32),
+      name: "",
+    })
     .returning();
   return rows[0]!;
 }
@@ -116,7 +121,8 @@ describe("granting the role", () => {
   });
 
   it("refuses a tenant role for an account with no tenant", async () => {
-    await account("platform@example.com");
+    const platform = await registerAccount("platform@example.com", "a good password");
+    if (!platform.ok) throw new Error("platform account failed");
     assert.deepEqual(await setRole("platform@example.com", "tenant_admin"), {
       ok: false,
       reason: "no-tenant",
@@ -253,6 +259,7 @@ describe("what an admin reads", () => {
     const one = await device(ann.id, "aa0000000001");
     const now = new Date();
     await getDb().insert(turns).values({
+      tenantId: one.tenantId,
       deviceId: one.id,
       userText: "xin chào",
       assistantText: "chào bạn",

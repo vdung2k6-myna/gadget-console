@@ -117,10 +117,11 @@ migration are covered by `test/tenancy-keys.test.ts`.
 
 ## Writes and NOT NULL
 
-The write paths set `tenant_id` from the resolved tenant. The columns stay
-nullable until every insert path and test fixture supplies one; the NOT NULL
-migration then follows (task 1.4). A nullable column during the migration is a
-transition, not the target.
+The write paths set `tenant_id` from the resolved tenant. `tenant_id` is NOT NULL
+on agents, devices, claims, conversations, turns and device calibration, with an
+index on every tenant-scoped table. On a live migration, `db:migrate` may run
+before the pilot backfill, so the NOT NULL change is conditional; after the
+backfill run `npm run migrate:tenancy-constraints` to finish it.
 
 ## Resolution
 
