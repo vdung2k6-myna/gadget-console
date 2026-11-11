@@ -85,8 +85,12 @@ export function RoleControl({
 
   return (
     <span className="flex flex-col gap-1">
+      {/* `color-scheme` makes the native option list match the page instead of
+          inheriting the OS theme; a transparent control left its options
+          unreadable in dark mode. */}
       <select
-        className="rounded border border-zinc-200 bg-transparent px-1 py-0.5 text-xs disabled:opacity-50 dark:border-zinc-800"
+        aria-label={strings.role}
+        className="w-full max-w-40 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 shadow-sm [color-scheme:light] focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-300 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark] dark:focus:ring-zinc-600"
         value={selected}
         disabled={pending}
         onChange={(event) => {

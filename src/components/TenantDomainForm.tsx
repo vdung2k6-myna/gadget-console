@@ -54,7 +54,7 @@ export function TenantDomainForm({
           onChange={(event) => setDomain(event.target.value)}
           required
           placeholder="console.example.com"
-          className="mt-1 w-64 rounded border border-zinc-200 bg-transparent px-2 py-1 dark:border-zinc-800"
+          className="mt-1 w-64 rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 [color-scheme:light] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
         />
       </label>
       <label className="text-sm">
@@ -62,7 +62,7 @@ export function TenantDomainForm({
         <select
           value={kind}
           onChange={(event) => setKind(event.target.value === "gateway" ? "gateway" : "console")}
-          className="mt-1 rounded border border-zinc-200 bg-transparent px-2 py-1 dark:border-zinc-800"
+          className="mt-1 rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 [color-scheme:light] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
         >
           <option value="console">{labels.consoleHost}</option>
           <option value="gateway">{labels.gatewayHost}</option>

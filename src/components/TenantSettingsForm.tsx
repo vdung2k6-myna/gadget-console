@@ -96,7 +96,7 @@ export function TenantSettingsForm({
           <select
             value={locale}
             onChange={(event) => setLocale(event.target.value === "en" ? "en" : "vi")}
-            className="mt-1 w-full rounded border border-zinc-200 bg-transparent px-2 py-1 dark:border-zinc-800"
+            className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 [color-scheme:light] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
           >
             <option value="vi">{labels.localeVi}</option>
             <option value="en">{labels.localeEn}</option>
@@ -110,7 +110,7 @@ export function TenantSettingsForm({
             step="1"
             value={retention}
             onChange={(event) => setRetention(event.target.value)}
-            className="mt-1 w-full rounded border border-zinc-200 bg-transparent px-2 py-1 dark:border-zinc-800"
+            className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 [color-scheme:light] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
           />
           <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
             {labels.retentionHelp}
@@ -152,7 +152,7 @@ function Field({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded border border-zinc-200 bg-transparent px-2 py-1 dark:border-zinc-800"
+        className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 [color-scheme:light] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
       />
     </label>
   );

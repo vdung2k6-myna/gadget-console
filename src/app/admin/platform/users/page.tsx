@@ -8,7 +8,6 @@ import {
   platformAccounts,
   type PlatformAccountGroup,
 } from "@/lib/platform";
-import type { UserRole } from "@/lib/auth/roles";
 import type { Locale } from "@/lib/i18n/locales";
 
 export const instant = false;
@@ -19,13 +18,6 @@ export default async function PlatformUsersPage() {
   const labels = adminStrings.platform;
   const admin = await requirePlatformSurface();
   const groups = groupPlatformAccounts(await platformAccounts());
-
-  function roleLabel(role: UserRole): string {
-    if (role === "platform_admin") return adminStrings.rolePlatformAdmin;
-    if (role === "tenant_admin") return adminStrings.roleTenantAdmin;
-    if (role === "support") return adminStrings.roleSupport;
-    return adminStrings.roleUser;
-  }
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
@@ -45,7 +37,6 @@ export default async function PlatformUsersPage() {
               key={group.tenantId ?? "platform"}
               group={group}
               labels={labels}
-              roleLabel={roleLabel}
               actorRole={admin.role}
               locale={locale}
             />
@@ -59,13 +50,11 @@ export default async function PlatformUsersPage() {
 function GroupSection({
   group,
   labels,
-  roleLabel,
   actorRole,
   locale,
 }: {
   group: PlatformAccountGroup;
   labels: ReturnType<typeof adminStringsFor>["platform"];
-  roleLabel: (role: UserRole) => string;
   actorRole: string;
   locale: Locale;
 }) {
@@ -83,7 +72,7 @@ function GroupSection({
           >
             <p className="font-medium break-words">{account.email}</p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {roleLabel(account.role)} · {account.devices} {labels.deviceCount.toLowerCase()}
+              {account.devices} {labels.deviceCount.toLowerCase()}
             </p>
             <div className="mt-2">
               <RoleControl
@@ -105,7 +94,6 @@ function GroupSection({
             <th className="py-2 pr-4 font-medium">{labels.role}</th>
             <th className="py-2 pr-4 font-medium">{labels.deviceCount}</th>
             <th className="py-2 pr-4 font-medium">{labels.tenant}</th>
-            <th className="py-2 font-medium" />
           </tr>
         </thead>
         <tbody>
@@ -115,10 +103,7 @@ function GroupSection({
               className="border-b border-zinc-100 dark:border-zinc-900"
             >
               <td className="py-2 pr-4 font-medium break-words">{account.email}</td>
-              <td className="py-2 pr-4">{roleLabel(account.role)}</td>
-              <td className="py-2 pr-4">{account.devices}</td>
-              <td className="py-2 pr-4 text-zinc-600 dark:text-zinc-400">{heading}</td>
-              <td className="py-2 text-right">
+              <td className="py-2 pr-4">
                 <RoleControl
                   userId={account.id}
                   email={account.email}
@@ -127,6 +112,8 @@ function GroupSection({
                   locale={locale}
                 />
               </td>
+              <td className="py-2 pr-4">{account.devices}</td>
+              <td className="py-2 pr-4 text-zinc-600 dark:text-zinc-400">{heading}</td>
             </tr>
           ))}
         </tbody>

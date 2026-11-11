@@ -59,7 +59,7 @@ export function TenantCreateForm({ labels }: { labels: PlatformStrings }) {
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
-            className="mt-1 w-full rounded border border-zinc-200 bg-transparent px-2 py-1 dark:border-zinc-800"
+            className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 [color-scheme:light] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
           />
         </label>
         <label className="text-sm">
@@ -69,7 +69,7 @@ export function TenantCreateForm({ labels }: { labels: PlatformStrings }) {
             onChange={(event) => setSlug(event.target.value)}
             required
             pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-            className="mt-1 w-full rounded border border-zinc-200 bg-transparent px-2 py-1 dark:border-zinc-800"
+            className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 [color-scheme:light] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
           />
         </label>
         <label className="text-sm">
@@ -77,7 +77,7 @@ export function TenantCreateForm({ labels }: { labels: PlatformStrings }) {
           <select
             value={locale}
             onChange={(event) => setLocale(event.target.value === "en" ? "en" : "vi")}
-            className="mt-1 w-full rounded border border-zinc-200 bg-transparent px-2 py-1 dark:border-zinc-800"
+            className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 [color-scheme:light] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
           >
             <option value="vi">{labels.localeVietnamese}</option>
             <option value="en">{labels.localeEnglish}</option>
