@@ -53,7 +53,7 @@ export default async function AdminFirmwarePage() {
             {adminStrings.claims}
           </Link>
           <Link href="/admin/provider-profiles" className="hover:underline">
-            {adminStrings.providerBuiltins}
+            {adminStrings.providers}
           </Link>
         </nav>
       </div>

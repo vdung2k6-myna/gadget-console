@@ -13,7 +13,7 @@ export interface AdminStrings {
   heading: string;
   devices: string;
   users: string;
-  providerBuiltins: string;
+  providers: string;
   adapters: {
     heading: string;
     intro: string;
@@ -468,7 +468,7 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     },
     devices: "Tất cả thiết bị",
     users: "Tài khoản",
-    providerBuiltins: "Provider có sẵn",
+    providers: "Nhà cung cấp",
     adapters: {
       heading: "Adapter của tenant",
       intro: "Endpoint HTTPS mà tenant này đăng ký. Adapter chưa xác minh thì chưa được chọn.",
@@ -776,7 +776,7 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     },
     devices: "All devices",
     users: "Accounts",
-    providerBuiltins: "Provider built-ins",
+    providers: "Providers",
     adapters: {
       heading: "Tenant adapters",
       intro: "The HTTPS endpoints this tenant registered. An adapter is not selected until it is verified.",

@@ -43,7 +43,7 @@ export default async function AdminDevicesPage() {
             {adminStrings.firmware}
           </Link>
           <Link href="/admin/provider-profiles" className="hover:underline">
-            {adminStrings.providerBuiltins}
+            {adminStrings.providers}
           </Link>
           <Link href="/admin/audit" className="hover:underline">
             {adminStrings.audit.heading}

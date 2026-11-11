@@ -37,7 +37,7 @@ export default async function AdminUsersPage() {
             {adminStrings.firmware}
           </Link>
           <Link href="/admin/provider-profiles" className="hover:underline">
-            {adminStrings.providerBuiltins}
+            {adminStrings.providers}
           </Link>
         </nav>
       </div>

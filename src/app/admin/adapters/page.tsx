@@ -56,7 +56,7 @@ export default async function AdminAdaptersPage() {
         <nav className="flex gap-4 text-sm">
           <Link href="/admin/users" className="hover:underline">{adminStrings.users}</Link>
           <Link href="/admin/devices" className="hover:underline">{adminStrings.devices}</Link>
-          <Link href="/admin/provider-profiles" className="hover:underline">{adminStrings.providerBuiltins}</Link>
+          <Link href="/admin/provider-profiles" className="hover:underline">{adminStrings.providers}</Link>
         </nav>
       </div>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{labels.intro}</p>
