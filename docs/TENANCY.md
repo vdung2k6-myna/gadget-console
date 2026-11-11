@@ -229,6 +229,7 @@ scope, the row and the expiry.
 | repository context and two-tenant matrix | `test/tenancy-isolation.test.ts` |
 | tenant admin reads, claims, firmware and profiles | `test/tenant-admin.test.ts` |
 | adapter registry chain | `test/tenant-adapters.test.ts` |
+| pilot after the backfill | `test/pilot-regression.test.ts` |
 | support access scope, audit and expiry | `test/support-access.test.ts` |
 | host and path resolution | `test/tenancy-resolve.test.ts` |
 | domain registration and uniqueness | `test/tenancy-domains.test.ts` |
