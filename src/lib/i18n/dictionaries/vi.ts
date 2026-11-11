@@ -13,7 +13,7 @@ export const vi = {
     personalities: "Tính cách",
     devices: "Thiết bị",
     agents: "Tính cách",
-    providers: "Nhà cung cấp",
+    providers: "Nhà cung cấp của tôi",
     adapters: "Adapter",
     help: "Hướng dẫn",
     signOut: "Đăng xuất",

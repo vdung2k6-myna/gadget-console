@@ -12,7 +12,7 @@ export const en: Strings = {
     personalities: "Personalities",
     devices: "Devices",
     agents: "Personalities",
-    providers: "Providers",
+    providers: "My providers",
     adapters: "Adapters",
     help: "Guide",
     signOut: "Sign out",

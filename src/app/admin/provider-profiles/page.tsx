@@ -40,7 +40,7 @@ export default async function AdminProviderBuiltinsPage() {
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">{strings.providerProfiles.heading}</h1>
+        <h1 className="text-2xl font-semibold">{adminStrings.providers}</h1>
         <nav className="flex gap-4 text-sm">
           <Link href="/admin/users" className="hover:underline">
             {adminStrings.users}

@@ -469,7 +469,7 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     },
     devices: "Tất cả thiết bị",
     users: "Tài khoản",
-    providers: "Nhà cung cấp",
+    providers: "Nhà cung cấp của tenant",
     adapters: {
       heading: "Adapter của tenant",
       nav: "Adapter",
@@ -778,7 +778,7 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     },
     devices: "All devices",
     users: "Accounts",
-    providers: "Providers",
+    providers: "Tenant providers",
     adapters: {
       heading: "Tenant adapters",
       nav: "Adapters",
