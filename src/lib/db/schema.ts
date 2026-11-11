@@ -219,9 +219,19 @@ export const providerAdapters = pgTable(
       latencyP50Ms?: number;
       score?: number;
     }>(),
+    /** The fetched manifest, kept as declared so a version change is visible. */
+    manifest: jsonb("manifest").$type<Record<string, unknown>>(),
+    /** Conformance and benchmark outcomes; absent until verification runs. */
+    verification: jsonb("verification").$type<Record<string, unknown>>(),
     manifestVersion: text("manifest_version"),
     /** The platform-issued adapter token, encrypted under the tenant key. */
     tokenEncrypted: text("token_encrypted").notNull().default(""),
+    /** What may be shown: the `adp_` prefix and the last four characters. */
+    tokenHint: text("token_hint").notNull().default(""),
+    /** The token replaced by rotation, accepted until `previousTokenExpiresAt`. */
+    previousTokenEncrypted: text("previous_token_encrypted").notNull().default(""),
+    previousTokenHint: text("previous_token_hint").notNull().default(""),
+    previousTokenExpiresAt: timestamp("previous_token_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -473,6 +483,38 @@ export const usageEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("usage_events_tenant_created_idx").on(table.tenantId, table.createdAt)]
+);
+
+/**
+ * One platform-observed remote adapter call.
+ *
+ * It carries what the platform measured — tenant, adapter, kind, region, bytes,
+ * latency and status — and nothing that was said: no request text, no audio and
+ * no response body.
+ */
+export const adapterEgressEvents = pgTable(
+  "adapter_egress_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    adapterId: uuid("adapter_id").references(() => providerAdapters.id, {
+      onDelete: "set null",
+    }),
+    /** `llm`, `stt` or `tts`. */
+    kind: text("kind").notNull(),
+    region: text("region"),
+    bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
+    latencyMs: integer("latency_ms").notNull().default(0),
+    /** `ok`, `upstream`, `timeout`, `rate_limit`, `refused` or `error`. */
+    status: text("status").notNull(),
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("adapter_egress_tenant_at_idx").on(table.tenantId, table.at),
+    index("adapter_egress_adapter_idx").on(table.adapterId),
+  ]
 );
 
 /**

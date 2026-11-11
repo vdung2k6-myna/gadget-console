@@ -155,6 +155,34 @@
       "when": 1794367880792,
       "tag": "0021_opposite_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794368898556,
+      "tag": "0022_zippy_runaways",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794369004732,
+      "tag": "0023_mushy_mesmero",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794369164660,
+      "tag": "0024_wakeful_red_wolf",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794369290068,
+      "tag": "0025_boring_greymalkin",
+      "breakpoints": true
     }
   ]
 }

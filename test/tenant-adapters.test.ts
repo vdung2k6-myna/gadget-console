@@ -3,11 +3,27 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
-import { providerAdapters, tenants } from "../src/lib/db/schema";
+import { auditEvents, providerAdapters, tenants } from "../src/lib/db/schema";
 import {
   readAdapterPolicy,
   resolveAdapterChain,
 } from "../src/lib/tenancy/adapters";
+import {
+  listTenantEgress,
+  recordAdapterEgress,
+} from "../src/lib/adapter-egress";
+import { decryptSecret } from "../src/lib/crypto/secret-box";
+import { encryptionKeyForTenant } from "../src/lib/crypto/profiles";
+import {
+  createAdapter,
+  disableAdapter,
+  getAdapter,
+  listAdapters,
+  rotateAdapterToken,
+  updateAdapterStatus,
+  validateAdapterRegistration,
+  verifyAdapterToken,
+} from "../src/lib/adapters";
 
 before(() => requireTestDatabase());
 beforeEach(resetDb);
@@ -49,6 +65,163 @@ async function adapter(input: {
     .returning();
   return rows[0]!;
 }
+
+describe("the adapter registry", () => {
+  it("stores and reads one record with its manifest and verification", async () => {
+    const first = await tenant("first");
+    const [row] = await getDb()
+      .insert(providerAdapters)
+      .values({
+        tenantId: first.id,
+        name: "registry",
+        endpoint: "https://adapter.example/v1",
+        kinds: ["llm", "stt"],
+        status: "pending",
+        health: "unknown",
+        privacy: { operator: "Reseller", region: "sg", receives: ["text"], remote: true },
+        capabilities: { tools: true, languages: ["vi"], streaming: true },
+        quality: { wer: 0.1, score: 0.9 },
+        manifest: { contract: 1, kinds: ["llm", "stt"] },
+        verification: { conformance: "pass", benchmark: "pass" },
+        manifestVersion: "1.0.0",
+        tokenEncrypted: "cipher",
+      })
+      .returning();
+
+    const [read] = await getDb()
+      .select()
+      .from(providerAdapters)
+      .where(eq(providerAdapters.id, row!.id));
+    assert.equal(read?.manifestVersion, "1.0.0");
+    assert.deepEqual(read?.manifest, { contract: 1, kinds: ["llm", "stt"] });
+    assert.deepEqual(read?.verification, { conformance: "pass", benchmark: "pass" });
+    assert.equal(read?.privacy?.region, "sg");
+  });
+});
+
+describe("adapter registry accessors", () => {
+  it("keeps one tenant's adapter away from another", async () => {
+    const first = await tenant("first");
+    const second = await tenant("second");
+    const validated = validateAdapterRegistration({
+      name: "Reseller adapter",
+      endpoint: "https://adapter.example/v1",
+      kinds: ["llm"],
+    });
+    assert.equal(validated.ok, true);
+    if (!validated.ok) return;
+
+    const created = await createAdapter(first.id, validated.draft);
+    const adapter = created.adapter;
+    assert.equal(adapter.status, "pending");
+    assert.match(created.token, /^adp_[A-Za-z0-9_-]+$/);
+    assert.equal(adapter.tokenHint, `adp_…${created.token.slice(-4)}`);
+    assert.equal("tokenEncrypted" in adapter, false);
+
+    const [stored] = await getDb()
+      .select()
+      .from(providerAdapters)
+      .where(eq(providerAdapters.id, adapter.id));
+    assert.notEqual(stored?.tokenEncrypted, created.token);
+    assert.equal(
+      decryptSecret(stored!.tokenEncrypted, encryptionKeyForTenant(first.id)),
+      created.token
+    );
+
+    const listed = await listAdapters(first.id);
+    assert.deepEqual(listed.map((row) => row.id), [adapter.id]);
+    assert.equal("tokenEncrypted" in listed[0]!, false);
+    const audit = await getDb().select().from(auditEvents);
+    assert.ok(!JSON.stringify(audit).includes(created.token), "no audit row carries the token");
+    assert.deepEqual(await listAdapters(second.id), []);
+    assert.equal(await getAdapter(second.id, adapter.id), undefined);
+    assert.equal(await updateAdapterStatus(second.id, adapter.id, "verified"), undefined);
+
+    assert.equal((await updateAdapterStatus(first.id, adapter.id, "verified"))?.status, "verified");
+    assert.equal((await disableAdapter(first.id, adapter.id))?.status, "disabled");
+  });
+
+  it("rotates with an overlap and revokes the current token on disable", async () => {
+    const first = await tenant("first");
+    const validated = validateAdapterRegistration({
+      name: "Rotating",
+      endpoint: "https://adapter.example/v1",
+      kinds: ["llm"],
+    });
+    if (!validated.ok) throw new Error(validated.errors.join("; "));
+    const created = await createAdapter(first.id, validated.draft);
+    const now = new Date();
+    const rotated = await rotateAdapterToken(first.id, created.adapter.id, {
+      overlapMs: 1_000,
+      now,
+    });
+    assert.ok(rotated !== undefined);
+    if (rotated === undefined) return;
+
+    assert.equal(
+      await verifyAdapterToken(first.id, rotated.adapter.id, rotated.token, { now }),
+      true
+    );
+    assert.equal(
+      await verifyAdapterToken(first.id, rotated.adapter.id, created.token, { now }),
+      true,
+      "the old token is accepted during the overlap"
+    );
+    assert.equal(
+      await verifyAdapterToken(first.id, rotated.adapter.id, created.token, {
+        now: new Date(now.getTime() + 1_001),
+      }),
+      false,
+      "the old token stops after the overlap"
+    );
+
+    await disableAdapter(first.id, rotated.adapter.id);
+    assert.equal(
+      await verifyAdapterToken(first.id, rotated.adapter.id, rotated.token),
+      false,
+      "disabling revokes the current token immediately"
+    );
+  });
+
+  it("refuses a non-HTTPS endpoint and an empty kind list", () => {
+    assert.equal(
+      validateAdapterRegistration({
+        name: "bad",
+        endpoint: "http://adapter.example/v1",
+        kinds: ["llm"],
+      }).ok,
+      false
+    );
+    assert.equal(
+      validateAdapterRegistration({
+        name: "bad",
+        endpoint: "https://adapter.example/v1",
+        kinds: [],
+      }).ok,
+      false
+    );
+  });
+});
+
+describe("adapter egress", () => {
+  it("records a call per tenant without any request text or audio", async () => {
+    const first = await tenant("first");
+    const second = await tenant("second");
+    const row = await recordAdapterEgress({
+      tenantId: first.id,
+      kind: "stt",
+      region: "sg",
+      bytes: 120,
+      latencyMs: 42,
+      status: "ok",
+    });
+
+    assert.deepEqual((await listTenantEgress(first.id)).map((event) => event.id), [row.id]);
+    assert.deepEqual(await listTenantEgress(second.id), []);
+    const keys = Object.keys(row);
+    assert.ok(!keys.some((key) => /text|audio|body|request|response/i.test(key)));
+  });
+});
 
 describe("adapter chain resolution", () => {
   it("includes the tenant's and platform adapters, never another tenant's", async () => {

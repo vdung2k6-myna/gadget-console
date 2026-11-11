@@ -1,0 +1,1 @@
+ALTER TABLE "provider_adapters" ADD COLUMN "token_hint" text DEFAULT '' NOT NULL;
