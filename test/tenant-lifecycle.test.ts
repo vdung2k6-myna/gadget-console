@@ -130,6 +130,13 @@ describe("tenant export", () => {
     assert.equal(exported.turns.length, 1);
     assert.equal(exported.usage.length, 1);
 
+    assert.deepEqual(exported.users.map((row) => row.email), ["first@example.com"]);
+    assert.ok(exported.devices.every((row) => row.tenantId === first.tenant.id));
+    assert.ok(exported.agents.every((row) => row.tenantId === first.tenant.id));
+    assert.ok(exported.turns.every((row) => row.tenantId === first.tenant.id));
+    assert.ok(exported.usage.every((row) => row.tenantId === first.tenant.id));
+    assert.ok(exported.domains.every((row) => row.tenantId === first.tenant.id));
+
     const text = JSON.stringify(exported);
     assert.ok(!text.includes("passwordHash"));
     assert.ok(!text.includes("secret-first"));
