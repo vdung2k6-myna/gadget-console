@@ -137,7 +137,7 @@ export async function runConformance(
       const voiceBody = (await voices.json().catch(() => ({}))) as { voices?: unknown };
       add("tts-voices", voices.status === 200 && Array.isArray(voiceBody.voices), `status ${voices.status}`);
 
-      const speech = await doFetch(url("/tts/speech"), {
+      const speech = await doFetch(url("/tts/synthesize"), {
         method: "POST",
         headers: { ...headers(input), "content-type": "application/json" },
         body: JSON.stringify({ text: "conformance", voice: "default", format: "wav" }),

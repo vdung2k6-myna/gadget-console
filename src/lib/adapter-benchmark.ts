@@ -90,10 +90,10 @@ export async function runVietnameseBenchmark(
     errors += expectedWords.filter((word, index) => actualWords[index] !== word).length;
   }
 
-  let naturalness = options.ttsNaturalness ?? null;
+  const naturalness = options.ttsNaturalness ?? null;
   if (naturalness === null && adapter.kinds.includes("tts") && options.ttsSample !== null) {
     const started = Date.now();
-    await client.postJson("/tts/speech", { text: "xin chào", voice: options.ttsSample?.voice ?? "default", format: "wav" });
+    await client.postJson("/tts/synthesize", { text: "xin chào", voice: options.ttsSample?.voice ?? "default", format: "wav" });
     latencies.push(Date.now() - started);
   }
 

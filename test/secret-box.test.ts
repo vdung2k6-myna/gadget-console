@@ -60,6 +60,8 @@ describe("a provider profile as anything but the bridge sees it", () => {
         name: "OpenAI",
         baseUrl: "https://api.openai.com/v1",
         model: "gpt-4o-mini",
+        adapterId: null,
+        config: null,
         encryptedKey: stored,
         voice: null,
         temperature: 0.4,

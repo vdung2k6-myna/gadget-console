@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 
 import { ProviderProfileForm } from "@/components/ProviderProfileForm";
 import { requireAdmin } from "@/lib/auth/admin";
-import { findProviderProfile, publicProviderProfile } from "@/lib/provider-profiles";
+import {
+  findProviderProfile,
+  publicProviderProfile,
+  selectableAdaptersForUser,
+} from "@/lib/provider-profiles";
 import { getStrings } from "@/lib/i18n/locale";
 
 // Every screen reads the session and the database per request; there is nothing
@@ -23,6 +27,7 @@ export default async function EditProviderProfilePage({ params }: Params) {
   // settings page rather than here: all three answer as one that does not exist.
   if (row === undefined || row.builtin || row.userId !== user.id || row.kind !== "llm") notFound();
   const profile = publicProviderProfile(row);
+  const adapters = await selectableAdaptersForUser(user.id);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -38,12 +43,15 @@ export default async function EditProviderProfilePage({ params }: Params) {
           id: profile.id,
           kind: profile.kind,
           name: profile.name,
-          baseUrl: profile.baseUrl,
-          model: profile.model,
+          baseUrl: profile.baseUrl ?? "",
+          model: profile.model ?? "",
+          adapterId: profile.adapterId,
+          config: profile.config,
           voice: profile.voice,
           temperature: profile.temperature,
         }}
         fixedKind="llm"
+        adapters={adapters}
       />
     </main>
   );

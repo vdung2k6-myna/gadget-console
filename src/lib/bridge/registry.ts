@@ -4,7 +4,7 @@ import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/db/client";
 import { agents, devices, turns, users } from "@/lib/db/schema";
 import { allowClaimIssue, awaitingApproval, issueClaim, isPendingClaim, normalizeDeviceId } from "@/lib/claims";
-import { providersForAgent } from "@/lib/provider-profiles";
+import { providerChainForAgent, providersForAgent } from "@/lib/provider-profiles";
 import { getCalibration } from "@/lib/device-calibration";
 import { targetFor } from "@/lib/firmware";
 import { findTenant } from "@/lib/tenants";
@@ -126,6 +126,10 @@ export async function resolveDevice(
               // The three providers, keys decrypted here and nowhere else, or
               // null for the runtime's default.
               providers: agent.providers,
+              // The ordered adapter candidates, tokens included, for the runtime.
+              ...(agent.providerChain === undefined
+                ? {}
+                : { providerChain: agent.providerChain }),
             },
       // Oldest first: this is what a turn's history is built from.
       turns: history.reverse().map((turn) => ({
@@ -183,6 +187,7 @@ function agentWithRuntime(agentId: string, userId: string) {
         .where(eq(users.id, userId))
         .limit(1)
         .then((rows) => rows[0]);
+      const allowCustom = owner?.role === "admin";
       const providers = await providersForAgent(
         userId,
         {
@@ -191,8 +196,24 @@ function agentWithRuntime(agentId: string, userId: string) {
           llm: agent.llmProfileId,
         },
         agent.voice,
-        { allowCustom: owner?.role === "admin" }
+        { allowCustom }
       );
+      // The adapter chain travels beside the direct providers: the runtime
+      // executes its first candidate and falls back in order. Its tokens go to
+      // the bridge and the runtime only; nothing on this path logs them.
+      const providerChain = await providerChainForAgent(
+        userId,
+        {
+          stt: agent.sttProfileId,
+          tts: agent.ttsProfileId,
+          llm: agent.llmProfileId,
+        },
+        { allowCustom, language: agent.language }
+      );
+      const hasChain =
+        providerChain.stt.length > 0 ||
+        providerChain.tts.length > 0 ||
+        providerChain.llm.length > 0;
       const {
         runtimeId: _runtimeId,
         llmProfileId: _llmProfileId,
@@ -203,6 +224,7 @@ function agentWithRuntime(agentId: string, userId: string) {
       return {
         ...fields,
         providers,
+        ...(hasChain ? { providerChain } : {}),
         runtime: { baseUrl: runtime.baseUrl, token: runtime.token },
       };
     });

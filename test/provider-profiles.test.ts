@@ -2,9 +2,9 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
-import { testTenant } from "./helpers/tenant";
-import { accountWithTenant } from "./helpers/tenant";
+import { accountWithTenant, tenantOfUser, testTenant } from "./helpers/tenant";
 import { registerAccount } from "../src/lib/auth/accounts";
+import { createAdapter } from "../src/lib/adapters";
 import { validateAgentDraft, createAgent } from "../src/lib/agents";
 import { resolveDevice } from "../src/lib/bridge/registry";
 import { resetClaimRateLimit } from "../src/lib/claims";
@@ -17,11 +17,22 @@ import {
   listProviderProfiles,
   publicProviderProfile,
   runtimeProvider,
+  providerChainForAgent,
+  providersForAgent,
+  publishTenantBuiltin,
   updateProviderProfile,
   validateProviderDraft,
+  validateProviderDraftForUser,
 } from "../src/lib/provider-profiles";
 import { createRuntime } from "../src/lib/runtimes";
-import { agents, devices, providerProfiles, users } from "../src/lib/db/schema";
+import {
+  agents,
+  devices,
+  providerAdapters,
+  providerProfiles,
+  tenants,
+  users,
+} from "../src/lib/db/schema";
 
 before(() => requireTestDatabase());
 beforeEach(async () => {
@@ -52,6 +63,44 @@ async function profileFor(userId: string, overrides: Record<string, unknown> = {
   const validation = validateProviderDraft(draft(overrides), { requireKey: true });
   if (!validation.ok) throw new Error(validation.errors.join("; "));
   return createProviderProfile(userId, validation.draft);
+}
+
+async function anotherTenant(slug: string): Promise<string> {
+  const rows = await getDb()
+    .insert(tenants)
+    .values({ name: slug, slug })
+    .returning();
+  return rows[0]!.id;
+}
+
+async function adapter(
+  tenantId: string,
+  options: { kinds?: string[]; name?: string } = {}
+) {
+  const name = options.name ?? "acme";
+  const rows = await getDb()
+    .insert(providerAdapters)
+    .values({
+      tenantId,
+      name,
+      endpoint: `https://${name}.example/v1`,
+      kinds: options.kinds ?? ["llm"],
+      status: "verified",
+      health: "ok",
+    })
+    .returning();
+  return rows[0]!;
+}
+
+function adapterDraft(adapterId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    kind: "llm",
+    name: "Acme Gemini",
+    adapterId,
+    config: { model: "gemini-3-flash" },
+    temperature: 0.2,
+    ...overrides,
+  };
 }
 
 describe("validating a provider profile", () => {
@@ -104,6 +153,192 @@ describe("validating a provider profile", () => {
       false,
       "an llm profile has no voice"
     );
+  });
+
+  it("accepts an adapter-backed profile with no URL, model or key", () => {
+    const result = validateProviderDraft(
+      { kind: "llm", name: "Acme", adapterId: "adapter-1", config: { model: "x" } },
+      { requireKey: true }
+    );
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.draft.adapterId, "adapter-1");
+    assert.deepEqual(result.draft.config, { model: "x" });
+    assert.equal(result.draft.baseUrl, null);
+    assert.equal(result.draft.model, null);
+    assert.equal(result.draft.apiKey, undefined);
+  });
+
+  it("refuses a profile that names both shapes, or neither", () => {
+    const both = validateProviderDraft(
+      draft({ adapterId: "adapter-1", config: {} }),
+      { requireKey: true }
+    );
+    assert.equal(both.ok, false);
+    if (both.ok) return;
+    assert.match(both.errors.join(" "), /either an adapter or a base URL/);
+
+    const neither = validateProviderDraft(
+      { kind: "llm", name: "none", apiKey: "sk-live-abc123" },
+      { requireKey: true }
+    );
+    assert.equal(neither.ok, false);
+    if (neither.ok) return;
+    assert.match(neither.errors.join(" "), /base URL is required/);
+    assert.match(neither.errors.join(" "), /model is required/);
+  });
+
+  it("refuses a config that is not an object, and one on a direct profile", () => {
+    for (const config of ["x", 1, [], true]) {
+      assert.equal(
+        validateProviderDraft(
+          { kind: "llm", name: "Acme", adapterId: "adapter-1", config },
+          { requireKey: true }
+        ).ok,
+        false,
+        JSON.stringify(config)
+      );
+    }
+    const direct = validateProviderDraft(draft({ config: {} }), { requireKey: true });
+    assert.equal(direct.ok, false);
+    if (direct.ok) return;
+    assert.match(direct.errors.join(" "), /config belongs only to an adapter-backed profile/);
+  });
+});
+
+describe("an adapter-backed profile", () => {
+  it("saves and resolves to its adapter, with no endpoint or platform key", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const registered = await adapter(tenantId);
+
+    const validation = await validateProviderDraftForUser(
+      ann.id,
+      adapterDraft(registered.id),
+      { requireKey: true }
+    );
+    assert.equal(validation.ok, true, JSON.stringify(validation));
+    if (!validation.ok) return;
+    const created = await createProviderProfile(ann.id, validation.draft);
+
+    const stored = await findProviderProfile(ann.id, created.id);
+    assert.equal(stored?.adapterId, registered.id);
+    assert.deepEqual(stored?.config, { model: "gemini-3-flash" });
+    assert.equal(stored?.encryptedKey, "");
+
+    const shown = publicProviderProfile(stored!);
+    assert.equal(shown.adapterId, registered.id);
+    assert.equal(shown.baseUrl, null);
+    assert.equal(shown.model, null);
+    assert.equal(shown.hasKey, false);
+
+    const runtime = runtimeProvider(stored!);
+    assert.equal(runtime.adapterId, registered.id);
+    assert.deepEqual(runtime.config, { model: "gemini-3-flash" });
+    assert.equal(runtime.baseUrl, undefined);
+    assert.equal(runtime.apiKey, undefined);
+  });
+
+  it("keeps the direct shape resolving exactly as before", async () => {
+    const ann = await account("ann@example.com");
+    const created = await profileFor(ann.id);
+
+    const stored = await findProviderProfile(ann.id, created.id);
+    const runtime = runtimeProvider(stored!);
+    assert.equal(runtime.adapterId, undefined);
+    assert.equal(runtime.baseUrl, "https://api.openai.com/v1");
+    assert.equal(runtime.model, "gpt-4o-mini");
+    assert.equal(runtime.apiKey, "sk-live-abc123");
+    assert.equal(publicProviderProfile(stored!).adapterId, null);
+  });
+
+  it("refuses an adapter of another tenant or one that serves another kind", async () => {
+    const ann = await account("ann@example.com");
+    const bob = await accountWithTenant("bob@example.com", await anotherTenant("other"));
+    const annTenant = await tenantOfUser(ann.id);
+    const theirAdapter = await adapter(annTenant, { name: "acme" });
+    const speechOnly = await adapter(annTenant, { name: "speech", kinds: ["stt", "tts"] });
+
+    const foreign = await validateProviderDraftForUser(
+      bob.id,
+      adapterDraft(theirAdapter.id),
+      { requireKey: true }
+    );
+    assert.equal(foreign.ok, false);
+    if (!foreign.ok) {
+      assert.match(foreign.errors.join(" "), /registered to this tenant/);
+    }
+
+    const wrongKind = await validateProviderDraftForUser(
+      ann.id,
+      adapterDraft(speechOnly.id),
+      { requireKey: true }
+    );
+    assert.equal(wrongKind.ok, false);
+    if (!wrongKind.ok) {
+      assert.match(wrongKind.errors.join(" "), /does not serve a llm profile/);
+    }
+  });
+
+  it("resolves the profile's adapter as the first chain candidate", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const issued = await createAdapter(tenantId, {
+      name: "acme",
+      endpoint: "https://acme.example/v1",
+      kinds: ["llm"],
+      capabilities: { tools: true, languages: ["vi"] },
+    });
+    await getDb()
+      .update(providerAdapters)
+      .set({ status: "verified", health: "ok" })
+      .where(eq(providerAdapters.id, issued.adapter.id));
+
+    const validation = await validateProviderDraftForUser(
+      ann.id,
+      adapterDraft(issued.adapter.id, { config: { model: "gemini-3-flash" } }),
+      { requireKey: true }
+    );
+    if (!validation.ok) throw new Error(validation.errors.join("; "));
+    const profile = await createProviderProfile(ann.id, validation.draft);
+
+    const chain = await providerChainForAgent(ann.id, {
+      stt: null,
+      tts: null,
+      llm: profile.id,
+    });
+    assert.equal(chain.llm.length, 1);
+    assert.deepEqual(chain.llm[0], {
+      adapterId: issued.adapter.id,
+      endpoint: "https://acme.example/v1",
+      token: issued.token,
+      tenantId,
+      config: { model: "gemini-3-flash" },
+      capabilities: { tools: true, languages: ["vi"] },
+      timeoutMs: 30_000,
+    });
+    assert.deepEqual(chain.stt, []);
+    assert.deepEqual(chain.tts, []);
+  });
+
+  it("drops a stored direct key when the profile is switched to an adapter", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const registered = await adapter(tenantId);
+    const direct = await profileFor(ann.id);
+
+    const validation = await validateProviderDraftForUser(
+      ann.id,
+      adapterDraft(registered.id),
+      { requireKey: false }
+    );
+    if (!validation.ok) throw new Error(validation.errors.join("; "));
+    await updateProviderProfile(ann.id, direct.id, validation.draft);
+
+    const stored = await findProviderProfile(ann.id, direct.id);
+    assert.equal(stored?.adapterId, registered.id);
+    assert.equal(stored?.encryptedKey, "");
+    assert.equal(stored?.baseUrl, null);
   });
 });
 
@@ -275,6 +510,7 @@ describe("the resolution the bridge receives", () => {
 
     const agent = resolution.body.agent as Record<string, unknown>;
     assert.deepEqual((agent.providers as Record<string, unknown>).llm, {
+      path: "openai-compatible",
       kind: "llm",
       name: "OpenAI",
       baseUrl: "https://api.openai.com/v1",
@@ -394,3 +630,105 @@ describe("an owner's provider choice", () => {
   });
 });
 
+
+describe("Vietnamese speech preference", () => {
+  async function speechFixture(options: {
+    kind: "stt" | "tts";
+    quality: { wer?: number; ttsNaturalness?: number };
+    language: "vietnamese" | "english";
+  }) {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const issued = await createAdapter(tenantId, {
+      name: "acme",
+      endpoint: "https://acme.example/v1",
+      kinds: [options.kind],
+    });
+    await getDb()
+      .update(providerAdapters)
+      .set({ status: "verified", health: "ok", quality: options.quality })
+      .where(eq(providerAdapters.id, issued.adapter.id));
+
+    const validation = await validateProviderDraftForUser(
+      ann.id,
+      {
+        kind: options.kind,
+        name: "Acme speech",
+        adapterId: issued.adapter.id,
+        ...(options.kind === "tts" ? { voice: "vi-female-1" } : {}),
+      },
+      { requireKey: true }
+    );
+    if (!validation.ok) throw new Error(validation.errors.join("; "));
+    const profile = await createProviderProfile(ann.id, validation.draft);
+
+    // The platform's speech provider, which the floor keeps answering.
+    const builtin = await publishTenantBuiltin(tenantId, {
+      kind: options.kind,
+      name: "platform speech",
+      baseUrl: "http://platform.test",
+      model: "engine-a",
+      ...(options.kind === "tts" ? { voice: "platform_voice" } : {}),
+      default: true,
+    });
+    if (!builtin.ok) throw new Error(builtin.errors.join("; "));
+
+    return { ann, tenantId, profile, issued, builtin: builtin.profile };
+  }
+
+  it("keeps a below-floor STT adapter off the Vietnamese path, and platform speech answers", async () => {
+    const { ann, profile, issued, builtin } = await speechFixture({
+      kind: "stt",
+      quality: { wer: 0.4 },
+      language: "vietnamese",
+    });
+
+    const chain = await providerChainForAgent(
+      ann.id,
+      { stt: profile.id, tts: null, llm: null },
+      { language: "vietnamese" }
+    );
+    assert.deepEqual(chain.stt, [], "below the Vietnamese WER floor");
+
+    const providers = await providersForAgent(
+      ann.id,
+      { stt: profile.id, tts: null, llm: null }
+    );
+    assert.ok(providers.stt !== null && providers.stt.path === "openai-compatible");
+    if (providers.stt === null || providers.stt.path !== "openai-compatible") return;
+    assert.equal(providers.stt.name, builtin.name, "platform speech is the fallback");
+    assert.equal(providers.stt.baseUrl, "http://platform.test");
+    assert.ok(issued.adapter.id !== providers.stt.name);
+  });
+
+  it("lets a verified STT adapter above the floor serve Vietnamese", async () => {
+    const { ann, profile, issued } = await speechFixture({
+      kind: "stt",
+      quality: { wer: 0.1 },
+      language: "vietnamese",
+    });
+
+    const chain = await providerChainForAgent(
+      ann.id,
+      { stt: profile.id, tts: null, llm: null },
+      { language: "vietnamese" }
+    );
+    assert.equal(chain.stt.length, 1);
+    assert.equal(chain.stt[0]?.adapterId, issued.adapter.id);
+  });
+
+  it("keeps a below-floor TTS adapter off the Vietnamese path", async () => {
+    const { ann, profile } = await speechFixture({
+      kind: "tts",
+      quality: { ttsNaturalness: 2.5 },
+      language: "vietnamese",
+    });
+
+    const chain = await providerChainForAgent(
+      ann.id,
+      { stt: null, tts: profile.id, llm: null },
+      { language: "vietnamese" }
+    );
+    assert.deepEqual(chain.tts, []);
+  });
+});

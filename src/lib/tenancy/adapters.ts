@@ -1,7 +1,7 @@
 import { and, eq, isNull, or } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
-import { providerAdapters } from "@/lib/db/schema";
+import { providerAdapters, tenants } from "@/lib/db/schema";
 import { findTenant } from "@/lib/tenants";
 
 /**
@@ -34,6 +34,11 @@ export interface AdapterCandidate {
   endpoint: string;
   kinds: string[];
   health: string;
+  capabilities: {
+    tools?: boolean;
+    languages?: string[];
+    streaming?: boolean;
+  } | null;
   privacy: {
     operator?: string;
     region?: string;
@@ -49,6 +54,65 @@ export interface AdapterCandidate {
   } | null;
 }
 
+/** What a tenant admin may set: the selection policy and its monthly budget. */
+export interface AdapterPolicyInput extends AdapterPolicy {
+  /** Advisory routing budget in USD; null means none stated. */
+  monthlyBudgetUsd: number | null;
+}
+
+export type AdapterPolicyValidation =
+  | { ok: true; policy: AdapterPolicyInput }
+  | { ok: false; errors: string[] };
+
+export function validateAdapterPolicy(raw: unknown): AdapterPolicyValidation {
+  if (typeof raw !== "object" || raw === null) {
+    return { ok: false, errors: ["the policy must be an object"] };
+  }
+  const value = raw as Record<string, unknown>;
+  const errors: string[] = [];
+  if (value.localOnly !== undefined && typeof value.localOnly !== "boolean") {
+    errors.push("localOnly must be a boolean");
+  }
+  if (
+    value.order !== undefined &&
+    (!Array.isArray(value.order) ||
+      !value.order.every((entry) => typeof entry === "string"))
+  ) {
+    errors.push("order must be a list of adapter ids");
+  }
+  let budget: number | null = null;
+  if (value.monthlyBudgetUsd !== undefined && value.monthlyBudgetUsd !== null && value.monthlyBudgetUsd !== "") {
+    budget = Number(value.monthlyBudgetUsd);
+    if (!Number.isFinite(budget) || budget < 0) {
+      errors.push("monthlyBudgetUsd must be zero or more");
+    }
+  }
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    policy: {
+      localOnly: value.localOnly === true,
+      order: Array.isArray(value.order) ? (value.order as string[]) : [],
+      monthlyBudgetUsd: budget,
+    },
+  };
+}
+
+/** Save a tenant's policy; selection reads it on the next resolution. */
+export async function saveAdapterPolicy(
+  tenantId: string,
+  raw: unknown
+): Promise<AdapterPolicyInput | undefined> {
+  const validation = validateAdapterPolicy(raw);
+  if (!validation.ok) return undefined;
+  const rows = await getDb()
+    .update(tenants)
+    .set({ adapterPolicy: validation.policy })
+    .where(eq(tenants.id, tenantId))
+    .returning({ adapterPolicy: tenants.adapterPolicy });
+  return rows[0] === undefined ? undefined : validation.policy;
+}
+
 export function readAdapterPolicy(raw: unknown): AdapterPolicy {
   if (typeof raw !== "object" || raw === null) return { localOnly: false, order: [] };
   const value = raw as { localOnly?: unknown; order?: unknown };
@@ -60,10 +124,41 @@ export function readAdapterPolicy(raw: unknown): AdapterPolicy {
   };
 }
 
+/** What this turn needs an adapter to do, before selection. */
+export interface AdapterRequirements {
+  /** The turn offers tools, so the adapter must declare them. */
+  tools?: boolean;
+  /** Every language the turn may carry. A candidate must declare all of them. */
+  languages?: readonly string[];
+  /** The turn expects a streamed answer. */
+  streaming?: boolean;
+}
+
+/**
+ * Whether a candidate declares it can serve what the turn needs.
+ *
+ * Absent capability is absence of a claim, not a yes: an adapter that declares
+ * no tools cannot be handed a tool turn, and one that names no languages cannot
+ * be handed a language requirement.
+ */
+function servesRequirements(
+  row: { capabilities: AdapterCandidate["capabilities"] },
+  requires: AdapterRequirements
+): boolean {
+  if (requires.tools === true && row.capabilities?.tools !== true) return false;
+  if (requires.streaming === true && row.capabilities?.streaming !== true) return false;
+  if (requires.languages !== undefined && requires.languages.length > 0) {
+    const declared = row.capabilities?.languages;
+    if (!Array.isArray(declared)) return false;
+    if (!requires.languages.every((language) => declared.includes(language))) return false;
+  }
+  return true;
+}
+
 export async function resolveAdapterChain(
   tenantId: string,
   kind: AdapterKind,
-  options: { policy?: AdapterPolicy } = {}
+  options: { policy?: AdapterPolicy; requires?: AdapterRequirements } = {}
 ): Promise<AdapterCandidate[]> {
   const tenant = await findTenant(tenantId);
   if (tenant === undefined) return [];
@@ -86,6 +181,7 @@ export async function resolveAdapterChain(
   return rows
     .filter((row) => row.kinds.includes(kind))
     .filter((row) => !policy.localOnly || row.privacy?.remote === false)
+    .filter((row) => servesRequirements(row, options.requires ?? {}))
     .map((row) => ({
       id: row.id,
       name: row.name,
@@ -93,6 +189,7 @@ export async function resolveAdapterChain(
       endpoint: row.endpoint,
       kinds: row.kinds,
       health: row.health,
+      capabilities: row.capabilities ?? null,
       privacy: row.privacy ?? null,
       quality: row.quality ?? null,
     }))

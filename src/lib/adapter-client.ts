@@ -48,7 +48,8 @@ export interface AdapterClientOptions {
 
 export interface AdapterRequestOptions {
   method?: "GET" | "POST";
-  body?: string;
+  /** A JSON string sets the JSON content type; a FormData body sets its own boundary. */
+  body?: BodyInit;
   headers?: Record<string, string>;
   /** Only idempotent calls are retried. LLM starts are not idempotent once streaming. */
   idempotent?: boolean;
@@ -121,9 +122,9 @@ export function createAdapterClient(options: AdapterClientOptions) {
             "x-contract-version": String(options.contractVersion ?? 1),
             "x-request-id": requestId,
             authorization: `Bearer ${options.token}`,
-            ...(requestOptions.body === undefined
-              ? {}
-              : { "content-type": "application/json" }),
+            ...(typeof requestOptions.body === "string"
+              ? { "content-type": "application/json" }
+              : {}),
             ...(requestOptions.headers ?? {}),
           },
           ...(requestOptions.body === undefined ? {} : { body: requestOptions.body }),

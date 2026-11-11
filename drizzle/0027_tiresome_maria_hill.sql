@@ -1,0 +1,1 @@
+ALTER TABLE "adapter_egress_events" ADD COLUMN "audio_seconds" double precision DEFAULT 0 NOT NULL;

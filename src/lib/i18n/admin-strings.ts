@@ -14,6 +14,56 @@ export interface AdminStrings {
   devices: string;
   users: string;
   providerBuiltins: string;
+  adapters: {
+    heading: string;
+    intro: string;
+    name: string;
+    endpoint: string;
+    kinds: string;
+    kindLlm: string;
+    kindStt: string;
+    kindTts: string;
+    privacy: string;
+    operator: string;
+    region: string;
+    receives: string;
+    receivesText: string;
+    receivesAudio: string;
+    retentionDays: string;
+    remote: string;
+    register: string;
+    registerFailed: string;
+    tokenOnce: string;
+    tokenNotice: string;
+    listHeading: string;
+    empty: string;
+    status: string;
+    health: string;
+    tokenHint: string;
+    manifestVersion: string;
+    verification: string;
+    neverVerified: string;
+    rotate: string;
+    disable: string;
+    disableConfirm: string;
+    actions: string;
+    policyHeading: string;
+    policyIntro: string;
+    localOnly: string;
+    order: string;
+    orderHint: string;
+    budget: string;
+    save: string;
+    saved: string;
+    policyFailed: string;
+    usageHeading: string;
+    usageIntro: string;
+    usageCalls: string;
+    usageBytes: string;
+    usageAudio: string;
+    usagePlatform: string;
+    usageReseller: string;
+  };
   owner: string;
   tools: string;
   noOwner: string;
@@ -419,6 +469,56 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     devices: "Tất cả thiết bị",
     users: "Tài khoản",
     providerBuiltins: "Provider có sẵn",
+    adapters: {
+      heading: "Adapter của tenant",
+      intro: "Endpoint HTTPS mà tenant này đăng ký. Adapter chưa xác minh thì chưa được chọn.",
+      name: "Tên",
+      endpoint: "Endpoint",
+      kinds: "Loại",
+      kindLlm: "Model trả lời",
+      kindStt: "Nhận giọng nói",
+      kindTts: "Giọng đọc",
+      privacy: "Nhãn riêng tư",
+      operator: "Đơn vị vận hành",
+      region: "Khu vực",
+      receives: "Nhận",
+      receivesText: "Văn bản",
+      receivesAudio: "Âm thanh",
+      retentionDays: "Lưu giữ (ngày)",
+      remote: "Từ xa",
+      register: "Đăng ký adapter",
+      registerFailed: "Không đăng ký được adapter.",
+      tokenOnce: "Token (chỉ hiện một lần)",
+      tokenNotice: "Sao chép token ngay; nó sẽ không hiện lại.",
+      listHeading: "Adapter đã đăng ký",
+      empty: "Chưa có adapter nào.",
+      status: "Trạng thái",
+      health: "Sức khoẻ",
+      tokenHint: "Token",
+      manifestVersion: "Phiên bản manifest",
+      verification: "Kết quả xác minh",
+      neverVerified: "chưa xác minh",
+      rotate: "Xoay token",
+      disable: "Vô hiệu hoá",
+      disableConfirm: "Vô hiệu hoá adapter này? Token hiện tại bị thu hồi ngay.",
+      actions: "Thao tác",
+      policyHeading: "Chính sách định tuyến",
+      policyIntro: "Thứ tự ưu tiên và chế độ chỉ dùng nội bộ của tenant.",
+      localOnly: "Chỉ dùng adapter nội bộ",
+      order: "Thứ tự fallback",
+      orderHint: "ID adapter, cách nhau bằng dấu phẩy.",
+      budget: "Ngân sách tháng (USD)",
+      save: "Lưu",
+      saved: "Đã lưu.",
+      policyFailed: "Không lưu được chính sách.",
+      usageHeading: "Lưu lượng adapter",
+      usageIntro: "Số liệu nền tảng tự đo, không phải số adapter báo.",
+      usageCalls: "Lượt gọi",
+      usageBytes: "Byte",
+      usageAudio: "Giây âm thanh",
+      usagePlatform: "Giọng nền tảng",
+      usageReseller: "Giọng reseller",
+    },
     owner: "Chủ",
     tools: "Tool",
     noOwner: "chưa có chủ",
@@ -677,6 +777,56 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     devices: "All devices",
     users: "Accounts",
     providerBuiltins: "Provider built-ins",
+    adapters: {
+      heading: "Tenant adapters",
+      intro: "The HTTPS endpoints this tenant registered. An adapter is not selected until it is verified.",
+      name: "Name",
+      endpoint: "Endpoint",
+      kinds: "Kinds",
+      kindLlm: "Answering model",
+      kindStt: "Transcriber",
+      kindTts: "Voice",
+      privacy: "Privacy label",
+      operator: "Operator",
+      region: "Region",
+      receives: "Receives",
+      receivesText: "Text",
+      receivesAudio: "Audio",
+      retentionDays: "Retention (days)",
+      remote: "Remote",
+      register: "Register adapter",
+      registerFailed: "The adapter could not be registered.",
+      tokenOnce: "Token (shown once)",
+      tokenNotice: "Copy the token now; it is never shown again.",
+      listHeading: "Registered adapters",
+      empty: "No adapters yet.",
+      status: "Status",
+      health: "Health",
+      tokenHint: "Token",
+      manifestVersion: "Manifest version",
+      verification: "Verification",
+      neverVerified: "not verified",
+      rotate: "Rotate token",
+      disable: "Disable",
+      disableConfirm: "Disable this adapter? Its current token is revoked immediately.",
+      actions: "Actions",
+      policyHeading: "Routing policy",
+      policyIntro: "This tenant's fallback order and local-only mode.",
+      localOnly: "Local-only adapters",
+      order: "Fallback order",
+      orderHint: "Adapter ids, separated by commas.",
+      budget: "Monthly budget (USD)",
+      save: "Save",
+      saved: "Saved.",
+      policyFailed: "The policy could not be saved.",
+      usageHeading: "Adapter usage",
+      usageIntro: "The platform's own measurement, not the adapter's report.",
+      usageCalls: "Calls",
+      usageBytes: "Bytes",
+      usageAudio: "Audio seconds",
+      usagePlatform: "Platform speech",
+      usageReseller: "Reseller speech",
+    },
     owner: "Owner",
     tools: "Tools",
     noOwner: "no owner",

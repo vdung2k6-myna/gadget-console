@@ -7,6 +7,7 @@ import {
   accountSpeechSettings,
   listProviderProfiles,
   publicProviderProfile,
+  selectableAdaptersForUser,
 } from "@/lib/provider-profiles";
 import { getStrings } from "@/lib/i18n/locale";
 
@@ -21,6 +22,9 @@ export default async function ProviderSettingsPage() {
   const models = (await listProviderProfiles(user.id))
     .filter((profile) => profile.kind === "llm")
     .map(publicProviderProfile);
+  const adapterNames = new Map(
+    (await selectableAdaptersForUser(user.id)).map((adapter) => [adapter.id, adapter.name])
+  );
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -72,8 +76,16 @@ export default async function ProviderSettingsPage() {
                       </Link>
                     )}
                   </td>
-                  <td className="py-2 pr-4">{profile.model}</td>
-                  <td className="py-2 pr-4 font-mono text-xs">{profile.baseUrl}</td>
+                  <td className="py-2 pr-4">
+                    {profile.adapterId === null
+                      ? profile.model
+                      : (adapterNames.get(profile.adapterId) ?? profile.adapterId)}
+                  </td>
+                  <td className="py-2 pr-4 font-mono text-xs">
+                    {profile.adapterId === null
+                      ? profile.baseUrl
+                      : strings.providerProfiles.shapeAdapter}
+                  </td>
                   <td className="py-2 text-right">
                     {!profile.builtin && <DeleteProviderProfileButton id={profile.id} />}
                   </td>

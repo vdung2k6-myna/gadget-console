@@ -53,7 +53,7 @@ function passingFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Res
   }
   if (url.pathname.endsWith("/stt/transcribe")) return Promise.resolve(json({ text: "xin chào", language: "vi" }));
   if (url.pathname.endsWith("/tts/voices")) return Promise.resolve(json({ voices: ["default"] }));
-  if (url.pathname.endsWith("/tts/speech")) return Promise.resolve(new Response(Buffer.from("RIFF"), { headers: { "content-type": "audio/wav" } }));
+  if (url.pathname.endsWith("/tts/synthesize")) return Promise.resolve(new Response(Buffer.from("RIFF"), { headers: { "content-type": "audio/wav" } }));
   return Promise.resolve(new Response("not found", { status: 404 }));
 }
 

@@ -153,10 +153,22 @@ export const providerProfiles = pgTable(
     /** `llm`, `stt` or `tts`; checked by the profile module, not by the column. */
     kind: text("kind").notNull(),
     name: text("name").notNull(),
-    baseUrl: text("base_url").notNull(),
+    /** The direct shape's endpoint; null when the profile names an adapter. */
+    baseUrl: text("base_url"),
     /** Empty for a provider that needs no key, which every local audio service is. */
     encryptedKey: text("encrypted_key").notNull().default(""),
-    model: text("model").notNull(),
+    /** The direct shape's model; null when the profile names an adapter. */
+    model: text("model"),
+    /**
+     * The registered adapter an adapter-backed profile names. Null is the
+     * direct shape — the OpenAI-compatible path this table has always held — so
+     * every existing row keeps working without a backfill.
+     */
+    adapterId: uuid("adapter_id").references(() => providerAdapters.id, {
+      onDelete: "restrict",
+    }),
+    /** The opaque configuration the adapter's manifest declares, if any. */
+    config: jsonb("config").$type<Record<string, unknown>>(),
     /** The voice a `tts` profile speaks in; null for the other kinds. */
     voice: text("voice"),
     /** The account's own choice of temperature; `llm` only. */
@@ -507,6 +519,8 @@ export const adapterEgressEvents = pgTable(
     region: text("region"),
     bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
     latencyMs: integer("latency_ms").notNull().default(0),
+    /** Audio the platform observed for an STT/TTS call; zero for LLM. */
+    audioSeconds: doublePrecision("audio_seconds").notNull().default(0),
     /** `ok`, `upstream`, `timeout`, `rate_limit`, `refused` or `error`. */
     status: text("status").notNull(),
     at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),

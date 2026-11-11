@@ -7,8 +7,11 @@ import { auditEvents, providerAdapters, tenants } from "../src/lib/db/schema";
 import {
   readAdapterPolicy,
   resolveAdapterChain,
+  saveAdapterPolicy,
+  validateAdapterPolicy,
 } from "../src/lib/tenancy/adapters";
 import {
+  listAllEgress,
   listTenantEgress,
   recordAdapterEgress,
 } from "../src/lib/adapter-egress";
@@ -49,6 +52,7 @@ async function adapter(input: {
   remote?: boolean;
   score?: number;
   latency?: number;
+  capabilities?: Record<string, unknown>;
 }) {
   const rows = await getDb()
     .insert(providerAdapters)
@@ -60,6 +64,7 @@ async function adapter(input: {
       status: input.status ?? "verified",
       health: input.health ?? "ok",
       privacy: { remote: input.remote ?? true, region: "sg" },
+      capabilities: input.capabilities ?? null,
       quality:
         input.score === undefined && input.latency === undefined
           ? null
@@ -321,7 +326,31 @@ describe("adapter egress", () => {
     assert.deepEqual((await listTenantEgress(first.id)).map((event) => event.id), [row.id]);
     assert.deepEqual(await listTenantEgress(second.id), []);
     const keys = Object.keys(row);
-    assert.ok(!keys.some((key) => /text|audio|body|request|response/i.test(key)));
+    // `audioSeconds` is a measurement, not the recording: it names no content.
+    assert.ok(
+      !keys.some(
+        (key) => key !== "audioSeconds" && /text|audio|body|request|response/i.test(key)
+      )
+    );
+  });
+
+  it("shows the platform every tenant's calls and a tenant only its own", async () => {
+    const first = await tenant("first");
+    const second = await tenant("second");
+    const mine = await recordAdapterEgress({ tenantId: first.id, kind: "llm", status: "ok" });
+    const theirs = await recordAdapterEgress({ tenantId: second.id, kind: "tts", status: "ok" });
+
+    assert.deepEqual(
+      (await listAllEgress({ tenantId: first.id })).map((event) => event.id),
+      [mine.id]
+    );
+    const all = (await listAllEgress()).map((event) => event.id);
+    assert.ok(all.includes(mine.id) && all.includes(theirs.id));
+    assert.deepEqual(
+      (await listTenantEgress(first.id)).map((event) => event.id),
+      [mine.id],
+      "a tenant never sees another's"
+    );
   });
 });
 
@@ -394,6 +423,27 @@ describe("adapter chain resolution", () => {
     assert.equal((await resolveAdapterChain(first.id, "llm"))[0]!.id, platform.id);
   });
 
+  it("orders by latency when quality is equal", async () => {
+    const first = await tenant("first");
+    const slow = await adapter({
+      tenantId: first.id,
+      name: "slow",
+      kinds: ["llm"],
+      latency: 900,
+    });
+    const fast = await adapter({
+      tenantId: first.id,
+      name: "fast",
+      kinds: ["llm"],
+      latency: 120,
+    });
+
+    assert.deepEqual(
+      (await resolveAdapterChain(first.id, "llm")).map((entry) => entry.id),
+      [fast.id, slow.id]
+    );
+  });
+
   it("keeps only local adapters when the policy is local-only", async () => {
     const first = await tenant("first");
     const remote = await adapter({
@@ -423,6 +473,118 @@ describe("adapter chain resolution", () => {
     assert.deepEqual(
       await resolveAdapterChain("00000000-0000-4000-8000-000000000000", "llm"),
       []
+    );
+  });
+});
+
+describe("adapter capability checks", () => {
+  it("skips an adapter that declares no tool support", async () => {
+    const first = await tenant("first");
+    const plain = await adapter({ tenantId: first.id, name: "plain", kinds: ["llm"] });
+    const tools = await adapter({
+      tenantId: first.id,
+      name: "tools",
+      kinds: ["llm"],
+      capabilities: { tools: true },
+    });
+
+    const chain = await resolveAdapterChain(first.id, "llm", { requires: { tools: true } });
+    assert.deepEqual(chain.map((entry) => entry.id), [tools.id]);
+    assert.ok(!chain.some((entry) => entry.id === plain.id));
+  });
+
+  it("skips an adapter that does not declare the turn's languages", async () => {
+    const first = await tenant("first");
+    const bilingual = await adapter({
+      tenantId: first.id,
+      name: "bilingual",
+      kinds: ["stt"],
+      capabilities: { languages: ["vi", "en"] },
+    });
+    await adapter({
+      tenantId: first.id,
+      name: "english-only",
+      kinds: ["stt"],
+      capabilities: { languages: ["en"] },
+    });
+
+    const chain = await resolveAdapterChain(first.id, "stt", {
+      requires: { languages: ["vi"] },
+    });
+    assert.deepEqual(chain.map((entry) => entry.id), [bilingual.id]);
+  });
+
+  it("skips an adapter that declares no streaming", async () => {
+    const first = await tenant("first");
+    const streaming = await adapter({
+      tenantId: first.id,
+      name: "streaming",
+      kinds: ["llm"],
+      capabilities: { streaming: true },
+    });
+    await adapter({ tenantId: first.id, name: "buffered", kinds: ["llm"] });
+
+    const chain = await resolveAdapterChain(first.id, "llm", {
+      requires: { streaming: true },
+    });
+    assert.deepEqual(chain.map((entry) => entry.id), [streaming.id]);
+  });
+});
+
+describe("saving the routing policy", () => {
+  it("changes the selection the next resolution makes", async () => {
+    const first = await tenant("first");
+    const remote = await adapter({
+      tenantId: first.id,
+      name: "remote",
+      kinds: ["llm"],
+      remote: true,
+    });
+    const local = await adapter({
+      tenantId: first.id,
+      name: "local",
+      kinds: ["llm"],
+      remote: false,
+    });
+
+    assert.deepEqual(
+      await saveAdapterPolicy(first.id, {
+        localOnly: true,
+        order: [],
+        monthlyBudgetUsd: 25,
+      }),
+      { localOnly: true, order: [], monthlyBudgetUsd: 25 }
+    );
+    assert.deepEqual(
+      (await resolveAdapterChain(first.id, "llm")).map((entry) => entry.id),
+      [local.id],
+      "local-only excludes the remote adapter"
+    );
+
+    await saveAdapterPolicy(first.id, {
+      localOnly: false,
+      order: [remote.id],
+      monthlyBudgetUsd: null,
+    });
+    assert.equal(
+      (await resolveAdapterChain(first.id, "llm"))[0]?.id,
+      remote.id,
+      "the saved order is the fallback order"
+    );
+  });
+
+  it("refuses a malformed policy", () => {
+    for (const bad of [
+      null,
+      { localOnly: "yes" },
+      { order: [1] },
+      { monthlyBudgetUsd: -1 },
+    ]) {
+      assert.equal(validateAdapterPolicy(bad).ok, false, JSON.stringify(bad));
+    }
+    assert.equal(
+      validateAdapterPolicy({ localOnly: true, order: ["a"], monthlyBudgetUsd: 3 }).ok,
+      true
     );
   });
 });

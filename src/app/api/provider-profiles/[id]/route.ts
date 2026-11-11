@@ -6,7 +6,7 @@ import {
   deleteProviderProfile,
   publicProviderProfile,
   updateProviderProfile,
-  validateProviderDraft,
+  validateProviderDraftForUser,
 } from "@/lib/provider-profiles";
 
 type Params = { params: Promise<{ id: string }> };
@@ -24,7 +24,9 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ errors: ["the body must be JSON"] }, { status: 400 });
   }
 
-  const validation = validateProviderDraft(body, { requireKey: false });
+  const validation = await validateProviderDraftForUser(user.id, body, {
+    requireKey: false,
+  });
   if (!validation.ok) return NextResponse.json({ errors: validation.errors }, { status: 400 });
 
   const profile = await updateProviderProfile(user.id, id, validation.draft);

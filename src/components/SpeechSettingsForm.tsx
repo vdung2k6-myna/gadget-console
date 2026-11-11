@@ -18,8 +18,10 @@ export interface SpeechProfile {
   id: string;
   kind: "stt" | "tts";
   name: string;
-  baseUrl: string;
-  model: string;
+  /** Null when the profile names an adapter; the form then starts empty. */
+  baseUrl: string | null;
+  /** Null when the profile names an adapter; the form then starts empty. */
+  model: string | null;
   voice: string | null;
   hasKey: boolean;
   builtin: boolean;

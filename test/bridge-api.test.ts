@@ -10,7 +10,23 @@ import { approveClaim, claimDevice, issueClaim, releaseDevice, resetClaimRateLim
 import { suspendTenant } from "../src/lib/tenants";
 import { ownDevice as own } from "./helpers/own";
 import { createRuntime } from "../src/lib/runtimes";
-import { agents, claims, devices, firmwareReleases, tenantDomains, tenants, turns } from "../src/lib/db/schema";
+import {
+  createProviderProfile,
+  validateProviderDraft,
+  validateProviderDraftForUser,
+} from "../src/lib/provider-profiles";
+import { createAdapter } from "../src/lib/adapters";
+import {
+  agents,
+  claims,
+  devices,
+  firmwareReleases,
+  providerAdapters,
+  tenantDomains,
+  tenants,
+  turns,
+  users,
+} from "../src/lib/db/schema";
 import { POST as resolveRoute } from "../src/app/api/bridge/resolve/route";
 
 before(() => requireTestDatabase());
@@ -485,5 +501,125 @@ describe("tenant-scoped bridge resolution", () => {
     const body = (await response.json()) as { error?: string };
     assert.match(body.error ?? "", /suspended/i);
     assert.equal((await getDb().select().from(devices)).length, 0);
+  });
+});
+
+describe("the agent's providers at the resolve route", () => {
+  const HOST = "gateway.providers.example";
+
+  function request(): Request {
+    return new Request(`http://${HOST}/api/bridge/resolve`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${process.env.BRIDGE_TOKEN}`,
+        "content-type": "application/json",
+        "x-forwarded-host": HOST,
+      },
+      body: JSON.stringify({ deviceId: MAC }),
+    });
+  }
+
+  async function boundAgent(userId: string, llmProfileId: string) {
+    // An account-owned profile reaches the bridge only for an administrator;
+    // an owner answers from the deployment's built-ins.
+    await getDb().update(users).set({ role: "admin" }).where(eq(users.id, userId));
+    await getDb().insert(tenantDomains).values({
+      tenantId: await tenantOfUser(userId),
+      domain: HOST,
+      kind: "gateway",
+    });
+    const device = await ownedDevice(userId);
+    const agent = await agentFor(userId);
+    await getDb()
+      .update(agents)
+      .set({ llmProfileId })
+      .where(eq(agents.id, agent.id));
+    await getDb()
+      .update(devices)
+      .set({ agentId: agent.id })
+      .where(eq(devices.id, device.id));
+  }
+
+  function llmOf(body: unknown): unknown {
+    const agent = (body as { agent: { providers: { llm: unknown } } | null }).agent;
+    return agent === null ? undefined : agent.providers.llm;
+  }
+
+  it("resolves a direct profile to the OpenAI-compatible path", async () => {
+    const validation = validateProviderDraft(
+      {
+        kind: "llm",
+        name: "OpenAI",
+        baseUrl: "https://api.openai.com/v1",
+        model: "gpt-4o-mini",
+        apiKey: "sk-live-abc123",
+        temperature: 0.4,
+      },
+      { requireKey: true }
+    );
+    if (!validation.ok) throw new Error(validation.errors.join("; "));
+    const ann = await account("ann@example.com");
+    const profile = await createProviderProfile(ann.id, validation.draft);
+    await boundAgent(ann.id, profile.id);
+
+    const response = await resolveRoute(request());
+    assert.equal(response.status, 200);
+    assert.deepEqual(llmOf(await response.json()), {
+      path: "openai-compatible",
+      kind: "llm",
+      name: "OpenAI",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+      apiKey: "sk-live-abc123",
+      temperature: 0.4,
+    });
+  });
+
+  it("resolves an adapter-backed profile to the adapter client's fields", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const issued = await createAdapter(tenantId, {
+      name: "acme",
+      endpoint: "https://acme.example/v1",
+      kinds: ["llm"],
+    });
+    await getDb()
+      .update(providerAdapters)
+      .set({ status: "verified", health: "ok" })
+      .where(eq(providerAdapters.id, issued.adapter.id));
+    const validation = await validateProviderDraftForUser(
+      ann.id,
+      {
+        kind: "llm",
+        name: "Acme Gemini",
+        adapterId: issued.adapter.id,
+        config: { model: "gemini-3-flash" },
+      },
+      { requireKey: true }
+    );
+    if (!validation.ok) throw new Error(validation.errors.join("; "));
+    const profile = await createProviderProfile(ann.id, validation.draft);
+    await boundAgent(ann.id, profile.id);
+
+    const response = await resolveRoute(request());
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      agent: {
+        providers: { llm: unknown };
+        providerChain: { llm: unknown[]; stt: unknown[]; tts: unknown[] };
+      };
+    };
+    assert.equal(body.agent.providers.llm, null, "an adapter is not the OpenAI-compatible path");
+    assert.deepEqual(body.agent.providerChain.llm, [
+      {
+        adapterId: issued.adapter.id,
+        endpoint: "https://acme.example/v1",
+        token: issued.token,
+        tenantId,
+        config: { model: "gemini-3-flash" },
+        capabilities: null,
+        timeoutMs: 30_000,
+      },
+    ]);
   });
 });

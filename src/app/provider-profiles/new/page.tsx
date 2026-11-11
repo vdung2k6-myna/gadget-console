@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ProviderProfileForm } from "@/components/ProviderProfileForm";
 import { requireAdmin } from "@/lib/auth/admin";
+import { selectableAdaptersForUser } from "@/lib/provider-profiles";
 import { getStrings } from "@/lib/i18n/locale";
 
 // Every screen reads the session and the database per request; there is nothing
@@ -10,7 +11,8 @@ export const instant = false;
 
 export default async function NewProviderProfilePage() {
   const { strings } = await getStrings();
-  await requireAdmin();
+  const user = await requireAdmin();
+  const adapters = await selectableAdaptersForUser(user.id);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -21,7 +23,7 @@ export default async function NewProviderProfilePage() {
         ← {strings.common.back}
       </Link>
       <h1 className="mt-2 text-2xl font-semibold">{strings.providerProfiles.answeringModels}</h1>
-      <ProviderProfileForm fixedKind="llm" />
+      <ProviderProfileForm fixedKind="llm" adapters={adapters} />
     </main>
   );
 }

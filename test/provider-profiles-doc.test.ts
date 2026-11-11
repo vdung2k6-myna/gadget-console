@@ -18,6 +18,11 @@ describe("the provider profile document", () => {
       "/admin/provider-profiles",
       "test/tenancy-provider-profiles.test.ts",
       "test/provider-seed.test.ts",
+      // Both shapes the form offers, and what each asks for.
+      "OpenAI-compatible endpoint",
+      "adapter-backed",
+      "adapterId",
+      "resolveTurnProvider",
     ]) {
       assert.ok(document.includes(term), `the document names ${term}`);
     }

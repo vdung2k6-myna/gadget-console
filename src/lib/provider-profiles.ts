@@ -1,9 +1,10 @@
-import { and, asc, count, desc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
-import { agents, providerProfiles, users } from "@/lib/db/schema";
+import { agents, providerAdapters, providerProfiles, users } from "@/lib/db/schema";
 import { encryptionKeyForTenant, storeKeyForTenant } from "@/lib/crypto/profiles";
 import { decryptSecret } from "@/lib/crypto/secret-box";
+import { resolveAdapterChain } from "@/lib/tenancy/adapters";
 
 /**
  * The endpoints that hear, speak and answer for a gadget.
@@ -36,11 +37,21 @@ export function providerScope(
   return "account";
 }
 
+/**
+ * A profile is one of two shapes, never both: a direct endpoint and model, or a
+ * registered adapter and its opaque config. Nulls say which shape this is.
+ */
 export interface ProviderProfileDraft {
   kind: ProviderKind;
   name: string;
-  baseUrl: string;
-  model: string;
+  /** The direct shape's endpoint; null when the profile names an adapter. */
+  baseUrl: string | null;
+  /** The direct shape's model; null when the profile names an adapter. */
+  model: string | null;
+  /** The adapter-backed shape's registry row; null for the direct shape. */
+  adapterId?: string | null;
+  /** The adapter's opaque config; null for the direct shape. */
+  config?: Record<string, unknown> | null;
   /** Required for `tts`, and refused for the other kinds. */
   voice: string | null;
   /** Allowed for `llm` only. */
@@ -57,8 +68,14 @@ export interface PublicProviderProfile {
   id: string;
   kind: ProviderKind;
   name: string;
-  baseUrl: string;
-  model: string;
+  /** The direct shape's endpoint; null when the profile names an adapter. */
+  baseUrl: string | null;
+  /** The direct shape's model; null when the profile names an adapter. */
+  model: string | null;
+  /** The adapter-backed shape's registry row; null for the direct shape. */
+  adapterId: string | null;
+  /** The adapter's opaque config; null for the direct shape. */
+  config: Record<string, unknown> | null;
   voice: string | null;
   temperature: number | null;
   hasKey: boolean;
@@ -73,6 +90,8 @@ export function publicProviderProfile(row: ProviderProfileRow): PublicProviderPr
     name: row.name,
     baseUrl: row.baseUrl,
     model: row.model,
+    adapterId: row.adapterId,
+    config: row.config,
     voice: row.voice,
     temperature: row.temperature,
     hasKey: row.encryptedKey !== "",
@@ -80,10 +99,75 @@ export function publicProviderProfile(row: ProviderProfileRow): PublicProviderPr
   };
 }
 
-/** What the bridge receives: the whole profile, key included, decrypted. */
+/**
+ * What the bridge receives: the whole profile, key included, decrypted.
+ *
+ * One of the two shapes is present. An adapter-backed profile names its registry
+ * row and carries no endpoint, model or key: the adapter holds the provider
+ * credential and the console calls it through the adapter client.
+ */
 export interface RuntimeProvider {
   kind: ProviderKind;
   /** The profile's name, which the turn record keeps: an id means nothing later. */
+  name: string;
+  /** The direct shape only. */
+  baseUrl?: string;
+  /** The direct shape only. */
+  model?: string;
+  /** The adapter-backed shape only. */
+  adapterId?: string;
+  /** The adapter-backed shape only. */
+  config?: Record<string, unknown> | null;
+  voice?: string;
+  apiKey?: string;
+  temperature?: number | null;
+}
+
+export function runtimeProvider(row: ProviderProfileRow): RuntimeProvider {
+  const shared = {
+    kind: row.kind as ProviderKind,
+    name: row.name,
+    ...(row.voice === null ? {} : { voice: row.voice }),
+    ...(row.kind === "llm" ? { temperature: row.temperature } : {}),
+  };
+
+  if (row.adapterId !== null) {
+    // The adapter holds the provider key, so nothing is decrypted here.
+    return { ...shared, adapterId: row.adapterId, config: row.config ?? null };
+  }
+
+  // `readKey` is typed for the LLM table's non-null owner; a built-in here has
+  // no owner at all, so the same box is opened directly.
+  const apiKey =
+    row.encryptedKey === ""
+      ? undefined
+      : decryptSecret(row.encryptedKey, encryptionKeyForTenant(row.tenantId));
+  return {
+    ...shared,
+    baseUrl: row.baseUrl ?? "",
+    model: row.model ?? "",
+    ...(apiKey === undefined ? {} : { apiKey }),
+  };
+}
+
+/** Whether a runtime provider reaches its adapter rather than a direct endpoint. */
+export function isAdapterBacked(
+  provider: RuntimeProvider
+): provider is RuntimeProvider & { adapterId: string } {
+  return provider.adapterId !== undefined;
+}
+
+/**
+ * A profile resolved for a turn.
+ *
+ * The two shapes are the two paths the platform speaks. A direct profile is the
+ * OpenAI-compatible endpoint the runtime has always called; an adapter-backed
+ * profile is the connection an adapter client needs — endpoint, token and
+ * opaque config — and nothing else is invented from it.
+ */
+export interface OpenAiCompatibleTurnProvider {
+  path: "openai-compatible";
+  kind: ProviderKind;
   name: string;
   baseUrl: string;
   model: string;
@@ -92,21 +176,94 @@ export interface RuntimeProvider {
   temperature?: number | null;
 }
 
-export function runtimeProvider(row: ProviderProfileRow): RuntimeProvider {
-  // `readKey` is typed for the LLM table's non-null owner; a built-in here has
-  // no owner at all, so the same box is opened directly.
-  const apiKey =
-    row.encryptedKey === ""
-      ? undefined
-      : decryptSecret(row.encryptedKey, encryptionKeyForTenant(row.tenantId));
+export interface AdapterTurnProvider {
+  path: "adapter";
+  kind: ProviderKind;
+  name: string;
+  adapterId: string;
+  endpoint: string;
+  /** The platform-issued token, decrypted here and nowhere else. */
+  token: string;
+  /** The tenant the adapter belongs to; null for a platform adapter. */
+  tenantId: string | null;
+  config: Record<string, unknown> | null;
+  voice?: string;
+}
+
+export type TurnProvider = OpenAiCompatibleTurnProvider | AdapterTurnProvider;
+
+export function isAdapterTurnProvider(
+  provider: TurnProvider
+): provider is AdapterTurnProvider {
+  return provider.path === "adapter";
+}
+
+/**
+ * Resolve a stored profile to the path that answers its kind.
+ *
+ * An adapter-backed profile names a registry row; its endpoint and token come
+ * from that row and its config from the profile. The token is decrypted with the
+ * key of the tenant the adapter belongs to, which is the key it was sealed under.
+ * A profile whose adapter is no longer visible resolves to nothing rather than
+ * to a different provider.
+ */
+export async function resolveTurnProvider(
+  row: ProviderProfileRow
+): Promise<TurnProvider | null> {
+  if (row.adapterId === null) {
+    const direct = runtimeProvider(row);
+    return {
+      path: "openai-compatible",
+      kind: direct.kind,
+      name: direct.name,
+      baseUrl: direct.baseUrl ?? "",
+      model: direct.model ?? "",
+      ...(direct.voice === undefined ? {} : { voice: direct.voice }),
+      ...(direct.apiKey === undefined ? {} : { apiKey: direct.apiKey }),
+      ...(row.kind === "llm" ? { temperature: row.temperature } : {}),
+    };
+  }
+
+  const rows = await getDb()
+    .select({
+      id: providerAdapters.id,
+      tenantId: providerAdapters.tenantId,
+      endpoint: providerAdapters.endpoint,
+      tokenEncrypted: providerAdapters.tokenEncrypted,
+    })
+    .from(providerAdapters)
+    .where(
+      and(
+        eq(providerAdapters.id, row.adapterId),
+        or(
+          ...(row.tenantId === null
+            ? []
+            : [eq(providerAdapters.tenantId, row.tenantId)]),
+          isNull(providerAdapters.tenantId)
+        )
+      )
+    )
+    .limit(1);
+  const adapter = rows[0];
+  if (adapter === undefined) return null;
+
+  const token =
+    adapter.tokenEncrypted === ""
+      ? ""
+      : decryptSecret(
+          adapter.tokenEncrypted,
+          encryptionKeyForTenant(adapter.tenantId)
+        );
   return {
+    path: "adapter",
     kind: row.kind as ProviderKind,
     name: row.name,
-    baseUrl: row.baseUrl,
-    model: row.model,
+    adapterId: adapter.id,
+    endpoint: adapter.endpoint,
+    token,
+    tenantId: adapter.tenantId,
+    config: row.config ?? null,
     ...(row.voice === null ? {} : { voice: row.voice }),
-    ...(apiKey === undefined ? {} : { apiKey }),
-    ...(row.kind === "llm" ? { temperature: row.temperature } : {}),
   };
 }
 
@@ -128,13 +285,32 @@ export function validateProviderDraft(
   const name = text(body.name);
   if (name === "") errors.push("a name is required");
 
-  const baseUrl = normalizeBaseUrl(text(body.baseUrl));
-  if (baseUrl === undefined) {
-    errors.push("a base URL is required, and must be an absolute http(s) URL");
-  }
+  const adapterId = text(body.adapterId);
+  const adapterBacked = adapterId !== "";
+  const config = parseConfig(body.config, errors);
 
-  const model = text(body.model);
-  if (model === "") errors.push("a model is required");
+  let baseUrl: string | null = null;
+  let model: string | null = null;
+  if (adapterBacked) {
+    // The adapter resolves the endpoint and the model. Naming both shapes at
+    // once leaves no way to say which one a turn should use.
+    if (text(body.baseUrl) !== "" || text(body.model) !== "") {
+      errors.push("a profile names either an adapter or a base URL and model, not both");
+    }
+  } else {
+    const normalized = normalizeBaseUrl(text(body.baseUrl));
+    if (normalized === undefined) {
+      errors.push("a base URL is required, and must be an absolute http(s) URL");
+    } else {
+      baseUrl = normalized;
+    }
+
+    const modelText = text(body.model);
+    if (modelText === "") errors.push("a model is required");
+    else model = modelText;
+
+    if (config !== null) errors.push("a config belongs only to an adapter-backed profile");
+  }
 
   const voice = text(body.voice);
   if (kind === "tts" && voice === "") errors.push("a voice is required for a tts profile");
@@ -156,9 +332,15 @@ export function validateProviderDraft(
 
   const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : undefined;
   // A key is the llm profile's own rule, and a local speech service often has
-  // none. A blank key on edit keeps what is stored.
-  if (options.requireKey && kind === "llm" && (apiKey === undefined || apiKey === "")) {
-    errors.push("an API key is required for an llm profile");
+  // none. An adapter holds its own provider key, so an adapter-backed profile
+  // neither needs one nor stores one. A blank key on edit keeps what is stored.
+  if (
+    options.requireKey &&
+    !adapterBacked &&
+    kind === "llm" &&
+    (apiKey === undefined || apiKey === "")
+  ) {
+    errors.push("an API key is required for an llm profile that names no adapter");
   }
 
   if (errors.length > 0) return { ok: false, errors };
@@ -167,13 +349,30 @@ export function validateProviderDraft(
     draft: {
       kind: kind as ProviderKind,
       name,
-      baseUrl: baseUrl!,
+      baseUrl,
       model,
+      adapterId: adapterBacked ? adapterId : null,
+      config: adapterBacked ? config : null,
       voice: kind === "tts" ? voice : null,
       temperature: kind === "llm" ? temperature : null,
-      ...(apiKey === undefined || apiKey === "" ? {} : { apiKey }),
+      ...(adapterBacked || apiKey === undefined || apiKey === ""
+        ? {}
+        : { apiKey }),
     },
   };
+}
+
+/** A config is an opaque JSON object, or absent; anything else is a mistake. */
+function parseConfig(
+  value: unknown,
+  errors: string[]
+): Record<string, unknown> | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    errors.push("config must be an object");
+    return null;
+  }
+  return value as Record<string, unknown>;
 }
 
 function text(value: unknown): string {
@@ -194,6 +393,65 @@ function normalizeBaseUrl(raw: string): string | undefined {
   return (url.origin + url.pathname).replace(/\/+$/, "");
 }
 
+/**
+ * Validate a draft that may name an adapter, against the tenant that will own it.
+ *
+ * The shape rules are pure; naming an adapter adds one fact only the database
+ * knows — that the row is registered to this tenant (or is a platform row) and
+ * serves this kind of profile. Another tenant's adapter is answered as one that
+ * does not exist, exactly as the registry's own accessors do.
+ */
+export async function validateProviderDraftForTenant(
+  tenantId: string | null,
+  input: unknown,
+  options: { requireKey: boolean }
+): Promise<ProviderProfileValidation> {
+  const validation = validateProviderDraft(input, options);
+  if (!validation.ok) return validation;
+  const adapterId = validation.draft.adapterId;
+  if (adapterId === undefined || adapterId === null) return validation;
+
+  if (tenantId === null) {
+    return { ok: false, errors: ["an adapter-backed profile belongs to a tenant"] };
+  }
+  const rows = await getDb()
+    .select({ kinds: providerAdapters.kinds })
+    .from(providerAdapters)
+    .where(
+      and(
+        eq(providerAdapters.id, adapterId),
+        or(
+          eq(providerAdapters.tenantId, tenantId),
+          isNull(providerAdapters.tenantId)
+        )
+      )
+    )
+    .limit(1);
+  const adapter = rows[0];
+  if (adapter === undefined) {
+    return {
+      ok: false,
+      errors: ["the adapter must be one registered to this tenant"],
+    };
+  }
+  if (!adapter.kinds.includes(validation.draft.kind)) {
+    return {
+      ok: false,
+      errors: [`the adapter does not serve a ${validation.draft.kind} profile`],
+    };
+  }
+  return validation;
+}
+
+/** The same check for the tenant this account belongs to. */
+export async function validateProviderDraftForUser(
+  userId: string,
+  input: unknown,
+  options: { requireKey: boolean }
+): Promise<ProviderProfileValidation> {
+  return validateProviderDraftForTenant(await tenantForUser(userId), input, options);
+}
+
 /** The tenant a user belongs to; null for a platform admin or a legacy account. */
 async function tenantForUser(userId: string): Promise<string | null> {
   const rows = await getDb()
@@ -202,6 +460,51 @@ async function tenantForUser(userId: string): Promise<string | null> {
     .where(eq(users.id, userId))
     .limit(1);
   return rows[0]?.tenantId ?? null;
+}
+
+/** An adapter a profile may name: the tenant's own, and the platform's. */
+export interface SelectableAdapter {
+  id: string;
+  name: string;
+  kinds: string[];
+  status: string;
+}
+
+/**
+ * The adapters this tenant may name in a profile.
+ *
+ * The registry is private, so a tenant's form offers its own adapters and the
+ * platform's, never another tenant's. A pending or disabled adapter is listed
+ * rather than hidden: it is registered, and the reason it will not serve a turn
+ * is the registry's status, which the form shows in the option.
+ */
+export async function listSelectableAdapters(
+  tenantId: string | null
+): Promise<SelectableAdapter[]> {
+  return getDb()
+    .select({
+      id: providerAdapters.id,
+      name: providerAdapters.name,
+      kinds: providerAdapters.kinds,
+      status: providerAdapters.status,
+    })
+    .from(providerAdapters)
+    .where(
+      tenantId === null
+        ? isNull(providerAdapters.tenantId)
+        : or(
+            eq(providerAdapters.tenantId, tenantId),
+            isNull(providerAdapters.tenantId)
+          )
+    )
+    .orderBy(asc(providerAdapters.name));
+}
+
+/** The same list for the tenant this account belongs to. */
+export async function selectableAdaptersForUser(
+  userId: string
+): Promise<SelectableAdapter[]> {
+  return listSelectableAdapters(await tenantForUser(userId));
 }
 
 /** What this account may see: its own, its tenant's built-ins, and the platform's. */
@@ -240,8 +543,12 @@ export interface TenantProviderProfileView {
   id: string;
   name: string;
   kind: string;
-  baseUrl: string;
-  model: string;
+  /** Null when the profile names an adapter instead of a direct endpoint. */
+  baseUrl: string | null;
+  /** Null when the profile names an adapter instead of a direct endpoint. */
+  model: string | null;
+  /** The adapter an adapter-backed profile names; null for the direct shape. */
+  adapterId: string | null;
   voice: string | null;
   builtin: boolean;
   isDefault: boolean;
@@ -263,6 +570,7 @@ export async function listTenantProviderProfiles(
       kind: providerProfiles.kind,
       baseUrl: providerProfiles.baseUrl,
       model: providerProfiles.model,
+      adapterId: providerProfiles.adapterId,
       voice: providerProfiles.voice,
       builtin: providerProfiles.builtin,
       isDefault: providerProfiles.isDefault,
@@ -289,6 +597,7 @@ export async function listTenantProviderProfiles(
     kind: row.kind,
     baseUrl: row.baseUrl,
     model: row.model,
+    adapterId: row.adapterId,
     voice: row.voice,
     builtin: row.builtin,
     isDefault: row.isDefault,
@@ -328,7 +637,9 @@ export async function publishTenantBuiltin(
   tenantId: string,
   input: unknown
 ): Promise<PublishTenantBuiltinResult> {
-  const validation = validateProviderDraft(input, { requireKey: true });
+  const validation = await validateProviderDraftForTenant(tenantId, input, {
+    requireKey: true,
+  });
   if (!validation.ok) return validation;
   const draft = validation.draft;
   const isDefault =
@@ -378,10 +689,17 @@ export async function publishTenantBuiltin(
         name: draft.name,
         baseUrl: draft.baseUrl,
         model: draft.model,
+        adapterId: draft.adapterId ?? null,
+        config: draft.config ?? null,
         voice: draft.voice,
         temperature: draft.temperature,
+        // An adapter-backed profile stores no key: the adapter holds it.
         encryptedKey:
-          draft.apiKey === undefined ? "" : storeKeyForTenant(tenantId, draft.apiKey),
+          draft.adapterId !== null && draft.adapterId !== undefined
+            ? ""
+            : draft.apiKey === undefined
+              ? ""
+              : storeKeyForTenant(tenantId, draft.apiKey),
       })
       .returning();
   });
@@ -448,12 +766,19 @@ export async function createProviderProfile(
       name: draft.name,
       baseUrl: draft.baseUrl,
       model: draft.model,
+      adapterId: draft.adapterId ?? null,
+      config: draft.config ?? null,
       voice: draft.voice,
       temperature: draft.temperature,
       // A provider with no key stores nothing: encrypting an empty string would
       // make every local service report a key as set and send an empty bearer.
+      // An adapter-backed profile stores no key at all; the adapter holds it.
       encryptedKey:
-        draft.apiKey === undefined ? "" : storeKeyForTenant(tenantId, draft.apiKey),
+        draft.adapterId !== null && draft.adapterId !== undefined
+          ? ""
+          : draft.apiKey === undefined
+            ? ""
+            : storeKeyForTenant(tenantId, draft.apiKey),
     })
     .returning();
   return rows[0]!;
@@ -475,12 +800,18 @@ export async function updateProviderProfile(
       name: draft.name,
       baseUrl: draft.baseUrl,
       model: draft.model,
+      adapterId: draft.adapterId ?? null,
+      config: draft.config ?? null,
       voice: draft.voice,
       temperature: draft.temperature,
-      // A blank key on edit is "keep what is stored", not "store nothing".
-      ...(draft.apiKey === undefined
-        ? {}
-        : { encryptedKey: storeKeyForTenant(tenantId, draft.apiKey) }),
+      // A blank key on edit is "keep what is stored", not "store nothing"; an
+      // adapter-backed profile holds no key, so switching shape drops the one
+      // that was stored.
+      ...(draft.adapterId !== null && draft.adapterId !== undefined
+        ? { encryptedKey: "" }
+        : draft.apiKey === undefined
+          ? {}
+          : { encryptedKey: storeKeyForTenant(tenantId, draft.apiKey) }),
     })
     .where(
       and(
@@ -538,10 +869,13 @@ export async function deleteProviderProfile(
 }
 
 /**
- * The three providers an agent names, decrypted for the bridge.
+ * The three providers an agent names, resolved for the bridge.
  *
- * A profile of the wrong kind is not the agent's to name, and is left out rather
- * than sent as a mismatch the runtime would have to refuse.
+ * A direct profile resolves to the OpenAI-compatible path; one that names an
+ * adapter resolves to the adapter's endpoint, token and config, which is what an
+ * adapter client needs. A profile of the wrong kind is not the agent's to name,
+ * and is left out rather than sent as a mismatch the runtime would have to
+ * refuse.
  */
 export async function providersForAgent(
   userId: string,
@@ -550,14 +884,14 @@ export async function providersForAgent(
   voice?: string | null,
   /** An owner answers from the deployment's built-ins; an admin may use account profiles. */
   options: { allowCustom?: boolean } = {}
-): Promise<{ stt: RuntimeProvider | null; tts: RuntimeProvider | null; llm: RuntimeProvider | null }> {
+): Promise<{ stt: TurnProvider | null; tts: TurnProvider | null; llm: TurnProvider | null }> {
   const tenantId = await tenantForUser(userId);
 
   async function one(
     kind: ProviderKind,
     id: string | null,
     voiceOverride?: string | null
-  ): Promise<RuntimeProvider | null> {
+  ): Promise<TurnProvider | null> {
     const named = id === null ? undefined : await findProviderProfile(userId, id);
     let row = named !== undefined && named.kind === kind ? named : undefined;
     // An owner answers from the deployment's built-ins, whatever an older agent
@@ -566,7 +900,20 @@ export async function providersForAgent(
       row = await defaultProviderProfile(kind, tenantId);
     }
     if (row === undefined) return null;
-    const provider = runtimeProvider(row);
+    const provider = await resolveTurnProvider(row);
+    // An adapter-backed profile travels in the adapter chain, not as an
+    // OpenAI-compatible provider. Beside it, the platform's speech provider is
+    // the fallback: a Vietnamese turn keeps platform speech when the adapter is
+    // below the hard floor, and a failed chain still has somewhere to go.
+    if (provider === null || provider.path === "adapter") {
+      const fallbackProfile = await defaultProviderProfile(kind, tenantId);
+      if (fallbackProfile === undefined) return null;
+      const fallback = await resolveTurnProvider(fallbackProfile);
+      if (fallback === null || fallback.path === "adapter") return null;
+      return voiceOverride !== undefined && voiceOverride !== null && voiceOverride !== ""
+        ? { ...fallback, voice: voiceOverride }
+        : fallback;
+    }
     return voiceOverride !== undefined && voiceOverride !== null && voiceOverride !== ""
       ? { ...provider, voice: voiceOverride }
       : provider;
@@ -576,6 +923,147 @@ export async function providersForAgent(
     stt: await one("stt", ids.stt),
     tts: await one("tts", ids.tts, voice),
     llm: await one("llm", ids.llm),
+  };
+}
+
+/**
+ * One candidate in a turn's adapter chain.
+ *
+ * It carries what an adapter call needs — the endpoint, the platform-issued
+ * token and the opaque config — and the capabilities the runtime may use to
+ * explain a choice. A token here is decrypted for the bridge and never for a
+ * browser.
+ */
+export interface ProviderChainCandidate {
+  adapterId: string;
+  endpoint: string;
+  token: string;
+  tenantId: string;
+  config: Record<string, unknown> | null;
+  capabilities: {
+    tools?: boolean;
+    languages?: string[];
+    streaming?: boolean;
+  } | null;
+  /** The voice a `tts` turn asks for; the adapter's own when the profile names none. */
+  voice?: string;
+  timeoutMs: number;
+}
+
+/** The design's per-operation timeouts. */
+const CHAIN_TIMEOUT_MS: Record<ProviderKind, number> = {
+  llm: 30_000,
+  stt: 60_000,
+  tts: 30_000,
+};
+
+/**
+ * The ordered adapter chain an agent's kinds may use.
+ *
+ * A profile that names an adapter puts that adapter first, with the profile's
+ * own config; the rest keep the tenant's policy order. Only verified, healthy
+ * adapters that belong to this tenant are candidates. A direct profile has no
+ * chain — it travels the OpenAI-compatible provider path instead.
+ */
+/** The Vietnamese hard floor for reseller speech. */
+const VI_STT_WER_FLOOR = 0.15;
+const VI_TTS_NATURALNESS_FLOOR = 3.0;
+
+function meetsSpeechFloor(
+  kind: ProviderKind,
+  candidate: {
+    quality: { wer?: number; ttsNaturalness?: number } | null;
+  }
+): boolean {
+  if (kind === "stt") {
+    return (candidate.quality?.wer ?? Number.POSITIVE_INFINITY) <= VI_STT_WER_FLOOR;
+  }
+  if (kind === "tts") {
+    return (
+      (candidate.quality?.ttsNaturalness ?? Number.NEGATIVE_INFINITY) >=
+      VI_TTS_NATURALNESS_FLOOR
+    );
+  }
+  return true;
+}
+
+export async function providerChainForAgent(
+  userId: string,
+  ids: { stt: string | null; tts: string | null; llm: string | null },
+  options: { allowCustom?: boolean; language?: string } = {}
+): Promise<{
+  stt: ProviderChainCandidate[];
+  tts: ProviderChainCandidate[];
+  llm: ProviderChainCandidate[];
+}> {
+  const tenantId = await tenantForUser(userId);
+  if (tenantId === null) return { stt: [], tts: [], llm: [] };
+  const tenant = tenantId;
+
+  async function chain(
+    kind: ProviderKind,
+    id: string | null
+  ): Promise<ProviderChainCandidate[]> {
+    const named = id === null ? undefined : await findProviderProfile(userId, id);
+    let row = named !== undefined && named.kind === kind ? named : undefined;
+    if (options.allowCustom === false && (row === undefined || !row.builtin)) {
+      row = await defaultProviderProfile(kind, tenantId);
+    }
+    if (row === undefined || row.adapterId === null) return [];
+    const profileRow = row;
+    const namedId = profileRow.adapterId;
+    if (namedId === null) return [];
+
+    const resolved = await resolveAdapterChain(tenant, kind);
+    // For Vietnamese, a reseller speech adapter below the hard floor cannot be
+    // the Vietnamese path. Its absence leaves the platform's speech provider
+    // (returned beside this chain) answering, which is the preference the floor
+    // exists to keep.
+    const candidates =
+      options.language === "vietnamese" && (kind === "stt" || kind === "tts")
+        ? resolved.filter((candidate) => meetsSpeechFloor(kind, candidate))
+        : resolved;
+    if (!candidates.some((candidate) => candidate.id === namedId)) return [];
+
+    const ordered = [
+      ...candidates.filter((candidate) => candidate.id === namedId),
+      ...candidates.filter((candidate) => candidate.id !== namedId),
+    ];
+    const stored = await getDb()
+      .select({
+        id: providerAdapters.id,
+        tenantId: providerAdapters.tenantId,
+        tokenEncrypted: providerAdapters.tokenEncrypted,
+      })
+      .from(providerAdapters)
+      .where(inArray(providerAdapters.id, ordered.map((candidate) => candidate.id)));
+    const byId = new Map(stored.map((adapter) => [adapter.id, adapter]));
+
+    const chain: ProviderChainCandidate[] = [];
+    for (const candidate of ordered) {
+      const adapter = byId.get(candidate.id);
+      if (adapter === undefined || adapter.tenantId === null) continue;
+      chain.push({
+        adapterId: candidate.id,
+        endpoint: candidate.endpoint,
+        token:
+          adapter.tokenEncrypted === ""
+            ? ""
+            : decryptSecret(adapter.tokenEncrypted, encryptionKeyForTenant(adapter.tenantId)),
+        tenantId: adapter.tenantId,
+        config: candidate.id === namedId ? (profileRow.config ?? null) : null,
+        capabilities: candidate.capabilities,
+        ...(kind === "tts" && profileRow.voice !== null ? { voice: profileRow.voice } : {}),
+        timeoutMs: CHAIN_TIMEOUT_MS[kind],
+      });
+    }
+    return chain;
+  }
+
+  return {
+    stt: await chain("stt", ids.stt),
+    tts: await chain("tts", ids.tts),
+    llm: await chain("llm", ids.llm),
   };
 }
 
@@ -728,7 +1216,8 @@ export type SpeechTestResult =
   | { ok: true; contentType: string; audio: Buffer }
   | { ok: false; error: string };
 
-const TEST_SAMPLE = "Xin chào, đây là giọng đọc thử.";
+/** The short sample a settings test and an audition speak when asked for none. */
+export const SPEECH_TEST_SAMPLE = "Xin chào, đây là giọng đọc thử.";
 
 export async function testSpeechProvider(input: {
   baseUrl: string;
@@ -755,7 +1244,7 @@ export async function testSpeechProvider(input: {
           ? {}
           : { authorization: `Bearer ${input.apiKey}` }),
       },
-      body: JSON.stringify({ model, input: TEST_SAMPLE, voice, response_format: "wav" }),
+      body: JSON.stringify({ model, input: SPEECH_TEST_SAMPLE, voice, response_format: "wav" }),
       signal: controller.signal,
       redirect: "error",
     });

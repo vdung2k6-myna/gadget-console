@@ -5,8 +5,11 @@ import {
   activeAccountProvider,
   defaultProviderProfileFor,
   findProviderProfile,
+  resolveTurnProvider,
   runtimeProvider,
+  SPEECH_TEST_SAMPLE,
 } from "@/lib/provider-profiles";
+import { synthesizeWithAdapter } from "@/lib/adapter-tts";
 import { findRuntime } from "@/lib/runtimes";
 
 /**
@@ -70,7 +73,63 @@ export async function POST(request: Request) {
     );
   }
 
+  const resolved = await resolveTurnProvider(profile);
+  if (resolved === null) {
+    return NextResponse.json(
+      { ok: false, error: "the TTS profile's adapter is no longer available" },
+      { status: 400 }
+    );
+  }
+
+  // An adapter-backed profile speaks its own voice: the console calls the
+  // adapter client directly, and there is no deployment conversion to rehearse.
+  if (resolved.path === "adapter") {
+    const adapterVoice = requestedVoice === "" ? resolved.voice : requestedVoice;
+    if (adapterVoice === undefined || adapterVoice === "") {
+      return NextResponse.json(
+        { ok: false, error: "the TTS profile has no voice" },
+        { status: 400 }
+      );
+    }
+    if (resolved.tenantId === null || resolved.tenantId === "") {
+      return NextResponse.json(
+        { ok: false, error: "the adapter belongs to no tenant" },
+        { status: 400 }
+      );
+    }
+    const text =
+      typeof body.text === "string" && body.text.trim() !== ""
+        ? body.text.trim().slice(0, 200)
+        : SPEECH_TEST_SAMPLE;
+    const result = await synthesizeWithAdapter({
+      endpoint: resolved.endpoint,
+      token: resolved.token,
+      adapterId: resolved.adapterId,
+      tenantId: resolved.tenantId,
+      text,
+      voice: adapterVoice,
+      language: "vi",
+      config: resolved.config,
+    });
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, error: result.detail }, { status: 502 });
+    }
+    return new NextResponse(new Uint8Array(result.audio), {
+      status: 200,
+      headers: {
+        "Content-Type": result.contentType,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const provider = runtimeProvider(profile);
+  if (provider.baseUrl === undefined || provider.model === undefined) {
+    return NextResponse.json(
+      { ok: false, error: "the TTS profile has no endpoint or model" },
+      { status: 400 }
+    );
+  }
   if (provider.baseUrl === "" || provider.model === "") {
     return NextResponse.json(
       { ok: false, error: "the TTS profile has no endpoint or model" },

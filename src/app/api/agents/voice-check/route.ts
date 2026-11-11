@@ -42,6 +42,14 @@ export async function POST(request: Request) {
     });
   }
   const provider = runtimeProvider(profile);
+  // The direct test speaks to an OpenAI-compatible endpoint. An adapter-backed
+  // profile has no endpoint here: the adapter client makes that call.
+  if (provider.baseUrl === undefined || provider.model === undefined) {
+    return NextResponse.json({
+      ok: false,
+      error: "this voice is served by an adapter, so there is no direct endpoint to test",
+    });
+  }
 
   const result = await testSpeechProvider({
     baseUrl: provider.baseUrl,

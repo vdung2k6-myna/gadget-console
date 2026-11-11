@@ -20,7 +20,7 @@ both run again.
 | `error-mapping` | a malformed request answers 400 with `error.code` |
 | `stt-transcribe` | multipart WAV answers text and language |
 | `tts-voices` | `GET /v1/tts/voices` answers a voices array |
-| `tts-audio` | `POST /v1/tts/speech` answers a non-empty audio body |
+| `tts-audio` | `POST /v1/tts/synthesize` answers a non-empty audio body |
 
 ## Vietnamese benchmark
 

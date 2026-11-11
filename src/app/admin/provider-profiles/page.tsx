@@ -3,6 +3,7 @@ import Link from "next/link";
 import { TenantBuiltinForm } from "@/components/TenantBuiltinForm";
 import { requireTenantAdminSurface } from "@/lib/auth/admin";
 import {
+  listSelectableAdapters,
   listTenantBuiltins,
   listTenantProviderProfiles,
 } from "@/lib/provider-profiles";
@@ -25,10 +26,18 @@ export default async function AdminProviderBuiltinsPage() {
   const adminStrings = adminStringsFor(locale);
   const { tenantId } = await requireTenantAdminSurface();
 
-  const [builtins, profiles] = await Promise.all([
+  const [builtins, profiles, adapters] = await Promise.all([
     listTenantBuiltins(tenantId),
     listTenantProviderProfiles(tenantId),
+    listSelectableAdapters(tenantId),
   ]);
+  const adapterNames = new Map(
+    adapters.map((adapter) => [adapter.id, adapter.name])
+  );
+  const modelLabel = (adapterId: string | null, model: string | null): string =>
+    adapterId === null
+      ? (model ?? "")
+      : (adapterNames.get(adapterId) ?? adapterId);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -73,7 +82,7 @@ export default async function AdminProviderBuiltinsPage() {
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">{row.scope}</p>
                     </td>
                     <td className="py-2 pr-4">{kindLabel(row.kind, strings)}</td>
-                    <td className="py-2 pr-4">{row.model}</td>
+                    <td className="py-2 pr-4">{modelLabel(row.adapterId, row.model)}</td>
                     <td className="py-2 pr-4 text-zinc-600 dark:text-zinc-400">
                       {row.ownerEmail ?? adminStrings.noOwner}
                     </td>
@@ -114,7 +123,7 @@ export default async function AdminProviderBuiltinsPage() {
               <tr key={row.id} className="border-b border-zinc-100 dark:border-zinc-900">
                 <td className="py-2 pr-4 font-medium">{row.name}</td>
                 <td className="py-2 pr-4">{kindLabel(row.kind, strings)}</td>
-                <td className="py-2 pr-4">{row.model}</td>
+                <td className="py-2 pr-4">{modelLabel(row.adapterId, row.model)}</td>
                 <td className="py-2 pr-4 font-mono text-xs">{row.voice ?? ""}</td>
                 <td className="py-2">
                   {row.isDefault ? strings.providerProfiles.defaultLabel : ""}
@@ -126,7 +135,7 @@ export default async function AdminProviderBuiltinsPage() {
       )}
       </section>
 
-      <TenantBuiltinForm />
+      <TenantBuiltinForm adapters={adapters} />
     </main>
   );
 }
