@@ -23,6 +23,9 @@ export async function POST(request: Request) {
   if (tenant === undefined) {
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
   }
+  if (tenant.status !== "active") {
+    return NextResponse.json({ error: "tenant suspended" }, { status: 423 });
+  }
 
   const state = await activationState(deviceId, tenant.id);
   if (state === "owned") return NextResponse.json({ activated: true });

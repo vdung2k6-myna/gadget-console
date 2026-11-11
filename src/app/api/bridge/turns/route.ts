@@ -16,6 +16,9 @@ export async function POST(request: Request) {
 
   const result = await recordTurn(body);
   if (!result.ok) {
+    if (result.reason === "suspended") {
+      return NextResponse.json({ error: "tenant suspended" }, { status: 423 });
+    }
     return result.reason === "device-not-found"
       ? NextResponse.json({ error: "not found" }, { status: 404 })
       : NextResponse.json({ error: "a turn needs a device, two texts, a language, an engine and both times" }, { status: 400 });

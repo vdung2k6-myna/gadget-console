@@ -262,7 +262,7 @@ export interface TurnRecord {
 
 export type RecordResult =
   | { ok: true; id: string }
-  | { ok: false; reason: "device-not-found" | "invalid" };
+  | { ok: false; reason: "device-not-found" | "invalid" | "suspended" };
 
 /** Stores one served turn. Text only; a turn that was not served is not one. */
 export async function recordTurn(input: unknown): Promise<RecordResult> {
@@ -303,6 +303,15 @@ export async function recordTurn(input: unknown): Promise<RecordResult> {
   const device = rows[0];
   // A gadget nobody owns records nothing: there was no owner to record it for.
   if (device === undefined || device.userId === null) return { ok: false, reason: "device-not-found" };
+
+  // A suspended tenant keeps every row but is not served; a turn that arrives
+  // after the suspension is not one of its records.
+  if (device.tenantId !== null) {
+    const tenant = await findTenant(device.tenantId);
+    if (tenant !== undefined && tenant.status !== "active") {
+      return { ok: false, reason: "suspended" };
+    }
+  }
 
   const inserted = await getDb()
     .insert(turns)

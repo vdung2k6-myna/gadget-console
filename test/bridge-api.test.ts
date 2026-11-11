@@ -6,6 +6,7 @@ import { registerAccount } from "../src/lib/auth/accounts";
 import { bridgeAuthorized } from "../src/lib/bridge/auth";
 import { activationState, resolveDevice, recordTurn } from "../src/lib/bridge/registry";
 import { approveClaim, claimDevice, issueClaim, releaseDevice, resetClaimRateLimit } from "../src/lib/claims";
+import { suspendTenant } from "../src/lib/tenants";
 import { ownDevice as own } from "./helpers/own";
 import { createRuntime } from "../src/lib/runtimes";
 import { agents, claims, devices, firmwareReleases, tenantDomains, tenants, turns } from "../src/lib/db/schema";
@@ -200,6 +201,37 @@ describe("recording a turn", () => {
     const ann = await account("ann@example.com");
     await ownedDevice(ann.id);
     assert.deepEqual(await recordTurn({ deviceId: MAC }), { ok: false, reason: "invalid" });
+  });
+
+  it("refuses a turn for a suspended tenant", async () => {
+    const ann = await account("ann@example.com");
+    const device = await ownedDevice(ann.id);
+    const [tenant] = await getDb()
+      .insert(tenants)
+      .values({ name: "Suspended", slug: "suspended" })
+      .returning();
+    await getDb()
+      .update(devices)
+      .set({ tenantId: tenant!.id })
+      .where(eq(devices.id, device.id));
+    await suspendTenant(tenant!.id);
+
+    const result = await recordTurn({
+      deviceId: MAC,
+      userText: "xin chào",
+      assistantText: "chào bạn",
+      language: "vietnamese",
+      engine: "engine-a",
+      startedAt: started,
+      endedAt: ended,
+    });
+    assert.deepEqual(result, { ok: false, reason: "suspended" });
+    assert.equal((await getDb().select().from(turns)).length, 0);
+    assert.equal(
+      (await getDb().select().from(devices).where(eq(devices.id, device.id))).length,
+      1,
+      "suspension keeps the device row"
+    );
   });
 
   it("refuses a turn for a gadget nobody owns", async () => {
@@ -425,5 +457,31 @@ describe("tenant-scoped bridge resolution", () => {
     assert.equal(response.status, 403);
     const body = (await response.json()) as { error?: string };
     assert.match(body.error ?? "", /wrong tenant/i);
+  });
+
+  it("refuses a suspended tenant's gateway host", async () => {
+    const { first } = await twoTenants();
+    await getDb().insert(tenantDomains).values({
+      tenantId: first.id,
+      domain: "gateway.suspended.example",
+      kind: "gateway",
+    });
+    await suspendTenant(first.id);
+
+    const request = new Request("http://gateway.suspended.example/api/bridge/resolve", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${process.env.BRIDGE_TOKEN}`,
+        "content-type": "application/json",
+        "x-forwarded-host": "gateway.suspended.example",
+      },
+      body: JSON.stringify({ deviceId: MAC }),
+    });
+
+    const response = await resolveRoute(request);
+    assert.equal(response.status, 423);
+    const body = (await response.json()) as { error?: string };
+    assert.match(body.error ?? "", /suspended/i);
+    assert.equal((await getDb().select().from(devices)).length, 0);
   });
 });

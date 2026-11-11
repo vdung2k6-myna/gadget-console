@@ -190,8 +190,10 @@ filters and the ordering.
 
 ## Lifecycle
 
-`suspendTenant` keeps every row and only changes the serving decision; OTA and
-turn refusal is the bridge task. `exportTenant` returns the tenant's users,
+`suspendTenant` keeps every row and only changes the serving decision. The bridge
+resolve, activation and turn endpoints answer `423 tenant suspended`, so an OTA
+or socket request is refused and a turn is not recorded; the rows remain for
+resume or export. `exportTenant` returns the tenant's users,
 devices, agents, claims, firmware, profiles, turns and usage with password
 hashes, device secrets, provider keys and claim codes removed. `deleteTenant`
 removes the tenant row, every owned row follows its cascade, and the firmware
