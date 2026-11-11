@@ -107,9 +107,10 @@ for `llm` only, because a speech built-in always names an adapter.
 
 - **OpenAI-compatible endpoint** shows the base URL, model, a temperature for
   `llm`, and the write-only key.
-- **Registered adapter** shows an adapter picker (only adapters registered to the
-  tenant or the platform, and serving the selected kind) and a JSON config box.
-  No base URL, model or key is asked for; the adapter holds the key.
+- **Registered adapter** shows an adapter picker — the tenant's own adapters and,
+  for the answering model, the platform's; a speech built-in offers only the
+  tenant's — and a JSON config box. No base URL, model or key is asked for; the
+  adapter holds the key.
 
 A `tts` profile always shows its voice field, in either shape. The list views
 show an adapter-backed profile by its adapter's name instead of a model.

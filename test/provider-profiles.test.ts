@@ -402,6 +402,51 @@ describe("a stored provider profile", () => {
       agentsAffected: 0,
     });
   });
+
+  it("refuses to edit or delete a built-in", async () => {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const builtins = await getDb()
+      .insert(providerProfiles)
+      .values([
+        {
+          tenantId,
+          userId: null,
+          builtin: true,
+          kind: "llm",
+          name: "tenant model",
+          baseUrl: "https://tenant.example/v1",
+          model: "m",
+          encryptedKey: "",
+        },
+        {
+          tenantId: null,
+          userId: null,
+          builtin: true,
+          kind: "llm",
+          name: "platform model",
+          baseUrl: "https://platform.example/v1",
+          model: "m",
+          encryptedKey: "",
+        },
+      ])
+      .returning();
+
+    const validation = validateProviderDraft(draft(), { requireKey: false });
+    if (!validation.ok) throw new Error("draft should be valid");
+    for (const builtin of builtins) {
+      assert.equal(await updateProviderProfile(ann.id, builtin.id, validation.draft), undefined);
+      assert.deepEqual(await deleteProviderProfile(ann.id, builtin.id), {
+        deleted: false,
+        agentsAffected: 0,
+      });
+      assert.equal(
+        (await findProviderProfile(ann.id, builtin.id))?.name,
+        builtin.name,
+        "the built-in is unchanged"
+      );
+    }
+  });
 });
 
 describe("an agent's provider profile", () => {
@@ -850,6 +895,96 @@ describe("tenant speech built-ins", () => {
     if (providers.tts === null || providers.tts.path !== "openai-compatible") return;
     assert.equal(providers.tts.name, "platform voice");
     assert.equal(providers.tts.baseUrl, "http://platform.test");
+  });
+
+  async function tenantSpeechFixture(options: {
+    kind: "stt" | "tts";
+    quality: { wer?: number; ttsNaturalness?: number };
+  }) {
+    const ann = await account("ann@example.com");
+    const tenantId = await tenantOfUser(ann.id);
+    const issued = await adapter(tenantId, { kinds: [options.kind], name: "reseller-speech" });
+    await getDb()
+      .update(providerAdapters)
+      .set({ quality: options.quality })
+      .where(eq(providerAdapters.id, issued.id));
+
+    const published = await publishTenantBuiltin(tenantId, {
+      kind: options.kind,
+      name: "reseller speech",
+      adapterId: issued.id,
+      ...(options.kind === "tts" ? { voice: "vi-female-1" } : {}),
+      default: true,
+    });
+    if (!published.ok) throw new Error(published.errors.join("; "));
+
+    await getDb()
+      .insert(providerProfiles)
+      .values({
+        tenantId: null,
+        userId: null,
+        builtin: true,
+        isDefault: true,
+        kind: options.kind,
+        name: "platform speech",
+        baseUrl: "http://platform.test",
+        model: "engine-a",
+        ...(options.kind === "tts" ? { voice: "platform_voice" } : {}),
+        encryptedKey: "",
+      });
+
+    return { ann, tenantId, builtin: published.profile };
+  }
+
+  it("answers a below-floor tenant speech built-in on the platform built-in", async () => {
+    const { ann, builtin } = await tenantSpeechFixture({
+      kind: "stt",
+      quality: { wer: 0.4 },
+    });
+
+    const chain = await providerChainForAgent(
+      ann.id,
+      { stt: builtin.id, tts: null, llm: null },
+      { language: "vietnamese" }
+    );
+    assert.deepEqual(chain.stt, [], "below the Vietnamese WER floor");
+
+    const providers = await providersForAgent(ann.id, {
+      stt: builtin.id,
+      tts: null,
+      llm: null,
+    });
+    assert.ok(providers.stt !== null && providers.stt.path === "openai-compatible");
+    if (providers.stt === null || providers.stt.path !== "openai-compatible") return;
+    assert.equal(providers.stt.name, "platform speech");
+  });
+
+  it("excludes a tenant speech built-in under local-only", async () => {
+    const { ann, tenantId, builtin } = await tenantSpeechFixture({
+      kind: "tts",
+      quality: { ttsNaturalness: 4 },
+    });
+    await getDb()
+      .update(tenants)
+      .set({ adapterPolicy: { localOnly: true } })
+      .where(eq(tenants.id, tenantId));
+
+    const chain = await providerChainForAgent(ann.id, {
+      stt: null,
+      tts: builtin.id,
+      llm: null,
+    });
+    assert.deepEqual(chain.tts, [], "local-only uses platform speech only");
+
+    const providers = await providersForAgent(
+      ann.id,
+      { stt: null, tts: builtin.id, llm: null },
+      undefined,
+      { allowCustom: true }
+    );
+    assert.ok(providers.tts !== null && providers.tts.path === "openai-compatible");
+    if (providers.tts === null || providers.tts.path !== "openai-compatible") return;
+    assert.equal(providers.tts.name, "platform speech");
   });
 });
 

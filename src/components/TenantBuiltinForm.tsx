@@ -40,7 +40,11 @@ export function TenantBuiltinForm({ adapters }: { adapters: SelectableAdapter[] 
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
 
-  const adaptersForKind = adapters.filter((adapter) => adapter.kinds.includes(kind));
+  // A speech built-in must name an adapter of this tenant, so the platform's
+  // adapters are offered only for the answering model.
+  const adaptersForKind = adapters.filter(
+    (adapter) => adapter.kinds.includes(kind) && (kind === "llm" || adapter.tenantId !== null)
+  );
   const selectedAdapter = adaptersForKind.some((adapter) => adapter.id === adapterId)
     ? adapterId
     : "";

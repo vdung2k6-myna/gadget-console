@@ -14,6 +14,35 @@ export type FloorRefusal = "not-verified" | "unhealthy" | "unsupported-kind" | "
 
 export type FloorVerdict = { allowed: true } | { allowed: false; reason: FloorRefusal };
 
+/** The scores a speech adapter records when it is benchmarked. */
+export type SpeechQuality = { wer?: number; ttsNaturalness?: number } | null;
+
+export type SpeechQualityVerdict =
+  | { ok: true }
+  | { ok: false; reason: "missing-score" | "below-floor" };
+
+/**
+ * The quality floor alone. Verification and health are the caller's checks.
+ *
+ * Both the adapter gate and the chain resolver read this, so a floor change
+ * cannot reach one path without the other.
+ */
+export function speechQualityVerdict(
+  kind: "stt" | "tts",
+  quality: SpeechQuality
+): SpeechQualityVerdict {
+  if (kind === "stt") {
+    const wer = quality?.wer;
+    if (typeof wer !== "number") return { ok: false, reason: "missing-score" };
+    if (wer > VI_STT_WER_FLOOR) return { ok: false, reason: "below-floor" };
+    return { ok: true };
+  }
+  const naturalness = quality?.ttsNaturalness;
+  if (typeof naturalness !== "number") return { ok: false, reason: "missing-score" };
+  if (naturalness < VI_TTS_NATURALNESS_FLOOR) return { ok: false, reason: "below-floor" };
+  return { ok: true };
+}
+
 export function speechAdapterAllowed(
   adapter: Pick<AdapterRow, "kinds" | "status" | "health" | "quality">,
   language: string
@@ -26,14 +55,12 @@ export function speechAdapterAllowed(
   if (language !== "vi" && language !== "vietnamese") return { allowed: true };
 
   if (adapter.kinds.includes("stt")) {
-    const wer = adapter.quality?.wer;
-    if (typeof wer !== "number") return { allowed: false, reason: "missing-score" };
-    if (wer > VI_STT_WER_FLOOR) return { allowed: false, reason: "below-floor" };
+    const verdict = speechQualityVerdict("stt", adapter.quality);
+    if (!verdict.ok) return { allowed: false, reason: verdict.reason };
   }
   if (adapter.kinds.includes("tts")) {
-    const naturalness = adapter.quality?.ttsNaturalness;
-    if (typeof naturalness !== "number") return { allowed: false, reason: "missing-score" };
-    if (naturalness < VI_TTS_NATURALNESS_FLOOR) return { allowed: false, reason: "below-floor" };
+    const verdict = speechQualityVerdict("tts", adapter.quality);
+    if (!verdict.ok) return { allowed: false, reason: verdict.reason };
   }
   return { allowed: true };
 }

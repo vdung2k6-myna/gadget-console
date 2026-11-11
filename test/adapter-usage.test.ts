@@ -121,7 +121,7 @@ describe("the bridge's adapter usage report", () => {
     assert.equal(meter.billableSeconds, 2, "with no allowance, platform speech is overage");
   });
 
-  it("records fractional audio observations as whole seconds per call", async () => {
+  it("rounds a report's fractional audio seconds once", async () => {
     const ann = await accountWithTenant("ann@example.com");
     const device = await ownDevice(ann.id, MAC);
     const tenantId = await tenantOfUser(ann.id);
@@ -131,7 +131,7 @@ describe("the bridge's adapter usage report", () => {
         device.deviceId,
         [
           { kind: "tts", adapterId: null, status: "ok", audioSeconds: 1.4 },
-          { kind: "tts", adapterId: null, status: "ok", audioSeconds: 1.6 },
+          { kind: "tts", adapterId: null, status: "ok", audioSeconds: 1.4 },
         ],
         `Bearer ${process.env.BRIDGE_TOKEN}`
       )
@@ -139,7 +139,7 @@ describe("the bridge's adapter usage report", () => {
     assert.equal(response.status, 204);
 
     const meter = await usageReport(tenantId, { since: new Date(Date.now() - 3_600_000) });
-    assert.equal(meter.platformSeconds, 3, "1.4 rounds to 1 and 1.6 rounds to 2");
+    assert.equal(meter.platformSeconds, 3, "1.4 + 1.4 = 2.8, recorded as 3, not 1 + 1");
   });
 
   it("files nothing for another tenant", async () => {

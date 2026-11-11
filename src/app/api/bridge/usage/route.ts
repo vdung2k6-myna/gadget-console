@@ -34,7 +34,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** The meter records whole seconds; a fractional observation is rounded. */
+/** The meter records whole seconds; a report's fractional total is rounded once. */
 function wholeSeconds(value: number | undefined): number {
   return value === undefined || !Number.isFinite(value) ? 0 : Math.max(0, Math.round(value));
 }
@@ -42,6 +42,15 @@ function wholeSeconds(value: number | undefined): number {
 /** The meter's kind: both speech kinds are one metered "speech". */
 function usageKind(kind: "llm" | "stt" | "tts"): "llm" | "speech" {
   return kind === "llm" ? "llm" : "speech";
+}
+
+/** One metered total for a report: a kind, a source and the provider it names. */
+interface UsageGroup {
+  kind: "llm" | "speech";
+  source: "platform" | "reseller";
+  provider: string | null;
+  seconds: number;
+  bytes: number;
 }
 
 export async function POST(request: Request) {
@@ -122,15 +131,36 @@ export async function POST(request: Request) {
       bytes: event.bytes,
       audioSeconds: event.audioSeconds,
     });
-    // A call with no adapter id is platform speech; one naming an adapter is
-    // reseller speech. The platform bills only the former.
+  }
+
+  // The meter rounds a report's fractional seconds once per source, not per
+  // call: three half-second sentences are 1.5s, not three zero-second rows.
+  // A call with no adapter id is platform speech; one naming an adapter is
+  // reseller speech. The platform bills only the former.
+  const groups = new Map<string, UsageGroup>();
+  for (const event of events) {
+    const kind = usageKind(event.kind);
+    const source = event.adapterId === null ? "platform" : "reseller";
+    const key = `${kind}:${source}:${event.adapterId ?? ""}`;
+    const group = groups.get(key) ?? {
+      kind,
+      source,
+      provider: event.adapterId,
+      seconds: 0,
+      bytes: 0,
+    };
+    group.seconds += event.audioSeconds ?? 0;
+    group.bytes += event.bytes ?? 0;
+    groups.set(key, group);
+  }
+  for (const group of groups.values()) {
     await recordUsage({
       tenantId,
-      kind: usageKind(event.kind),
-      source: event.adapterId === null ? "platform" : "reseller",
-      provider: event.adapterId,
-      seconds: wholeSeconds(event.audioSeconds),
-      bytes: Math.max(0, Math.round(event.bytes ?? 0)),
+      kind: group.kind,
+      source: group.source,
+      provider: group.provider,
+      seconds: wholeSeconds(group.seconds),
+      bytes: Math.max(0, Math.round(group.bytes)),
     });
   }
 

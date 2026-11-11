@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db/client";
 import { agents, providerAdapters, providerProfiles, users } from "@/lib/db/schema";
 import { encryptionKeyForTenant, storeKeyForTenant } from "@/lib/crypto/profiles";
 import { decryptSecret } from "@/lib/crypto/secret-box";
+import { speechQualityVerdict } from "@/lib/adapter-floor";
 import { readAdapterPolicy, resolveAdapterChain } from "@/lib/tenancy/adapters";
 import { findTenant } from "@/lib/tenants";
 
@@ -474,6 +475,8 @@ export interface SelectableAdapter {
   name: string;
   kinds: string[];
   status: string;
+  /** Null for a platform adapter; set for one registered to a tenant. */
+  tenantId: string | null;
 }
 
 /**
@@ -493,6 +496,7 @@ export async function listSelectableAdapters(
       name: providerAdapters.name,
       kinds: providerAdapters.kinds,
       status: providerAdapters.status,
+      tenantId: providerAdapters.tenantId,
     })
     .from(providerAdapters)
     .where(
@@ -1000,26 +1004,14 @@ const CHAIN_TIMEOUT_MS: Record<ProviderKind, number> = {
   tts: 30_000,
 };
 
-/** The Vietnamese hard floor for reseller speech. */
-const VI_STT_WER_FLOOR = 0.15;
-const VI_TTS_NATURALNESS_FLOOR = 3.0;
-
 function meetsSpeechFloor(
   kind: ProviderKind,
   candidate: {
     quality: { wer?: number; ttsNaturalness?: number } | null;
   }
 ): boolean {
-  if (kind === "stt") {
-    return (candidate.quality?.wer ?? Number.POSITIVE_INFINITY) <= VI_STT_WER_FLOOR;
-  }
-  if (kind === "tts") {
-    return (
-      (candidate.quality?.ttsNaturalness ?? Number.NEGATIVE_INFINITY) >=
-      VI_TTS_NATURALNESS_FLOOR
-    );
-  }
-  return true;
+  if (kind !== "stt" && kind !== "tts") return true;
+  return speechQualityVerdict(kind, candidate.quality).ok;
 }
 
 /**

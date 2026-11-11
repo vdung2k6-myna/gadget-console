@@ -79,8 +79,8 @@ override and the unbilled reseller path. The bridge's usage report
 (`POST /api/bridge/usage`) writes both ledgers: the egress row for audit and a
 `usage_events` row for the meter, attributed from the device's tenant. A call
 with no adapter id is `platform`; one naming an adapter is `reseller`. The
-runtime reports fractional audio seconds, and the meter records whole seconds,
-rounded per call.
+runtime reports fractional audio seconds; the meter sums a report per source and
+records whole seconds, so short calls are not individually dropped.
 
 ## Quotas
 
