@@ -140,7 +140,8 @@ account may still configure its own speech settings for its own agents.
 | `/agents/new`, `/agents/[id]` | The personality form. “Create a personality” carries a name, language, voice and voice style (OVC); Hear it previews it and Save leaves it unassigned. Assignment is on its card: “Use on gadget” → choose the gadget. `/agents/new?gadget=<id>` is the device shortcut: it loads that gadget's current voice and style; an OVC change saves a copy for that gadget. |
 | `/provider-profiles` | **Administrator only.** The deployment's built-in providers (read-only), the admin account's speech settings, and its answering models. A user gets the not-found page. |
 | `/help` | The guide: every step from unboxing to release, and what each common failure means. |
-| `/admin/devices`, `/admin/users`, `/admin/claims` | The tenant admin area: every device, every account, and the requests waiting for a decision. Visible in the header only to an admin. |
+| `/admin/devices`, `/admin/users`, `/admin/claims` | The tenant admin area: every device, every account, and the requests waiting for a decision in this tenant. Visible in the header only to an admin. |
+| `/admin/agents` | Every personality in the tenant, with its owner, language and voice. |
 | `/admin/platform`, `/admin/platform/users` | **Platform admin only, on the platform host.** Every tenant with its status, hosts and 30-day usage, plus every account grouped by tenant with its role. A tenant host answers not-found. |
 | `/admin/firmware` | The firmware releases, with an upload form, the target for each board type, and the controls that move or clear it. |
 | `/admin/devices/[id]` | Any gadget, with its speech calibration: the pair it uses, whether it comes from the device or the default, and an edit and reset-to-default. A change applies when the gadget next connects. |

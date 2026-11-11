@@ -181,6 +181,7 @@ sanitizing, the locale precedence and the rendered markup.
 | layer | test |
 | --- | --- |
 | repository context and two-tenant matrix | `test/tenancy-isolation.test.ts` |
+| tenant admin reads, claims, firmware and profiles | `test/tenant-admin.test.ts` |
 | host and path resolution | `test/tenancy-resolve.test.ts` |
 | domain registration and uniqueness | `test/tenancy-domains.test.ts` |
 | certificate authorization | `test/tenancy-domain-check.test.ts` |

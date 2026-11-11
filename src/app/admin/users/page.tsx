@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { RoleControl } from "@/components/RoleControl";
-import { requireAdmin } from "@/lib/auth/admin";
-import { isPlatformAdmin } from "@/lib/auth/roles";
+import { requireTenantAdminSurface } from "@/lib/auth/admin";
 import { listAccounts } from "@/lib/users";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
@@ -9,15 +8,10 @@ import { getStrings } from "@/lib/i18n/locale";
 export const instant = false;
 
 export default async function AdminUsersPage() {
-  const { locale } = await getStrings();
+  const { locale, strings } = await getStrings();
   const adminStrings = adminStringsFor(locale);
-  const admin = await requireAdmin();
-  // The platform admin sees every tenant; a tenant admin sees only its own.
-  const scope =
-    isPlatformAdmin(admin.role) || admin.role === "admin"
-      ? undefined
-      : (admin.tenantId ?? "");
-  const accounts = await listAccounts(scope);
+  const { user: admin, tenantId } = await requireTenantAdminSurface();
+  const accounts = await listAccounts(tenantId);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -26,6 +20,9 @@ export default async function AdminUsersPage() {
         <nav className="flex gap-4 text-sm">
           <Link href="/admin/devices" className="hover:underline">
             {adminStrings.devices}
+          </Link>
+          <Link href="/admin/agents" className="hover:underline">
+            {strings.nav.agents}
           </Link>
           <Link href="/admin/claims" className="hover:underline">
             {adminStrings.claims}

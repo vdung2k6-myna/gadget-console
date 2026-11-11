@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentAdmin } from "@/lib/auth/admin";
+import { currentTenantAdminSurface } from "@/lib/auth/admin";
 import { deleteFirmware } from "@/lib/firmware";
 
 type Params = { params: Promise<{ id: string }> };
@@ -12,11 +12,11 @@ const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 }
  * replace the target first.
  */
 export async function DELETE(_request: Request, { params }: Params) {
-  const admin = await currentAdmin();
-  if (admin === undefined) return notFound();
+  const surface = await currentTenantAdminSurface();
+  if (surface === undefined) return notFound();
 
   const { id } = await params;
-  const result = await deleteFirmware(id, admin.email);
+  const result = await deleteFirmware(id, surface.user.email, surface.tenantId);
   if (result === "deleted") return new NextResponse(null, { status: 204 });
   if (result === "targeted") {
     return NextResponse.json({ error: "targeted" }, { status: 409 });

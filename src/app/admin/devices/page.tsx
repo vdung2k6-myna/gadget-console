@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { listAllDevices } from "@/lib/admin";
 import { listAgents } from "@/lib/agents";
-import { requireAdmin } from "@/lib/auth/admin";
+import { requireTenantAdminSurface } from "@/lib/auth/admin";
 import { deviceLabel, elapsed, elapsedText } from "@/lib/ui/format";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
@@ -14,8 +14,8 @@ export default async function AdminDevicesPage() {
   const { locale, strings } = await getStrings();
   const now = await requestNow();
   const adminStrings = adminStringsFor(locale);
-  const admin = await requireAdmin();
-  const devices = await listAllDevices();
+  const { user: admin, tenantId } = await requireTenantAdminSurface();
+  const devices = await listAllDevices(tenantId);
 
   // Agent names are per account, so the name shown is resolved from the owner's
   // own list rather than from a deployment-wide one.
@@ -33,11 +33,17 @@ export default async function AdminDevicesPage() {
           <Link href="/admin/users" className="hover:underline">
             {adminStrings.users}
           </Link>
+          <Link href="/admin/agents" className="hover:underline">
+            {strings.nav.agents}
+          </Link>
           <Link href="/admin/claims" className="hover:underline">
             {adminStrings.claims}
           </Link>
           <Link href="/admin/firmware" className="hover:underline">
             {adminStrings.firmware}
+          </Link>
+          <Link href="/admin/provider-profiles" className="hover:underline">
+            {adminStrings.providerBuiltins}
           </Link>
         </nav>
       </div>

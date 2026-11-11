@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FirmwareActions } from "@/components/FirmwareActions";
 import { FirmwareUpload } from "@/components/FirmwareUpload";
-import { requireAdmin } from "@/lib/auth/admin";
+import { requireTenantAdminSurface } from "@/lib/auth/admin";
 import { loadConfig } from "@/lib/config";
 import { sizeText } from "@/lib/device-board";
 import { firmwareDirectory, listFirmware } from "@/lib/firmware";
@@ -19,12 +19,12 @@ export const instant = false;
  * otherwise look like a release that silently does nothing.
  */
 export default async function AdminFirmwarePage() {
-  const { locale } = await getStrings();
+  const { locale, strings } = await getStrings();
   const adminStrings = adminStringsFor(locale);
-  const admin = await requireAdmin();
+  const { user: admin, tenantId } = await requireTenantAdminSurface();
   const config = loadConfig();
   const storage = firmwareDirectory();
-  const releases = await listFirmware();
+  const releases = await listFirmware(tenantId);
   const disabledReason =
     "problem" in storage
       ? storage.problem === "unset"
@@ -46,8 +46,14 @@ export default async function AdminFirmwarePage() {
           <Link href="/admin/users" className="hover:underline">
             {adminStrings.users}
           </Link>
+          <Link href="/admin/agents" className="hover:underline">
+            {strings.nav.agents}
+          </Link>
           <Link href="/admin/claims" className="hover:underline">
             {adminStrings.claims}
+          </Link>
+          <Link href="/admin/provider-profiles" className="hover:underline">
+            {adminStrings.providerBuiltins}
           </Link>
         </nav>
       </div>

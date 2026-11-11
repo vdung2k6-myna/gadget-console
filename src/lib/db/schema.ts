@@ -312,8 +312,14 @@ export const firmwareReleases = pgTable(
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("firmware_board_version_unique").on(table.boardType, table.version),
-    uniqueIndex("firmware_board_target_unique").on(table.boardType).where(sql`${table.targeted}`),
+    uniqueIndex("firmware_board_version_unique").on(
+      table.tenantId,
+      table.boardType,
+      table.version
+    ),
+    uniqueIndex("firmware_board_target_unique")
+      .on(table.tenantId, table.boardType)
+      .where(sql`${table.targeted}`),
     index("firmware_board_idx").on(table.boardType),
   ]
 );

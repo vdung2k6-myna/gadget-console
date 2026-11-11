@@ -68,6 +68,45 @@ export async function requirePlatformSurface(): Promise<SessionUser> {
   return user;
 }
 
+export interface TenantAdminSurface {
+  user: SessionUser;
+  tenantId: string;
+}
+
+/**
+ * The tenant an admin is looking at.
+ *
+ * A tenant host names it; otherwise the admin's own tenant is used. A tenant
+ * admin may not act on another tenant's host. A platform admin on the platform
+ * host has no tenant surface — that account belongs in the platform area.
+ */
+async function surfaceTenantId(user: SessionUser): Promise<string | undefined> {
+  const resolved = await currentTenant();
+  if (resolved.kind === "tenant") {
+    if (!isPlatformAdmin(user.role) && user.tenantId !== resolved.tenant.id) {
+      return undefined;
+    }
+    return resolved.tenant.id;
+  }
+  return user.tenantId ?? undefined;
+}
+
+export async function requireTenantAdminSurface(): Promise<TenantAdminSurface> {
+  const user = await requireAdmin();
+  const tenantId = await surfaceTenantId(user);
+  if (tenantId === undefined) notFound();
+  return { user, tenantId };
+}
+
+export async function currentTenantAdminSurface(): Promise<
+  TenantAdminSurface | undefined
+> {
+  const user = await currentAdmin();
+  if (user === undefined) return undefined;
+  const tenantId = await surfaceTenantId(user);
+  return tenantId === undefined ? undefined : { user, tenantId };
+}
+
 /** A reseller's own administrator. */
 export async function requireTenantAdmin(): Promise<SessionUser> {
   await connection();

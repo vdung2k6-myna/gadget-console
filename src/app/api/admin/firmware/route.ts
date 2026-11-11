@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentAdmin } from "@/lib/auth/admin";
+import { currentTenantAdminSurface } from "@/lib/auth/admin";
 import { loadConfig } from "@/lib/config";
 import { listFirmware, storeFirmware } from "@/lib/firmware";
 
@@ -7,9 +7,9 @@ const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 }
 
 /** Every release, for the admin page. */
 export async function GET() {
-  const admin = await currentAdmin();
-  if (admin === undefined) return notFound();
-  return NextResponse.json({ releases: await listFirmware() });
+  const surface = await currentTenantAdminSurface();
+  if (surface === undefined) return notFound();
+  return NextResponse.json({ releases: await listFirmware(surface.tenantId) });
 }
 
 /**
@@ -18,8 +18,8 @@ export async function GET() {
  * than buffered.
  */
 export async function POST(request: Request) {
-  const admin = await currentAdmin();
-  if (admin === undefined) return notFound();
+  const surface = await currentTenantAdminSurface();
+  if (surface === undefined) return notFound();
 
   let form: FormData;
   try {
@@ -45,7 +45,8 @@ export async function POST(request: Request) {
 
   const result = await storeFirmware(
     { boardType, version, bytes: Buffer.from(await file.arrayBuffer()) },
-    admin
+    surface.user,
+    surface.tenantId
   );
 
   if (result.ok) return NextResponse.json({ release: result.release }, { status: 201 });

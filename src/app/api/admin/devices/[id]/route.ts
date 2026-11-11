@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDevice } from "@/lib/admin";
 import { adminBindAgent, adminPair, adminRelease, adminRename } from "@/lib/admin-actions";
-import { currentAdmin } from "@/lib/auth/admin";
+import { currentTenantAdminSurface } from "@/lib/auth/admin";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -23,11 +23,11 @@ function rejected(reason: "not-found" | "no-owner" | "self") {
  * `src/lib/admin-actions.ts`.
  */
 export async function PATCH(request: Request, { params }: Params) {
-  const admin = await currentAdmin();
-  if (admin === undefined) return notFound();
+  const surface = await currentTenantAdminSurface();
+  if (surface === undefined) return notFound();
 
   const { id } = await params;
-  if ((await adminDevice(id)) === undefined) return notFound();
+  if ((await adminDevice(id, surface.tenantId)) === undefined) return notFound();
 
   let body: unknown;
   try {
@@ -41,7 +41,7 @@ export async function PATCH(request: Request, { params }: Params) {
   const fields = body as Record<string, unknown>;
 
   if (typeof fields.name === "string") {
-    const result = await adminRename(admin.email, id, fields.name);
+    const result = await adminRename(surface.user.email, id, fields.name, surface.tenantId);
     if (!result.ok) return rejected(result.reason);
   }
 
@@ -51,7 +51,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (agentId === undefined) {
       return NextResponse.json({ error: "agentId must be a string or null" }, { status: 400 });
     }
-    const result = await adminBindAgent(admin.email, id, agentId);
+    const result = await adminBindAgent(surface.user.email, id, agentId, surface.tenantId);
     if (!result.ok) return rejected(result.reason);
   }
 
@@ -65,18 +65,18 @@ export async function PATCH(request: Request, { params }: Params) {
     if (partnerId === undefined) {
       return NextResponse.json({ error: "partnerDeviceId must be a string or null" }, { status: 400 });
     }
-    const result = await adminPair(admin.email, id, partnerId);
+    const result = await adminPair(surface.user.email, id, partnerId, surface.tenantId);
     if (!result.ok) return rejected(result.reason);
   }
 
-  return NextResponse.json({ device: await adminDevice(id) });
+  return NextResponse.json({ device: await adminDevice(id, surface.tenantId) });
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
-  const admin = await currentAdmin();
-  if (admin === undefined) return notFound();
+  const surface = await currentTenantAdminSurface();
+  if (surface === undefined) return notFound();
 
   const { id } = await params;
-  const result = await adminRelease(admin.email, id);
+  const result = await adminRelease(surface.user.email, id, surface.tenantId);
   return result.ok ? new NextResponse(null, { status: 204 }) : rejected(result.reason);
 }

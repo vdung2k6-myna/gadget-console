@@ -127,6 +127,13 @@
       "when": 1794354218609,
       "tag": "0017_serious_magik",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794360778050,
+      "tag": "0018_careless_harry_osborn",
+      "breakpoints": true
     }
   ]
 }

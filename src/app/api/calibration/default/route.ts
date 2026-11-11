@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { currentAdmin } from "@/lib/auth/admin";
+import { currentPlatformAdmin } from "@/lib/auth/admin";
 import { notFound } from "@/lib/auth/guard";
 import { getDefaultPair, setDefaultPair, validatePair } from "@/lib/device-calibration";
 
 /** The deployment default: what a device without its own pair uses. Administrator-only. */
 export async function GET() {
-  const admin = await currentAdmin();
+  const admin = await currentPlatformAdmin();
   if (admin === undefined) return notFound();
   return NextResponse.json({ default: await getDefaultPair() });
 }
 
 export async function PUT(request: Request) {
-  const admin = await currentAdmin();
+  const admin = await currentPlatformAdmin();
   if (admin === undefined) return notFound();
 
   let body: unknown;

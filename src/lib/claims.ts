@@ -265,8 +265,12 @@ export async function pendingRequestsFor(userId: string): Promise<PendingRequest
 }
 
 /** Every request waiting for an admin. */
-export async function listPendingRequests(): Promise<PendingRequest[]> {
-  return pendingRows(undefined);
+export async function listPendingRequests(
+  tenantId?: string
+): Promise<PendingRequest[]> {
+  return pendingRows(
+    tenantId === undefined ? undefined : eq(claims.tenantId, tenantId)
+  );
 }
 
 export type ApprovalResult = "approved" | "rejected" | "not-found" | "taken" | "expired";
@@ -276,11 +280,18 @@ export type ApprovalResult = "approved" | "rejected" | "not-found" | "taken" | "
  * Approved whole or refused whole — a claim that arrives after the device was
  * claimed by somebody else is not applied over them.
  */
-export async function approveClaim(adminEmail: string, claimId: string): Promise<ApprovalResult> {
+export async function approveClaim(
+  adminEmail: string,
+  claimId: string,
+  tenantId?: string
+): Promise<ApprovalResult> {
   const outcome = await getDb().transaction(async (tx) => {
     const claimRows = await tx.select().from(claims).where(eq(claims.id, claimId)).for("update").limit(1);
     const claim = claimRows[0];
     if (claim === undefined || claim.consumedAt === null || claim.userId === null) {
+      return "not-found" as const;
+    }
+    if (tenantId !== undefined && claim.tenantId !== tenantId) {
       return "not-found" as const;
     }
     if (claim.approvedAt !== null || claim.rejectedAt !== null) return "not-found" as const;
@@ -314,7 +325,11 @@ export async function approveClaim(adminEmail: string, claimId: string): Promise
   return outcome;
 }
 
-export async function rejectClaim(adminEmail: string, claimId: string): Promise<ApprovalResult> {
+export async function rejectClaim(
+  adminEmail: string,
+  claimId: string,
+  tenantId?: string
+): Promise<ApprovalResult> {
   const rows = await getDb()
     .select()
     .from(claims)
@@ -322,6 +337,7 @@ export async function rejectClaim(adminEmail: string, claimId: string): Promise<
     .limit(1);
   const claim = rows[0];
   if (claim === undefined || claim.consumedAt === null || claim.approvedAt !== null) return "not-found";
+  if (tenantId !== undefined && claim.tenantId !== tenantId) return "not-found";
   if (claim.rejectedAt !== null) return "not-found";
 
   await getDb().update(claims).set({ rejectedAt: new Date() }).where(eq(claims.id, claimId));

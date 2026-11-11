@@ -42,7 +42,9 @@ export default async function DevicePage({ params }: Params) {
   const partner = device.partnerDeviceId === null ? undefined : others.find((entry) => entry.id === device.partnerDeviceId);
   const board = boardView(device.hardware, strings);
   const target =
-    device.hardware?.board?.type === undefined ? undefined : await targetFor(device.hardware.board.type);
+    device.hardware?.board?.type === undefined
+      ? undefined
+      : await targetFor(device.hardware.board.type, device.tenantId);
   const firmware = firmwareView(device.hardware, target?.version);
 
   return (

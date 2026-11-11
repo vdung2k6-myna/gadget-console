@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { recordFirmwareAction } from "@/lib/admin";
 import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/db/client";
@@ -124,10 +124,26 @@ export type StoreResult =
 /** Stores an image and its row, or refuses without leaving either behind. */
 export async function storeFirmware(
   input: unknown,
-  admin: { id: string; email: string }
+  admin: { id: string; email: string },
+  tenantId?: string
 ): Promise<StoreResult> {
   const validation = validateFirmwareUpload(input);
   if (!validation.ok) return { ok: false, reason: "invalid", errors: validation.errors };
+
+  // Postgres treats NULLs as distinct in a unique index, so a platform-wide
+  // release (tenant_id NULL) is checked here as well.
+  const existing = await getDb()
+    .select({ id: firmwareReleases.id })
+    .from(firmwareReleases)
+    .where(
+      and(
+        eq(firmwareReleases.boardType, validation.boardType),
+        eq(firmwareReleases.version, validation.version),
+        tenantScope(tenantId ?? null)
+      )
+    )
+    .limit(1);
+  if (existing[0] !== undefined) return { ok: false, reason: "duplicate" };
 
   const directory = firmwareDirectory();
   if ("problem" in directory) {
@@ -159,6 +175,7 @@ export async function storeFirmware(
       .insert(firmwareReleases)
       .values({
         id,
+        tenantId: tenantId ?? null,
         boardType,
         version,
         sizeBytes: bytes.length,
@@ -193,22 +210,42 @@ export interface FirmwareListItem extends FirmwareRelease {
   uploaderEmail: string;
 }
 
-export async function listFirmware(): Promise<FirmwareListItem[]> {
+function tenantScope(tenantId?: string | null) {
+  if (tenantId === undefined) return undefined;
+  return tenantId === null
+    ? isNull(firmwareReleases.tenantId)
+    : eq(firmwareReleases.tenantId, tenantId);
+}
+
+export async function listFirmware(tenantId?: string): Promise<FirmwareListItem[]> {
   const rows = await getDb()
     .select({ release: firmwareReleases, uploaderEmail: users.email })
     .from(firmwareReleases)
     .leftJoin(users, eq(users.id, firmwareReleases.uploadedBy))
+    .where(
+      tenantId === undefined ? undefined : eq(firmwareReleases.tenantId, tenantId)
+    )
     .orderBy(asc(firmwareReleases.boardType), desc(firmwareReleases.uploadedAt));
 
   return rows.map((row) => ({ ...row.release, uploaderEmail: row.uploaderEmail ?? "" }));
 }
 
 /** The one release a board type should run, or nothing. */
-export async function targetFor(boardType: string): Promise<FirmwareRelease | undefined> {
+export async function targetFor(
+  boardType: string,
+  tenantId?: string | null
+): Promise<FirmwareRelease | undefined> {
+  const scope = tenantScope(tenantId);
   const rows = await getDb()
     .select()
     .from(firmwareReleases)
-    .where(and(eq(firmwareReleases.boardType, boardType), eq(firmwareReleases.targeted, true)))
+    .where(
+      and(
+        eq(firmwareReleases.boardType, boardType),
+        eq(firmwareReleases.targeted, true),
+        ...(scope === undefined ? [] : [scope])
+      )
+    )
     .limit(1);
   return rows[0];
 }
@@ -217,13 +254,18 @@ export async function targetFor(boardType: string): Promise<FirmwareRelease | un
 export async function markFirmwareTarget(
   id: string,
   forced: boolean,
-  adminEmail: string
+  adminEmail: string,
+  tenantId?: string
 ): Promise<"targeted" | "not-found"> {
   const release = await getDb().transaction(async (tx) => {
     const rows = await tx
       .select()
       .from(firmwareReleases)
-      .where(eq(firmwareReleases.id, id))
+      .where(
+        tenantId === undefined
+          ? eq(firmwareReleases.id, id)
+          : and(eq(firmwareReleases.id, id), eq(firmwareReleases.tenantId, tenantId))
+      )
       .limit(1);
     const found = rows[0];
     if (found === undefined) return undefined;
@@ -231,7 +273,14 @@ export async function markFirmwareTarget(
     await tx
       .update(firmwareReleases)
       .set({ targeted: false, forced: false })
-      .where(eq(firmwareReleases.boardType, found.boardType));
+      .where(
+        tenantId === undefined
+          ? eq(firmwareReleases.boardType, found.boardType)
+          : and(
+              eq(firmwareReleases.boardType, found.boardType),
+              eq(firmwareReleases.tenantId, tenantId)
+            )
+      );
     await tx
       .update(firmwareReleases)
       .set({ targeted: true, forced })
@@ -251,12 +300,17 @@ export async function markFirmwareTarget(
 
 export async function clearFirmwareTarget(
   id: string,
-  adminEmail: string
+  adminEmail: string,
+  tenantId?: string
 ): Promise<"cleared" | "not-found" | "not-targeted"> {
   const rows = await getDb()
     .select()
     .from(firmwareReleases)
-    .where(eq(firmwareReleases.id, id))
+    .where(
+      tenantId === undefined
+        ? eq(firmwareReleases.id, id)
+        : and(eq(firmwareReleases.id, id), eq(firmwareReleases.tenantId, tenantId))
+    )
     .limit(1);
   const release = rows[0];
   if (release === undefined) return "not-found";
@@ -272,12 +326,17 @@ export async function clearFirmwareTarget(
 
 export async function deleteFirmware(
   id: string,
-  adminEmail: string
+  adminEmail: string,
+  tenantId?: string
 ): Promise<"deleted" | "not-found" | "targeted"> {
   const rows = await getDb()
     .select()
     .from(firmwareReleases)
-    .where(eq(firmwareReleases.id, id))
+    .where(
+      tenantId === undefined
+        ? eq(firmwareReleases.id, id)
+        : and(eq(firmwareReleases.id, id), eq(firmwareReleases.tenantId, tenantId))
+    )
     .limit(1);
   const release = rows[0];
   if (release === undefined) return "not-found";

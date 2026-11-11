@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ClaimDecision } from "@/components/ClaimDecision";
-import { requireAdmin } from "@/lib/auth/admin";
+import { requireTenantAdminSurface } from "@/lib/auth/admin";
 import { listPendingRequests } from "@/lib/claims";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
@@ -13,10 +13,10 @@ export const instant = false;
  * and nothing changes hands until one of these is approved.
  */
 export default async function AdminClaimsPage() {
-  const { locale } = await getStrings();
+  const { locale, strings } = await getStrings();
   const adminStrings = adminStringsFor(locale);
-  await requireAdmin();
-  const requests = await listPendingRequests();
+  const { tenantId } = await requireTenantAdminSurface();
+  const requests = await listPendingRequests(tenantId);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -28,6 +28,9 @@ export default async function AdminClaimsPage() {
           </Link>
           <Link href="/admin/users" className="hover:underline">
             {adminStrings.users}
+          </Link>
+          <Link href="/admin/agents" className="hover:underline">
+            {strings.nav.agents}
           </Link>
           <Link href="/admin/firmware" className="hover:underline">
             {adminStrings.firmware}

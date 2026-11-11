@@ -1,6 +1,6 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { agents, devices } from "@/lib/db/schema";
+import { agents, devices, users } from "@/lib/db/schema";
 import {
   defaultProviderProfileFor,
   findProviderProfile,
@@ -191,9 +191,14 @@ function text(value: unknown): string {
 }
 
 export async function createAgent(userId: string, draft: AgentDraft): Promise<Agent> {
+  const owner = await getDb()
+    .select({ tenantId: users.tenantId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   const rows = await getDb()
     .insert(agents)
-    .values({ userId, ...draft })
+    .values({ tenantId: owner[0]?.tenantId ?? null, userId, ...draft })
     .returning();
   return rows[0]!;
 }

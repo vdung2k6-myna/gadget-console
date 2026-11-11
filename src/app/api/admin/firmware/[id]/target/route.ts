@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentAdmin } from "@/lib/auth/admin";
+import { currentTenantAdminSurface } from "@/lib/auth/admin";
 import { clearFirmwareTarget, markFirmwareTarget } from "@/lib/firmware";
 
 type Params = { params: Promise<{ id: string }> };
@@ -14,8 +14,8 @@ const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 }
  * confirmed in the interface, and it is written to the audit line.
  */
 export async function POST(request: Request, { params }: Params) {
-  const admin = await currentAdmin();
-  if (admin === undefined) return notFound();
+  const surface = await currentTenantAdminSurface();
+  if (surface === undefined) return notFound();
 
   let forced = false;
   try {
@@ -27,16 +27,16 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const result = await markFirmwareTarget(id, forced, admin.email);
+  const result = await markFirmwareTarget(id, forced, surface.user.email, surface.tenantId);
   return result === "targeted" ? new NextResponse(null, { status: 204 }) : notFound();
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
-  const admin = await currentAdmin();
-  if (admin === undefined) return notFound();
+  const surface = await currentTenantAdminSurface();
+  if (surface === undefined) return notFound();
 
   const { id } = await params;
-  const result = await clearFirmwareTarget(id, admin.email);
+  const result = await clearFirmwareTarget(id, surface.user.email, surface.tenantId);
   if (result === "not-found") return notFound();
   return new NextResponse(null, { status: 204 });
 }

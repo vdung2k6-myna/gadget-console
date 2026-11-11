@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentAdmin } from "@/lib/auth/admin";
+import { currentTenantAdminSurface } from "@/lib/auth/admin";
 import { approveClaim, rejectClaim } from "@/lib/claims";
 
 type Params = { params: Promise<{ id: string }> };
@@ -11,8 +11,8 @@ const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 }
  * changes hands after a code was entered; a refusal leaves it claimable again.
  */
 export async function POST(request: Request, { params }: Params) {
-  const admin = await currentAdmin();
-  if (admin === undefined) return notFound();
+  const surface = await currentTenantAdminSurface();
+  if (surface === undefined) return notFound();
 
   const { id } = await params;
   let body: unknown;
@@ -30,8 +30,8 @@ export async function POST(request: Request, { params }: Params) {
 
   const result =
     decision === "approve"
-      ? await approveClaim(admin.email, id)
-      : await rejectClaim(admin.email, id);
+      ? await approveClaim(surface.user.email, id, surface.tenantId)
+      : await rejectClaim(surface.user.email, id, surface.tenantId);
 
   if (result === "approved" || result === "rejected") return new NextResponse(null, { status: 204 });
   if (result === "taken") return NextResponse.json({ error: "taken" }, { status: 409 });

@@ -5,7 +5,7 @@ import { DeviceActions } from "@/components/DeviceActions";
 import { adminDevice, adminTurns, listAllDevices } from "@/lib/admin";
 import { getCalibration } from "@/lib/device-calibration";
 import { listAgents } from "@/lib/agents";
-import { requireAdmin } from "@/lib/auth/admin";
+import { requireTenantAdminSurface } from "@/lib/auth/admin";
 import { boardView, firmwareView } from "@/lib/device-board";
 import { targetFor } from "@/lib/firmware";
 import { deviceLabel, elapsed, elapsedText, turnTimeText } from "@/lib/ui/format";
@@ -27,23 +27,23 @@ export default async function AdminDevicePage({ params }: Params) {
   const { locale, strings } = await getStrings();
   const now = await requestNow();
   const adminStrings = adminStringsFor(locale);
-  await requireAdmin();
+  const { tenantId } = await requireTenantAdminSurface();
 
-  const device = await adminDevice(id);
+  const device = await adminDevice(id, tenantId);
   if (device === undefined) notFound();
 
   const ownerId = device.userId;
   const ownerAgents = ownerId === null ? [] : await listAgents(ownerId);
-  const ownerDevices = (await listAllDevices()).filter(
+  const ownerDevices = (await listAllDevices(tenantId)).filter(
     (entry) => entry.userId === ownerId && entry.id !== device.id
   );
   const agent = ownerAgents.find((entry) => entry.id === device.agentId);
   const partner = ownerDevices.find((entry) => entry.id === device.partnerDeviceId);
-  const turns = await adminTurns(device.id, 50);
+  const turns = await adminTurns(device.id, 50, tenantId);
   const calibration = await getCalibration({ id });
   const board = boardView(device.hardware, strings);
   const target =
-    device.hardware?.board?.type === undefined ? undefined : await targetFor(device.hardware.board.type);
+    device.hardware?.board?.type === undefined ? undefined : await targetFor(device.hardware.board.type, device.tenantId);
   const firmware = firmwareView(device.hardware, target?.version);
 
   return (

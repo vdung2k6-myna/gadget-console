@@ -236,6 +236,67 @@ export async function listTenantBuiltins(tenantId: string): Promise<ProviderProf
     .orderBy(asc(providerProfiles.name));
 }
 
+export interface TenantProviderProfileView {
+  id: string;
+  name: string;
+  kind: string;
+  baseUrl: string;
+  model: string;
+  voice: string | null;
+  builtin: boolean;
+  isDefault: boolean;
+  scope: ProviderScope;
+  ownerEmail: string | null;
+}
+
+/**
+ * Every profile a tenant's accounts may select: the platform built-ins, the
+ * tenant built-ins, and the accounts' own. The encrypted key is never selected.
+ */
+export async function listTenantProviderProfiles(
+  tenantId: string
+): Promise<TenantProviderProfileView[]> {
+  const rows = await getDb()
+    .select({
+      id: providerProfiles.id,
+      name: providerProfiles.name,
+      kind: providerProfiles.kind,
+      baseUrl: providerProfiles.baseUrl,
+      model: providerProfiles.model,
+      voice: providerProfiles.voice,
+      builtin: providerProfiles.builtin,
+      isDefault: providerProfiles.isDefault,
+      tenantId: providerProfiles.tenantId,
+      ownerEmail: users.email,
+    })
+    .from(providerProfiles)
+    .leftJoin(users, eq(users.id, providerProfiles.userId))
+    .where(
+      or(
+        eq(providerProfiles.tenantId, tenantId),
+        and(isNull(providerProfiles.tenantId), eq(providerProfiles.builtin, true))
+      )
+    )
+    .orderBy(
+      asc(providerProfiles.kind),
+      desc(providerProfiles.builtin),
+      asc(providerProfiles.name)
+    );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    kind: row.kind,
+    baseUrl: row.baseUrl,
+    model: row.model,
+    voice: row.voice,
+    builtin: row.builtin,
+    isDefault: row.isDefault,
+    scope: providerScope(row),
+    ownerEmail: row.ownerEmail ?? null,
+  }));
+}
+
 export async function findTenantBuiltin(
   tenantId: string,
   id: string

@@ -17,6 +17,7 @@ restart.
 | --- | --- |
 | `requirePlatformAdmin` / `currentPlatformAdmin` | a platform admin only |
 | `requirePlatformSurface` | a platform admin on the platform host; a tenant host answers not-found |
+| `requireTenantAdminSurface` / `currentTenantAdminSurface` | an admin acting inside one tenant; a tenant host names it, otherwise the admin's own tenant |
 | `requireTenantAdmin` / `currentTenantAdmin` | a tenant admin only |
 | `requireSupport` / `currentSupport` | support, tenant admin or platform admin |
 | `requireAdmin` / `currentAdmin` | either admin; the legacy `admin` role is accepted until the old management surface is removed |

@@ -25,9 +25,10 @@ function notFound(): AdminActionResult {
 export async function adminRename(
   adminEmail: string,
   deviceRowId: string,
-  name: string
+  name: string,
+  tenantId?: string
 ): Promise<AdminActionResult> {
-  const device = await adminDevice(deviceRowId);
+  const device = await adminDevice(deviceRowId, tenantId);
   if (device === undefined) return notFound();
 
   await getDb().update(devices).set({ name: name.trim() }).where(eq(devices.id, deviceRowId));
@@ -38,9 +39,10 @@ export async function adminRename(
 export async function adminBindAgent(
   adminEmail: string,
   deviceRowId: string,
-  agentId: string | null
+  agentId: string | null,
+  tenantId?: string
 ): Promise<AdminActionResult> {
-  const device = await adminDevice(deviceRowId);
+  const device = await adminDevice(deviceRowId, tenantId);
   if (device === undefined) return notFound();
   if (device.userId === null) return { ok: false, reason: "no-owner" };
 
@@ -68,9 +70,10 @@ export async function adminBindAgent(
 export async function adminPair(
   adminEmail: string,
   deviceRowId: string,
-  partnerDeviceId: string | null
+  partnerDeviceId: string | null,
+  tenantId?: string
 ): Promise<AdminActionResult> {
-  const device = await adminDevice(deviceRowId);
+  const device = await adminDevice(deviceRowId, tenantId);
   if (device === undefined) return notFound();
   if (device.userId === null) return { ok: false, reason: "no-owner" };
 
@@ -86,8 +89,12 @@ export async function adminPair(
   return { ok: true };
 }
 
-export async function adminRelease(adminEmail: string, deviceRowId: string): Promise<AdminActionResult> {
-  const device = await adminDevice(deviceRowId);
+export async function adminRelease(
+  adminEmail: string,
+  deviceRowId: string,
+  tenantId?: string
+): Promise<AdminActionResult> {
+  const device = await adminDevice(deviceRowId, tenantId);
   if (device === undefined || device.userId === null) return notFound();
 
   const released = await releaseDevice(device.userId, deviceRowId);

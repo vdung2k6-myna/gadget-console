@@ -61,7 +61,8 @@ function Usage({
 
 export default async function PlatformPage() {
   const { locale } = await getStrings();
-  const labels = adminStringsFor(locale).platform;
+  const adminStrings = adminStringsFor(locale);
+  const labels = adminStrings.platform;
   await requirePlatformSurface();
   const tenants = await platformTenants();
 
@@ -77,6 +78,9 @@ export default async function PlatformPage() {
           </Link>
           <Link href="/admin/platform/users" className="hover:underline">
             {labels.users}
+          </Link>
+          <Link href="/admin/calibration" className="hover:underline">
+            {adminStrings.calibration.defaultHeading}
           </Link>
         </nav>
       </div>

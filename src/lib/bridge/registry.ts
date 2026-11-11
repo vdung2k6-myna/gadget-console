@@ -356,7 +356,7 @@ async function firmwareTarget(device: typeof devices.$inferSelect): Promise<Firm
   const reported = device.hardware?.application?.version;
   if (boardType === undefined || reported === undefined) return null;
 
-  const release = await targetFor(boardType);
+  const release = await targetFor(boardType, device.tenantId);
   if (release === undefined || release.version === reported) return null;
 
   return {

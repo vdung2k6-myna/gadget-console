@@ -1,5 +1,5 @@
 import { CalibrationDefaultForm } from "@/components/CalibrationDefaultForm";
-import { requireAdmin } from "@/lib/auth/admin";
+import { requirePlatformSurface } from "@/lib/auth/admin";
 import { getDefaultPair } from "@/lib/device-calibration";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
@@ -8,7 +8,7 @@ export const instant = false;
 
 /** The deployment's default calibration: what a device without its own pair uses. */
 export default async function CalibrationSettingsPage() {
-  await requireAdmin();
+  await requirePlatformSurface();
   const { locale } = await getStrings();
   const labels = adminStringsFor(locale).calibration;
   const pair = await getDefaultPair();

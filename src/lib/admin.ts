@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { isRowId } from "@/lib/auth/ownership";
 import { getDb } from "@/lib/db/client";
 import { devices, turns, users } from "@/lib/db/schema";
@@ -18,25 +18,33 @@ export interface AdminDevice extends PublicDevice {
   ownerEmail: string;
 }
 
-export async function listAllDevices(): Promise<AdminDevice[]> {
+export async function listAllDevices(tenantId?: string): Promise<AdminDevice[]> {
   const rows = await getDb()
     .select({ device: devices, ownerEmail: users.email })
     .from(devices)
-    .leftJoin(users, eq(users.id, devices.userId));
+    .leftJoin(users, eq(users.id, devices.userId))
+    .where(tenantId === undefined ? undefined : eq(devices.tenantId, tenantId));
 
   return rows
     .map((row) => ({ ...publicDevice(row.device), ownerEmail: row.ownerEmail ?? "" }))
     .sort((a, b) => a.deviceId.localeCompare(b.deviceId));
 }
 
-export async function adminDevice(deviceRowId: string): Promise<AdminDevice | undefined> {
+export async function adminDevice(
+  deviceRowId: string,
+  tenantId?: string
+): Promise<AdminDevice | undefined> {
   if (!isRowId(deviceRowId)) return undefined;
 
   const rows = await getDb()
     .select({ device: devices, ownerEmail: users.email })
     .from(devices)
     .leftJoin(users, eq(users.id, devices.userId))
-    .where(eq(devices.id, deviceRowId))
+    .where(
+      tenantId === undefined
+        ? eq(devices.id, deviceRowId)
+        : and(eq(devices.id, deviceRowId), eq(devices.tenantId, tenantId))
+    )
     .limit(1);
 
   const row = rows[0];
@@ -46,14 +54,19 @@ export async function adminDevice(deviceRowId: string): Promise<AdminDevice | un
 /** Any device's conversation, for the admin's device page. */
 export async function adminTurns(
   deviceRowId: string,
-  limit: number
+  limit: number,
+  tenantId?: string
 ): Promise<(typeof turns.$inferSelect)[]> {
   if (!isRowId(deviceRowId)) return [];
 
   return getDb()
     .select()
     .from(turns)
-    .where(eq(turns.deviceId, deviceRowId))
+    .where(
+      tenantId === undefined
+        ? eq(turns.deviceId, deviceRowId)
+        : and(eq(turns.deviceId, deviceRowId), eq(turns.tenantId, tenantId))
+    )
     .orderBy(desc(turns.startedAt))
     .limit(limit);
 }
