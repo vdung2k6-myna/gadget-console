@@ -132,6 +132,7 @@ export interface AdminStrings {
   blocks: string;
   patchResign: string;
   calibration: CalibrationStrings;
+  platform: PlatformStrings;
 }
 
 /** The calibration section's words, kept with the rest of the admin area's. */
@@ -158,6 +159,51 @@ export interface CalibrationStrings {
   usingDefault: string;
 }
 
+/** The platform admin's tenants and roles area. */
+export interface PlatformStrings {
+  nav: string;
+  heading: string;
+  tenants: string;
+  users: string;
+  name: string;
+  slug: string;
+  status: string;
+  plan: string;
+  created: string;
+  domains: string;
+  accounts: string;
+  deviceCount: string;
+  usage: string;
+  platformSeconds: string;
+  resellerSeconds: string;
+  allowance: string;
+  billable: string;
+  window: string;
+  active: string;
+  suspended: string;
+  suspend: string;
+  resume: string;
+  suspendConfirm: string;
+  resumeConfirm: string;
+  createHeading: string;
+  createHelp: string;
+  nameLabel: string;
+  slugLabel: string;
+  localeLabel: string;
+  localeVietnamese: string;
+  localeEnglish: string;
+  create: string;
+  creating: string;
+  createFailed: string;
+  createTaken: string;
+  empty: string;
+  statusFailed: string;
+  none: string;
+  platformAdmins: string;
+  tenant: string;
+  role: string;
+}
+
 const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
   vi: {
     nav: "Quản trị",
@@ -180,6 +226,49 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
       defaultHelp: "Cặp ngưỡng cho các thiết bị chưa tự hiệu chuẩn.",
       defaultSave: "Lưu mặc định",
       usingDefault: "Thiết bị chưa có cặp riêng dùng {threshold} với {frames} khung.",
+    },
+    platform: {
+      nav: "Nền tảng",
+      heading: "Quản trị nền tảng",
+      tenants: "Tenant",
+      users: "Tài khoản và quyền",
+      name: "Tên",
+      slug: "Slug",
+      status: "Trạng thái",
+      plan: "Gói",
+      created: "Tạo lúc",
+      domains: "Tên miền",
+      accounts: "Tài khoản",
+      deviceCount: "Thiết bị",
+      usage: "Dùng trong 30 ngày",
+      platformSeconds: "Giọng nói nền tảng",
+      resellerSeconds: "Giọng nói reseller",
+      allowance: "Hạn mức",
+      billable: "Vượt hạn mức",
+      window: "30 ngày gần nhất",
+      active: "Đang hoạt động",
+      suspended: "Tạm ngưng",
+      suspend: "Tạm ngưng",
+      resume: "Cho hoạt động lại",
+      suspendConfirm: "Tạm ngưng {tenant}? OTA và các lượt nói sẽ bị từ chối, dữ liệu vẫn được giữ.",
+      resumeConfirm: "Cho {tenant} hoạt động lại?",
+      createHeading: "Tạo tenant",
+      createHelp: "Tenant mới chưa có tên miền hay tài khoản nào.",
+      nameLabel: "Tên hiển thị",
+      slugLabel: "Slug (chữ thường, số, gạch nối)",
+      localeLabel: "Ngôn ngữ mặc định",
+      localeVietnamese: "Tiếng Việt",
+      localeEnglish: "English",
+      create: "Tạo tenant",
+      creating: "Đang tạo…",
+      createFailed: "Không tạo được tenant.",
+      createTaken: "Slug này đã được dùng.",
+      empty: "Chưa có tenant nào.",
+      statusFailed: "Không đổi được trạng thái.",
+      none: "chưa có",
+      platformAdmins: "Quản trị nền tảng",
+      tenant: "Tenant",
+      role: "Quyền",
     },
     devices: "Tất cả thiết bị",
     users: "Tài khoản",
@@ -325,6 +414,49 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
       defaultHelp: "The speech gate's pair for devices that have not calibrated their own.",
       defaultSave: "Save default",
       usingDefault: "Devices without their own pair use {threshold} with {frames} frame(s).",
+    },
+    platform: {
+      nav: "Platform",
+      heading: "Platform administration",
+      tenants: "Tenants",
+      users: "Accounts and roles",
+      name: "Name",
+      slug: "Slug",
+      status: "Status",
+      plan: "Plan",
+      created: "Created",
+      domains: "Domains",
+      accounts: "Accounts",
+      deviceCount: "Devices",
+      usage: "Usage, last 30 days",
+      platformSeconds: "Platform speech",
+      resellerSeconds: "Reseller speech",
+      allowance: "Allowance",
+      billable: "Billable overage",
+      window: "Last 30 days",
+      active: "Active",
+      suspended: "Suspended",
+      suspend: "Suspend",
+      resume: "Resume",
+      suspendConfirm: "Suspend {tenant}? OTA and turns are refused; its data is kept.",
+      resumeConfirm: "Resume {tenant}?",
+      createHeading: "Create a tenant",
+      createHelp: "A new tenant starts with no domains and no accounts.",
+      nameLabel: "Display name",
+      slugLabel: "Slug (lowercase letters, digits and hyphens)",
+      localeLabel: "Default language",
+      localeVietnamese: "Tiếng Việt",
+      localeEnglish: "English",
+      create: "Create tenant",
+      creating: "Creating…",
+      createFailed: "The tenant could not be created.",
+      createTaken: "That slug is already in use.",
+      empty: "No tenants yet.",
+      statusFailed: "The status could not be changed.",
+      none: "none",
+      platformAdmins: "Platform admins",
+      tenant: "Tenant",
+      role: "Role",
     },
     devices: "All devices",
     users: "Accounts",

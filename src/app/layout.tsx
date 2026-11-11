@@ -6,6 +6,7 @@ import { LocaleProvider } from "@/components/LocaleProvider";
 import { SignOutButton } from "@/components/SignOutButton";
 import { TenantBrandMark, TenantSupportFooter } from "@/components/TenantBranding";
 import { optionalUser } from "@/lib/auth/require-user";
+import { isAdminRole, isPlatformAdmin } from "@/lib/auth/roles";
 import { adminStringsFor } from "@/lib/i18n/admin-strings";
 import { getStrings } from "@/lib/i18n/locale";
 import { tenantBranding } from "@/lib/tenancy/branding";
@@ -33,7 +34,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const { locale, strings } = await getStrings();
   const user = await optionalUser();
   // The admin area's own words, read only for an account that may open it.
-  const adminStrings = user?.role === "admin" ? adminStringsFor(locale) : null;
+  const isAdmin =
+    user !== undefined && (isAdminRole(user.role) || user.role === "admin");
+  const platformAdmin = user !== undefined && isPlatformAdmin(user.role);
+  const adminStrings = isAdmin ? adminStringsFor(locale) : null;
 
   const resolved = await currentTenant();
   const tenant = resolved.kind === "tenant" ? resolved.tenant : undefined;
@@ -64,12 +68,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               )}
               {adminStrings !== null && (
                 <>
-                  <Link href="/admin/devices" className="hover:underline">
-                    {adminStrings.nav}
+                  <Link
+                    href={platformAdmin ? "/admin/platform" : "/admin/devices"}
+                    className="hover:underline"
+                  >
+                    {platformAdmin ? adminStrings.platform.nav : adminStrings.nav}
                   </Link>
-                  <Link href="/provider-profiles" className="hover:underline">
-                    {strings.nav.providers}
-                  </Link>
+                  {!platformAdmin && (
+                    <Link href="/provider-profiles" className="hover:underline">
+                      {strings.nav.providers}
+                    </Link>
+                  )}
                 </>
               )}
               <Link href="/help" className="hover:underline">

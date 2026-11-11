@@ -16,6 +16,7 @@ restart.
 | guard | reaches |
 | --- | --- |
 | `requirePlatformAdmin` / `currentPlatformAdmin` | a platform admin only |
+| `requirePlatformSurface` | a platform admin on the platform host; a tenant host answers not-found |
 | `requireTenantAdmin` / `currentTenantAdmin` | a tenant admin only |
 | `requireSupport` / `currentSupport` | support, tenant admin or platform admin |
 | `requireAdmin` / `currentAdmin` | either admin; the legacy `admin` role is accepted until the old management surface is removed |
@@ -27,6 +28,9 @@ restart.
 - A console host resolves its tenant through `tenant_domains`; the platform host
   is named by `PLATFORM_HOST`; an unknown host is refused.
 - The path fallback `/t/<slug>/...` resolves by slug for onboarding.
+- The platform area (`/admin/platform`, `/admin/platform/users`) is served only on
+  the platform host: a platform admin on a tenant host gets not-found. The header
+  links a platform admin there and a tenant admin to `/admin/devices`.
 - Registration on a tenant console creates a `user` of that tenant. Registration
   on the platform host is refused: platform admins are created by the deployment.
 - Sign-in is scoped: a tenant console signs in only its own accounts, and the

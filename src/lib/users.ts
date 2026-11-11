@@ -159,6 +159,8 @@ export interface AdminAccount {
   id: string;
   email: string;
   role: Role;
+  /** Null for a platform admin; every other account belongs to one tenant. */
+  tenantId: string | null;
   createdAt: Date;
   devices: number;
   agents: number;
@@ -169,10 +171,22 @@ export async function listAccounts(tenantId?: string): Promise<AdminAccount[]> {
   const rows =
     tenantId === undefined
       ? await getDb()
-          .select({ id: users.id, email: users.email, role: users.role, createdAt: users.createdAt })
+          .select({
+            id: users.id,
+            email: users.email,
+            role: users.role,
+            tenantId: users.tenantId,
+            createdAt: users.createdAt,
+          })
           .from(users)
       : await getDb()
-          .select({ id: users.id, email: users.email, role: users.role, createdAt: users.createdAt })
+          .select({
+            id: users.id,
+            email: users.email,
+            role: users.role,
+            tenantId: users.tenantId,
+            createdAt: users.createdAt,
+          })
           .from(users)
           .where(eq(users.tenantId, tenantId));
 
@@ -187,6 +201,7 @@ export async function listAccounts(tenantId?: string): Promise<AdminAccount[]> {
       id: row.id,
       email: row.email,
       role: row.role as Role,
+      tenantId: row.tenantId,
       createdAt: row.createdAt,
       devices: count(ownedDevices, row.id),
       agents: count(ownedAgents, row.id),

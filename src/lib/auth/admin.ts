@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { currentTenant } from "@/lib/tenancy/context";
 import { currentUser } from "./guard";
 import {
   canSupport,
@@ -53,6 +54,18 @@ export async function requirePlatformAdmin(): Promise<SessionUser> {
 export async function currentPlatformAdmin(): Promise<SessionUser | undefined> {
   const user = await currentUser();
   return user !== undefined && isPlatformAdmin(user.role) ? user : undefined;
+}
+
+/**
+ * The platform area belongs to the platform host, not a tenant's console. A
+ * platform admin on a tenant host is answered not-found, the same way a tenant
+ * admin on the platform host is.
+ */
+export async function requirePlatformSurface(): Promise<SessionUser> {
+  const user = await requirePlatformAdmin();
+  const resolved = await currentTenant();
+  if (resolved.kind === "tenant") notFound();
+  return user;
 }
 
 /** A reseller's own administrator. */
