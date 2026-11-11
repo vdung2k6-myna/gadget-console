@@ -1,7 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { adapterLlmRequest, adapterToolCalls, parseAdapterLlmSse } from "../src/lib/adapter-llm";
+import {
+  AdapterLlmStreamError,
+  adapterLlmRequest,
+  adapterToolCalls,
+  parseAdapterLlmSse,
+  streamAdapterLlm,
+} from "../src/lib/adapter-llm";
 
 const stream = (...events: unknown[]) =>
   events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
@@ -97,6 +103,75 @@ describe("the normalized LLM stream", () => {
     assert.equal(
       (parseAdapterLlmSse(stream({ type: "video" })) as { reason?: string }).reason,
       "unknown-event"
+    );
+  });
+});
+
+
+function llmStream(chunks: string[], keepOpen = false) {
+  let cancelled = false;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+      if (!keepOpen) controller.close();
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  return { stream, cancelled: () => cancelled };
+}
+
+const inputs = {
+  endpoint: "https://adapter.example/v1",
+  token: "adp_test",
+  adapterId: "a",
+  tenantId: "t",
+  request: { stream: true, messages: [] },
+};
+
+describe("the cancellable LLM stream", () => {
+  it("stops at done and never consumes a late event", async () => {
+    const source = llmStream([
+      'data: {"type":"text","text":"hi"}\n\n',
+      'data: {"type":"usage","usage":{}}\n\n',
+      'data: {"type":"done"}\n\n',
+      'data: {"type":"text","text":"late"}\n\n',
+    ]);
+    const result = await streamAdapterLlm({
+      ...inputs,
+      fetchImpl: async () => new Response(source.stream, { status: 200 }),
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.events.map((event) => event.type), ["text", "usage", "done"]);
+    assert.equal(source.cancelled(), true);
+  });
+
+  it("aborts the reader when the caller cancels", async () => {
+    const controller = new AbortController();
+    const source = llmStream(['data: {"type":"text","text":"hi"}\n\n'], true);
+    const pending = streamAdapterLlm({
+      ...inputs,
+      signal: controller.signal,
+      fetchImpl: async () => new Response(source.stream, { status: 200 }),
+    });
+    setTimeout(() => controller.abort(), 10);
+    await assert.rejects(
+      pending,
+      (error: unknown) => error instanceof AdapterLlmStreamError && error.code === "aborted"
+    );
+  });
+
+  it("fails an idle stream", async () => {
+    const source = llmStream([], true);
+    await assert.rejects(
+      streamAdapterLlm({
+        ...inputs,
+        idleTimeoutMs: 20,
+        fetchImpl: async () => new Response(source.stream, { status: 200 }),
+      }),
+      (error: unknown) => error instanceof AdapterLlmStreamError && error.code === "idle-timeout"
     );
   });
 });

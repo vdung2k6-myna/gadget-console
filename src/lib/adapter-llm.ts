@@ -53,6 +53,101 @@ export function adapterLlmRequest(input: {
   };
 }
 
+export type AdapterLlmStreamFailure = "aborted" | "idle-timeout" | "network";
+
+export class AdapterLlmStreamError extends Error {
+  constructor(readonly code: AdapterLlmStreamFailure) {
+    super(code === "idle-timeout" ? "the adapter stream went idle" : "the adapter stream was aborted");
+    this.name = "AdapterLlmStreamError";
+  }
+}
+
+/**
+ * Read the LLM stream until `done`, the caller aborts, or the stream goes idle.
+ * The reader is cancelled at `done`, so a late event after it is never consumed.
+ */
+export async function streamAdapterLlm(
+  input: {
+    endpoint: string;
+    token: string;
+    adapterId: string;
+    tenantId: string;
+    request: Record<string, unknown>;
+    signal?: AbortSignal;
+    idleTimeoutMs?: number;
+    fetchImpl?: typeof fetch;
+  }
+): Promise<AdapterLlmParse> {
+  const controller = new AbortController();
+  let aborted = false;
+  let idle = false;
+  const onAbort = () => {
+    aborted = true;
+    controller.abort();
+  };
+  if (input.signal?.aborted) onAbort();
+  else input.signal?.addEventListener("abort", onAbort, { once: true });
+
+  let timer: NodeJS.Timeout | undefined;
+  const arm = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(() => {
+      idle = true;
+      controller.abort();
+    }, input.idleTimeoutMs ?? 30_000);
+  };
+
+  try {
+    arm();
+    const response = await (input.fetchImpl ?? fetch)(
+      `${input.endpoint.replace(/\/+$/, "")}/llm/chat`,
+      {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          accept: "text/event-stream",
+          "content-type": "application/json",
+          authorization: `Bearer ${input.token}`,
+          "x-adapter-id": input.adapterId,
+          "x-tenant-id": input.tenantId,
+          "x-contract-version": "1",
+        },
+        body: JSON.stringify(input.request),
+        signal: controller.signal,
+      }
+    );
+    if (!response.ok || response.body === null) throw new AdapterLlmStreamError("network");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const abortedRead = new Promise<never>((_resolve, reject) => {
+      const rejectAbort = () => reject(new Error("aborted"));
+      if (controller.signal.aborted) rejectAbort();
+      else controller.signal.addEventListener("abort", rejectAbort, { once: true });
+    });
+    for (;;) {
+      const { done, value } = await Promise.race([reader.read(), abortedRead]);
+      if (done) break;
+      arm();
+      buffer += decoder.decode(value, { stream: true });
+      if (/(^|\n)event:\s*done\b|"type"\s*:\s*"done"/.test(buffer)) {
+        await reader.cancel().catch(() => {});
+        break;
+      }
+    }
+    return parseAdapterLlmSse(buffer);
+  } catch (error) {
+    if (error instanceof AdapterLlmStreamError) throw error;
+    if (idle) throw new AdapterLlmStreamError("idle-timeout");
+    if (aborted) throw new AdapterLlmStreamError("aborted");
+    throw new AdapterLlmStreamError("network");
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    input.signal?.removeEventListener("abort", onAbort);
+  }
+}
+
 /** Tool calls from a parsed stream, ready to replay on the next request. */
 export function adapterToolCalls(
   events: readonly AdapterLlmEvent[]
