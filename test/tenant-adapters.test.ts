@@ -12,6 +12,8 @@ import {
   listTenantEgress,
   recordAdapterEgress,
 } from "../src/lib/adapter-egress";
+import { checkAdapterHealth, sweepAdapterHealth } from "../src/lib/adapter-health";
+import { runVietnameseBenchmark } from "../src/lib/adapter-benchmark";
 import { decryptSecret } from "../src/lib/crypto/secret-box";
 import { encryptionKeyForTenant } from "../src/lib/crypto/profiles";
 import {
@@ -19,6 +21,7 @@ import {
   disableAdapter,
   getAdapter,
   listAdapters,
+  applyAdapterManifest,
   rotateAdapterToken,
   updateAdapterStatus,
   validateAdapterRegistration,
@@ -200,6 +203,105 @@ describe("adapter registry accessors", () => {
       }).ok,
       false
     );
+  });
+});
+
+describe("manifest changes", () => {
+  it("returns an adapter to pending when its manifest version changes", async () => {
+    const first = await tenant("first");
+    const validated = validateAdapterRegistration({
+      name: "Manifest",
+      endpoint: "https://adapter.example/v1",
+      kinds: ["llm"],
+    });
+    if (!validated.ok) throw new Error(validated.errors.join("; "));
+    const created = await createAdapter(first.id, validated.draft);
+
+    const same = await applyAdapterManifest(first.id, created.adapter.id, {
+      version: "1.0.0",
+      body: { contract: 1 },
+    });
+    assert.equal(same?.status, "pending");
+    await updateAdapterStatus(first.id, created.adapter.id, "verified");
+
+    const changed = await applyAdapterManifest(first.id, created.adapter.id, {
+      version: "1.1.0",
+      body: { contract: 1 },
+    });
+    assert.equal(changed?.status, "pending");
+  });
+});
+
+describe("adapter health", () => {
+  it("marks an adapter down and removes it from the chain", async () => {
+    const first = await tenant("first");
+    const validated = validateAdapterRegistration({
+      name: "Health",
+      endpoint: "https://adapter.example/v1",
+      kinds: ["llm"],
+    });
+    if (!validated.ok) throw new Error(validated.errors.join("; "));
+    const created = await createAdapter(first.id, validated.draft);
+    await updateAdapterStatus(first.id, created.adapter.id, "verified");
+
+    assert.deepEqual(await resolveAdapterChain(first.id, "llm"), []);
+
+    const [row] = await getDb()
+      .select()
+      .from(providerAdapters)
+      .where(eq(providerAdapters.id, created.adapter.id));
+    assert.equal(
+      await checkAdapterHealth(row!, {
+        fetchImpl: async () =>
+          new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      }),
+      "ok"
+    );
+    assert.deepEqual(
+      (await resolveAdapterChain(first.id, "llm")).map((entry) => entry.id),
+      [created.adapter.id]
+    );
+
+    await checkAdapterHealth(row!, {
+      fetchImpl: async () => new Response("down", { status: 503 }),
+    });
+    assert.deepEqual(await resolveAdapterChain(first.id, "llm"), []);
+    assert.equal(await sweepAdapterHealth({ fetchImpl: async () => new Response("no", { status: 500 }) }), 1);
+  });
+});
+
+describe("adapter benchmark", () => {
+  it("stores WER, latency and verification against the adapter", async () => {
+    const first = await tenant("first");
+    const validated = validateAdapterRegistration({
+      name: "Bench",
+      endpoint: "https://adapter.example/v1",
+      kinds: ["stt"],
+    });
+    if (!validated.ok) throw new Error(validated.errors.join("; "));
+    const created = await createAdapter(first.id, validated.draft);
+    await updateAdapterStatus(first.id, created.adapter.id, "verified");
+    const [row] = await getDb()
+      .select()
+      .from(providerAdapters)
+      .where(eq(providerAdapters.id, created.adapter.id));
+
+    const report = await runVietnameseBenchmark(row!, created.token, {
+      fixtures: [{ audio: Buffer.from("RIFF"), expected: "xin chào" }],
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ text: "xin chào", language: "vi" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+    assert.equal(report.wer, 0);
+
+    const [stored] = await getDb()
+      .select()
+      .from(providerAdapters)
+      .where(eq(providerAdapters.id, created.adapter.id));
+    assert.equal(stored?.quality?.wer, 0);
+    assert.equal((stored?.verification?.benchmark as { wer?: number }).wer, 0);
   });
 });
 

@@ -138,6 +138,31 @@ export async function verifyAdapterToken(
   return sameToken(decryptSecret(adapter.previousTokenEncrypted, key), token);
 }
 
+/**
+ * Store a fetched manifest. A changed manifest version invalidates verification:
+ * the adapter returns to pending until conformance and the benchmark run again.
+ */
+export async function applyAdapterManifest(
+  tenantId: string,
+  id: string,
+  manifest: { version: string; body: Record<string, unknown> }
+): Promise<AdapterView | undefined> {
+  const adapter = await getAdapterRow(tenantId, id);
+  if (adapter === undefined) return undefined;
+  const changed = adapter.manifestVersion !== manifest.version;
+  const rows = await getDb()
+    .update(providerAdapters)
+    .set({
+      manifest: manifest.body,
+      manifestVersion: manifest.version,
+      ...(changed ? { status: "pending", verification: null } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(providerAdapters.id, id), eq(providerAdapters.tenantId, tenantId)))
+    .returning();
+  return rows[0] === undefined ? undefined : adapterView(rows[0]);
+}
+
 export interface AdapterRegistration {
   name: string;
   endpoint: string;
