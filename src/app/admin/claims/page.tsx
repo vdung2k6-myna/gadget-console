@@ -35,6 +35,9 @@ export default async function AdminClaimsPage() {
           <Link href="/admin/firmware" className="hover:underline">
             {adminStrings.firmware}
           </Link>
+          <Link href="/admin/adapters" className="hover:underline">
+            {adminStrings.adapters.nav}
+          </Link>
         </nav>
       </div>
 

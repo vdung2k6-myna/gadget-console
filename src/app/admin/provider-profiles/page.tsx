@@ -51,6 +51,9 @@ export default async function AdminProviderBuiltinsPage() {
           <Link href="/admin/agents" className="hover:underline">
             {strings.nav.agents}
           </Link>
+          <Link href="/admin/adapters" className="hover:underline">
+            {adminStrings.adapters.nav}
+          </Link>
         </nav>
       </div>
 

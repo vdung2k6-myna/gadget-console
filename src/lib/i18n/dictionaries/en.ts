@@ -13,6 +13,7 @@ export const en: Strings = {
     devices: "Devices",
     agents: "Personalities",
     providers: "Providers",
+    adapters: "Adapters",
     help: "Guide",
     signOut: "Sign out",
   },

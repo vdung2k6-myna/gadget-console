@@ -55,6 +55,9 @@ export default async function AdminFirmwarePage() {
           <Link href="/admin/provider-profiles" className="hover:underline">
             {adminStrings.providers}
           </Link>
+          <Link href="/admin/adapters" className="hover:underline">
+            {adminStrings.adapters.nav}
+          </Link>
         </nav>
       </div>
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">

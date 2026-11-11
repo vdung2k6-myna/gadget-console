@@ -75,9 +75,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     {platformAdmin ? adminStrings.platform.nav : adminStrings.nav}
                   </Link>
                   {!platformAdmin && (
-                    <Link href="/provider-profiles" className="hover:underline">
-                      {strings.nav.providers}
-                    </Link>
+                    <>
+                      <Link href="/provider-profiles" className="hover:underline">
+                        {strings.nav.providers}
+                      </Link>
+                      <Link href="/admin/adapters" className="hover:underline">
+                        {strings.nav.adapters}
+                      </Link>
+                    </>
                   )}
                 </>
               )}

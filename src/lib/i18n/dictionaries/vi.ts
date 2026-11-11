@@ -14,6 +14,7 @@ export const vi = {
     devices: "Thiết bị",
     agents: "Tính cách",
     providers: "Nhà cung cấp",
+    adapters: "Adapter",
     help: "Hướng dẫn",
     signOut: "Đăng xuất",
   },

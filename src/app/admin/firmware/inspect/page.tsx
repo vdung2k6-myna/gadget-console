@@ -30,6 +30,9 @@ export default async function InspectBinaryPage() {
           <Link href="/admin/devices" className="hover:underline">
             {adminStrings.devices}
           </Link>
+          <Link href="/admin/adapters" className="hover:underline">
+            {adminStrings.adapters.nav}
+          </Link>
         </nav>
       </div>
 

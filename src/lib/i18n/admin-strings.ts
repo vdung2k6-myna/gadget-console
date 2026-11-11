@@ -16,6 +16,7 @@ export interface AdminStrings {
   providers: string;
   adapters: {
     heading: string;
+    nav: string;
     intro: string;
     name: string;
     endpoint: string;
@@ -471,6 +472,7 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     providers: "Nhà cung cấp",
     adapters: {
       heading: "Adapter của tenant",
+      nav: "Adapter",
       intro: "Endpoint HTTPS mà tenant này đăng ký. Adapter chưa xác minh thì chưa được chọn.",
       name: "Tên",
       endpoint: "Endpoint",
@@ -779,6 +781,7 @@ const ADMIN_STRINGS: Record<Locale, AdminStrings> = {
     providers: "Providers",
     adapters: {
       heading: "Tenant adapters",
+      nav: "Adapters",
       intro: "The HTTPS endpoints this tenant registered. An adapter is not selected until it is verified.",
       name: "Name",
       endpoint: "Endpoint",

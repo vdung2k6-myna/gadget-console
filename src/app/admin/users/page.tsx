@@ -39,6 +39,9 @@ export default async function AdminUsersPage() {
           <Link href="/admin/provider-profiles" className="hover:underline">
             {adminStrings.providers}
           </Link>
+          <Link href="/admin/adapters" className="hover:underline">
+            {adminStrings.adapters.nav}
+          </Link>
         </nav>
       </div>
 

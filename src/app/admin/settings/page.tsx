@@ -35,6 +35,9 @@ export default async function TenantSettingsPage() {
           <Link href="/admin/users" className="hover:underline">
             {adminStrings.users}
           </Link>
+          <Link href="/admin/adapters" className="hover:underline">
+            {adminStrings.adapters.nav}
+          </Link>
         </nav>
       </div>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{labels.intro}</p>
