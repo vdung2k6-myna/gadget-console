@@ -9,8 +9,9 @@ import { encryptSecret } from "./secret-box";
  * A provider key is encrypted at rest and never returned to a browser. Platform
  * built-ins (`tenant_id = NULL`) use the master key, exactly as the single
  * deployment did; every tenant-scoped row uses a data key derived for its tenant.
- * Destroying a tenant's data key makes its secrets unrecoverable without
- * re-encrypting anything else.
+ * The data key is derived, so there is no separate key row to delete: deleting the
+ * tenant removes every ciphertext encrypted under it, and the derived key then
+ * opens nothing. Re-encrypting one tenant never touches another's rows.
  */
 
 const TENANT_SALT = Buffer.from("gadget-console/tenant-keys");

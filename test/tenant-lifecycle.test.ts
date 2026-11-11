@@ -1,18 +1,24 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { closeDb, getDb, requireTestDatabase, resetDb } from "./helpers/db";
 import { registerAccount } from "../src/lib/auth/accounts";
+import { createSession } from "../src/lib/auth/session";
 import { createRuntime } from "../src/lib/runtimes";
 import { findTenant, suspendTenant } from "../src/lib/tenants";
 import { deleteTenant, exportTenant } from "../src/lib/tenancy/lifecycle";
 import {
   agents,
   auditEvents,
+  calibrationAudit,
+  calibrationDefault,
   claims,
+  conversations,
+  deviceCalibration,
   devices,
   firmwareReleases,
+  providerAdapters,
   providerProfiles,
   tenantDomains,
   tenants,
@@ -72,6 +78,47 @@ async function seedRows(tenantId: string, userId: string, label: string) {
     code: `code-${label}`,
     expiresAt: new Date(Date.now() + 60_000),
   });
+  await getDb().insert(conversations).values({
+    tenantId,
+    deviceId: device!.id,
+    startedAt: new Date(),
+  });
+  await getDb().insert(deviceCalibration).values({
+    deviceId: device!.id,
+    tenantId,
+    threshold: 0.5,
+    minFrames: 3,
+    appliedBy: `operator:${label}@example.com`,
+  });
+  await getDb().insert(calibrationDefault).values({
+    id: `default-${label}`,
+    tenantId,
+    threshold: 0.5,
+    minFrames: 3,
+  });
+  await getDb().insert(calibrationAudit).values({
+    tenantId,
+    deviceId: device!.id,
+    threshold: 0.5,
+    minFrames: 3,
+    actor: `operator:${label}@example.com`,
+  });
+  await getDb().insert(providerAdapters).values({
+    tenantId,
+    name: `${label} adapter`,
+    endpoint: "https://adapter.example/v1",
+    kinds: ["llm"],
+    status: "verified",
+    health: "ok",
+  });
+  await getDb().insert(auditEvents).values({
+    tenantId,
+    actorEmail: `${label}@example.com`,
+    action: "test.event",
+    targetType: "tenant",
+    targetId: tenantId,
+  });
+  await createSession(userId);
   await getDb().insert(firmwareReleases).values({
     tenantId,
     boardType: "esp-box-3",
@@ -187,6 +234,35 @@ describe("tenant deletion", () => {
         .where(eq(column, second.tenant.id));
       assert.equal(other.length, 1, `${table} rows for the other tenant stay`);
     }
+
+
+    // Every table that carries tenant_id, not only the seeded ones.
+    const tableResult = await getDb().execute(
+      sql`select table_name from information_schema.columns
+          where table_schema = 'public' and column_name = 'tenant_id'`
+    );
+    const scopedTables = (
+      tableResult as unknown as { rows: Array<{ table_name: string }> }
+    ).rows;
+    assert.ok(scopedTables.length >= 10, "the scan found the tenant-scoped tables");
+    for (const { table_name } of scopedTables) {
+      const result = await getDb().execute(
+        sql`select count(*)::int as n from ${sql.identifier(table_name)}
+            where tenant_id = ${first.tenant.id}`
+      );
+      const rows = (result as unknown as { rows: Array<{ n: number }> }).rows;
+      assert.equal(Number(rows[0]?.n ?? 0), 0, `${table_name} keeps no row for the deleted tenant`);
+    }
+
+    // Sessions have no tenant_id; they follow the account.
+    const sessions = await getDb().execute(
+      sql`select count(*)::int as n from sessions where user_id = ${first.account.id}`
+    );
+    assert.equal(
+      Number((sessions as unknown as { rows: Array<{ n: number }> }).rows[0]?.n ?? 0),
+      0,
+      "the deleted tenant's sessions are gone"
+    );
 
     const audit = await getDb()
       .select()
